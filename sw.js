@@ -1,6 +1,6 @@
 // Service Worker — Mapa de amigos
 // Estrategia de caché pensada para escala (CDN + offline + actualización en segundo plano)
-const CACHE = "friends-map-v25";
+const CACHE = "friends-map-v26";
 const NUCLEO = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 
 // Instalar: precargar el núcleo para arranque instantáneo y offline

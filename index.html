@@ -256,7 +256,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 <div class="wrap">
   <header class="top">
     <div class="titlewrap"><div class="title"><h1>Friends Map</h1><small id="count"></small></div>
-      <p class="lema"><span class="ver" id="verEt" title="Versión de la app">2026.09.02-31</span> Todo el mundo quiere percibir que es <b>importante</b>, que <b>tiene éxito</b> y que recuerdan <b>su nombre</b>.</p></div>
+      <p class="lema"><span class="ver" id="verEt" title="Versión de la app">2026.09.02-32</span> Todo el mundo quiere percibir que es <b>importante</b>, que <b>tiene éxito</b> y que recuerdan <b>su nombre</b>.</p></div>
     <div class="tabs">
       <button data-tab="fichas" class="on">Fichas</button>
       <button data-tab="citas">Citas</button>
@@ -331,7 +331,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.02-31";
+var VERSION="2026.09.02-32";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -716,6 +716,20 @@ function openPersuasion(id){
     +(motor?'<br><b>Su motor principal:</b> '+esc(motor.nombre)+(motor.nota?' — '+esc(motor.nota):''):'')
     +(c?'<br><b>Su cebo:</b> '+esc(c):'')+'</div>';
 
+  // ---- El mismo menú: qué gana cada uno ----
+  var elGana=[]; if(p.ayuda) elGana.push(p.ayuda); if(p.buscaDeMi) elGana.push(p.buscaDeMi);
+  var yoGano=[]; if(quiero) yoGano.push(quiero); if(doy) yoGano.push(doy);
+  h+='<div style="background:#f3f8f5;border:1px solid #cfe6d9;border-left:4px solid #2f9d78;border-radius:12px;padding:12px 14px;margin-bottom:12px">'
+   +'<div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:#1d7a4d;font-weight:800;margin-bottom:6px">Comemos del mismo menú</div>'
+   +'<div style="display:flex;gap:14px;flex-wrap:wrap">'
+   +'<div style="flex:1;min-width:170px"><div style="font-size:12px;font-weight:700;color:var(--navy,#1e2a3a);margin-bottom:3px">Lo que gana '+el+'</div>'
+   +'<div style="font-size:12.5px;color:#33415a">'+(elGana.length?esc(elGana.join(" · ")):'<i style="color:var(--muted)">defínelo: sin esto no hay trato, hay favor</i>')+'</div></div>'
+   +'<div style="flex:1;min-width:170px"><div style="font-size:12px;font-weight:700;color:var(--navy,#1e2a3a);margin-bottom:3px">Lo que ganas tú</div>'
+   +'<div style="font-size:12.5px;color:#33415a">'+(yoGano.length?esc(yoGano.join(" · ")):'<i style="color:var(--muted)">sin definir</i>')+'</div></div>'
+   +'</div>'
+   +'<div style="margin-top:8px;font-size:12.5px;color:#1d7a4d"><b>La idea que tiene que quedarle:</b> «si esto sale, salimos ganando los dos». Nunca «me estás haciendo un favor».</div>'
+   +'</div>';
+
   // Paso 1
   h+=persPaso(1,"Reconocimiento sincero",
     recon.length ? 'Empieza por algo real que hayas visto en '+el+': <b>'+esc(recon[0])+'</b>. Concreto y verificable, nunca halago vacío.'
@@ -740,19 +754,25 @@ function openPersuasion(id){
       salud:'enmárcalo como algo que le quita preocupación',
       sustento:'enmárcalo como algo que le da estabilidad'
     })[motor.id] || 'enmárcalo en sus términos' : 'enmárcalo en sus términos';
-  h+=persPaso(3,"La petición, en su moneda",
-    quiero ? 'Quieres <b>'+esc(quiero)+'</b>. No lo pidas como favor: '+enc+'.'+(doy?' Recuerda que tú le aportas: <b>'+esc(doy)+'</b>.':'')
-           : 'Define primero qué necesitas de '+el+' y pídelo enmarcado en lo que a '+el+' le importa, no en lo que te importa a ti.',
-    quiero ? '«Se me ocurre algo que creo que te encaja: '+esc(quiero.toLowerCase())+'. Y a ti te vendría bien porque…»' : '');
+  h+=persPaso(3,"La propuesta, como terreno común",
+    quiero ? 'Quieres <b>'+esc(quiero)+'</b>. No lo plantees como un favor sino como <b>algo que os conviene a los dos</b>: '+enc+'.'
+             +(elGana.length?' Su parte del trato: <b>'+esc(elGana[0])+'</b>.':' Y ten claro qué se lleva '+el+', porque sin eso es un favor y los favores se agotan.')
+           : 'Define primero qué necesitas de '+el+' y plantéalo como terreno común: qué gana '+el+' y qué ganas tú.',
+    quiero ? '«Se me ocurre algo que nos encaja a los dos: '+esc(quiero.toLowerCase())+'. A ti te vendría bien porque…, y a mí me resuelve…»' : '');
 
   // Paso 4
-  h+=persPaso(4,"Pónselo fácil y deja que la idea sea suya",
-    'Reduce el esfuerzo al mínimo: propón tú la fecha, el formato y el siguiente paso. Y si puedes, haz que la conclusión la diga '+el+'.'
+  // Paso: que la idea sea suya
+  h+=persPaso(4,"Que la conclusión la diga "+el,
+    'No cierres tú la idea: llévale con preguntas hasta que la diga '+el+' mismo. Lo que uno concluye por su cuenta no se discute — y encima se lo apunta como suyo, que es justo lo que quieres.'
+    +'<br><br><b>Cómo:</b> pregunta en vez de afirmar, deja el silencio y no corrijas su forma de decirlo aunque tú lo dirías mejor.',
+    '«¿Cómo lo verías tú?» · «Si esto saliera, ¿a ti en qué te ayudaría?» · «¿Se te ocurre alguna forma de que encaje por tu lado?»');
+  h+=persPaso(5,"Pónselo fácil",
+    'Reduce el esfuerzo al mínimo: propón tú la fecha, el formato y el siguiente paso. Cuanto menos tenga que pensar '+el+', más fácil el sí.'
     +(buscaDeMi?' Ojo: '+el+' busca de ti <b>'+esc(buscaDeMi)+'</b> — dáselo primero.':''),
     '«Yo lo preparo y te lo dejo listo; tú solo dime si te encaja.»');
 
   // Paso 5
-  h+=persPaso(5,"Cierra con la puerta abierta",
+  h+=persPaso(6,"Cierra con la puerta abierta",
     'No fuerces el sí en la misma conversación. Deja un compromiso pequeño y una fecha concreta para volver.',
     '«Piénsalo sin prisa. ¿Te escribo el jueves y lo vemos?»');
 
