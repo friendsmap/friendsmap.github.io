@@ -256,7 +256,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 <div class="wrap">
   <header class="top">
     <div class="titlewrap"><div class="title"><h1>Friends Map</h1><small id="count"></small></div>
-      <p class="lema"><span class="ver" id="verEt" title="Versión de la app">2026.09.01-27</span> Todo el mundo quiere sentirse <b>admirado</b>, <b>importante</b>, <b>tener éxito</b> y que recuerden <b>su nombre</b>.</p></div>
+      <p class="lema"><span class="ver" id="verEt" title="Versión de la app">2026.09.02-28</span> Todo el mundo quiere sentirse <b>admirado</b>, <b>importante</b>, <b>tener éxito</b> y que recuerden <b>su nombre</b>.</p></div>
     <div class="tabs">
       <button data-tab="fichas" class="on">Fichas</button>
       <button data-tab="citas">Citas</button>
@@ -329,7 +329,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.01-27";
+var VERSION="2026.09.02-28";
 var KEY="mapaAmigos.v3";
 var MOTS=[
   ["salud","Salud y vida"],["sustento","Alimento y descanso"],["dinero","Dinero y lo que compra"],
@@ -2276,7 +2276,7 @@ function toast(t){
 }
 
 /* ---------- Google Drive automatico ---------- */
-var GD_CLIENT="887611717212-vc89q1jos6hmhpl0mg98am4lc1kjpffa.apps.googleusercontent.com";
+var GD_CLIENT="526816251342-2e2et8o0js86c9lf7v9gpkmq742ffvag.apps.googleusercontent.com";
 var GD={token:null,tokenClient:null,fileId:null,timer:null,expira:0};
 function gdSoportado(){ return location.protocol==="https:"; }
 function gdActivo(){ try{ return localStorage.getItem("mapaAmigos.gdrive")==="1"; }catch(e){ return false; } }
