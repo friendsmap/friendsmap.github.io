@@ -256,7 +256,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 <div class="wrap">
   <header class="top">
     <div class="titlewrap"><div class="title"><h1>Friends Map</h1><small id="count"></small></div>
-      <p class="lema"><span class="ver" id="verEt" title="Versión de la app">2026.09.02-28</span> Todo el mundo quiere sentirse <b>admirado</b>, <b>importante</b>, <b>tener éxito</b> y que recuerden <b>su nombre</b>.</p></div>
+      <p class="lema"><span class="ver" id="verEt" title="Versión de la app">2026.09.02-29</span> Todo el mundo quiere sentirse <b>admirado</b>, <b>importante</b>, <b>tener éxito</b> y que recuerden <b>su nombre</b>.</p></div>
     <div class="tabs">
       <button data-tab="fichas" class="on">Fichas</button>
       <button data-tab="citas">Citas</button>
@@ -329,8 +329,9 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.02-28";
-var KEY="mapaAmigos.v3";
+var VERSION="2026.09.02-29";
+var KEY="friendsMap.v1";
+var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
   ["salud","Salud y vida"],["sustento","Alimento y descanso"],["dinero","Dinero y lo que compra"],
   ["trascendencia","Sentido / trascendencia"],["afecto","Afecto y pareja"],
@@ -367,9 +368,13 @@ var SEED=null;
 
 /* ---------- persistencia ---------- */
 function newMe(){ return {nombre:"",titular:"",experiencia:"",resuelvo:"",logros:"",sectores:"",pido:""}; }
+function lsGet(k){ try{ var v=localStorage.getItem("friendsMap."+k); if(v===null) v=localStorage.getItem("mapaAmigos."+k); return v; }catch(e){ return null; } }
+function lsSet(k,v){ try{ localStorage.setItem("friendsMap."+k,v); }catch(e){} }
+function lsDel(k){ try{ localStorage.removeItem("friendsMap."+k); localStorage.removeItem("mapaAmigos."+k); }catch(e){} }
 function load(){
   try{
-    var raw=localStorage.getItem(KEY)||localStorage.getItem("mapaAmigos.v2")||localStorage.getItem("mapaAmigos.v1");
+    var raw=localStorage.getItem(KEY);
+    if(!raw){ for(var vi=0;vi<KEY_VIEJAS.length&&!raw;vi++) raw=localStorage.getItem(KEY_VIEJAS[vi]); }
     if(raw){ var d=JSON.parse(raw); state.people=Array.isArray(d.people)?d.people:[]; state.me=d.me||null; }
   }catch(e){ state.people=[]; }
   if(!state.me) state.me=newMe();
@@ -534,7 +539,7 @@ function borrarPersona(id,ev){
   if((p.notas||[]).length) extras.push((p.notas.length)+" nota"+(p.notas.length>1?"s":""));
   if((p.encuentros||[]).length) extras.push((p.encuentros.length)+" encuentro"+(p.encuentros.length>1?"s":""));
   if(p.discurso) extras.push("su discurso");
-  if(!confirm("\u00bfEliminar a "+n+"?"+(extras.length?"\n\nSe borra tambi\u00e9n "+extras.join(", ")+".":"")+"\n\nQuedar\u00e1 una copia en mapa-amigos-anterior.json la pr\u00f3xima vez que sincronices.")) return;
+  if(!confirm("\u00bfEliminar a "+n+"?"+(extras.length?"\n\nSe borra tambi\u00e9n "+extras.join(", ")+".":"")+"\n\nQuedar\u00e1 una copia en friends-map-anterior.json la pr\u00f3xima vez que sincronices.")) return;
   state.people=state.people.filter(function(x){ return x.id!==id; });
   state.people.forEach(function(x){ x.conexiones=(x.conexiones||[]).filter(function(c){ return c!==id; }); });
   save(); renderSeg(); renderAll();
@@ -2153,7 +2158,7 @@ function exportJSON(){
   try{
   var blob=new Blob([JSON.stringify({people:state.people,me:state.me,v:3,exported:new Date().toISOString()},null,2)],{type:"application/json"});
   var a=document.createElement("a");
-  a.href=URL.createObjectURL(blob); a.download="mapa-amigos.json"; a.click();
+  a.href=URL.createObjectURL(blob); a.download="friends-map.json"; a.click();
   setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
   }catch(e){ try{ toast("No he podido descargar el archivo. Usa \u22ef \u2192 Copiar o pegar datos."); }catch(e2){} }
 }
@@ -2279,10 +2284,10 @@ function toast(t){
 var GD_CLIENT="526816251342-2e2et8o0js86c9lf7v9gpkmq742ffvag.apps.googleusercontent.com";
 var GD={token:null,tokenClient:null,fileId:null,timer:null,expira:0};
 function gdSoportado(){ return location.protocol==="https:"; }
-function gdActivo(){ try{ return localStorage.getItem("mapaAmigos.gdrive")==="1"; }catch(e){ return false; } }
-function gdSet(v){ try{ v?localStorage.setItem("mapaAmigos.gdrive","1"):localStorage.removeItem("mapaAmigos.gdrive"); }catch(e){} }
-function gdHint(){ try{ return localStorage.getItem("mapaAmigos.gdhint")||""; }catch(e){ return ""; } }
-function gdSetHint(v){ try{ v?localStorage.setItem("mapaAmigos.gdhint",v):localStorage.removeItem("mapaAmigos.gdhint"); }catch(e){} }
+function gdActivo(){ try{ return lsGet("gdrive")==="1"; }catch(e){ return false; } }
+function gdSet(v){ try{ v?lsSet("gdrive","1"):lsDel("gdrive"); }catch(e){} }
+function gdHint(){ try{ return lsGet("gdhint")||""; }catch(e){ return ""; } }
+function gdSetHint(v){ try{ v?lsSet("gdhint",v):lsDel("gdhint"); }catch(e){} }
 function gdGuardarHint(tok){
   if(gdHint()) return Promise.resolve();
   return fetch("https://www.googleapis.com/oauth2/v3/userinfo",{headers:{Authorization:"Bearer "+tok}})
@@ -2324,7 +2329,7 @@ function gdToken(prompt){
   });
 }
 function gdBuscar(tok){
-  var q=encodeURIComponent("name='mapa-amigos.json' and trashed=false");
+  var q=encodeURIComponent("(name='friends-map.json' or name='mapa-amigos.json') and trashed=false");
   return fetch("https://www.googleapis.com/drive/v3/files?q="+q+"&orderBy=modifiedTime desc&fields=files(id,modifiedTime)",
     {headers:{Authorization:"Bearer "+tok}}).then(function(r){ return r.json(); })
     .then(function(j){ var f=(j.files||[])[0]; GD.fileId=f?f.id:null; return f||null; });
@@ -2347,7 +2352,7 @@ function gdSubir(tok){
   var txt=payload(), pass=getPass();
   var prep = pass ? cifrar(txt,pass) : Promise.resolve(txt);
   return prep.then(function(cont){
-    var meta={name:"mapa-amigos.json"};
+    var meta={name:"friends-map.json"};
     var boundary="mapaamigos"+Date.now();
     var body="--"+boundary+"\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"+JSON.stringify(meta)
       +"\r\n--"+boundary+"\r\nContent-Type: application/octet-stream\r\n\r\n"+cont+"\r\n--"+boundary+"--";
@@ -2381,7 +2386,7 @@ function gdBackup(tok){
   var txt=payload(), pass=getPass();
   var prep = pass ? cifrar(txt,pass) : Promise.resolve(txt);
   return prep.then(function(cont){
-    var meta={name:"mapa-amigos-backup-"+todayStr()+".json"};
+    var meta={name:"friends-map-backup-"+todayStr()+".json"};
     var boundary="bk"+Date.now();
     var body="--"+boundary+"\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"+JSON.stringify(meta)
       +"\r\n--"+boundary+"\r\nContent-Type: application/octet-stream\r\n\r\n"+cont+"\r\n--"+boundary+"--";
@@ -2392,7 +2397,7 @@ function gdBackup(tok){
   }).catch(function(){});
 }
 function gdPodarBackups(tok){
-  var q=encodeURIComponent("name contains 'mapa-amigos-backup-' and trashed=false");
+  var q=encodeURIComponent("name contains 'friends-map-backup-' and trashed=false");
   return fetch("https://www.googleapis.com/drive/v3/files?q="+q+"&orderBy=createdTime desc&fields=files(id,name)",{headers:{Authorization:"Bearer "+tok}})
     .then(function(r){ return r.json(); })
     .then(function(j){
@@ -2458,8 +2463,8 @@ function gdArranque(){
 
 /* ---------- cifrado extremo a extremo ---------- */
 var PASS=null;
-function getPass(){ if(PASS!==null) return PASS; try{ PASS=localStorage.getItem("mapaAmigos.pass"); }catch(e){ PASS=null; } return PASS; }
-function setPass(p){ PASS=p||null; try{ p?localStorage.setItem("mapaAmigos.pass",p):localStorage.removeItem("mapaAmigos.pass"); }catch(e){} }
+function getPass(){ if(PASS!==null) return PASS; try{ PASS=lsGet("pass"); }catch(e){ PASS=null; } return PASS; }
+function setPass(p){ PASS=p||null; try{ p?lsSet("pass",p):lsDel("pass"); }catch(e){} }
 function b64(buf){ var b=new Uint8Array(buf),s=""; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s); }
 function unb64(s){ var d=atob(s),a=new Uint8Array(d.length); for(var i=0;i<d.length;i++) a[i]=d.charCodeAt(i); return a; }
 function claveDe(pass,salt){
@@ -2472,12 +2477,12 @@ function cifrar(txt,pass){
   var salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
   return claveDe(pass,salt)
     .then(function(k){ return crypto.subtle.encrypt({name:"AES-GCM",iv:iv},k,new TextEncoder().encode(txt)); })
-    .then(function(ct){ return JSON.stringify({formato:"mapa-amigos-cifrado",v:1,alg:"AES-256-GCM",
+    .then(function(ct){ return JSON.stringify({formato:"friends-map-cifrado",v:1,alg:"AES-256-GCM",
       kdf:"PBKDF2-SHA256-250000",salt:b64(salt),iv:b64(iv),data:b64(ct)},null,1); });
 }
 function descifrar(txt,pass){
   var o=JSON.parse(txt);
-  if(!o || o.formato!=="mapa-amigos-cifrado") return Promise.reject(new Error("no cifrado"));
+  if(!o || o.formato!=="friends-map-cifrado") return Promise.reject(new Error("no cifrado"));
   return claveDe(pass,unb64(o.salt))
     .then(function(k){ return crypto.subtle.decrypt({name:"AES-GCM",iv:unb64(o.iv)},k,unb64(o.data)); })
     .then(function(pt){ return new TextDecoder().decode(pt); });
@@ -2489,7 +2494,7 @@ function purgarClaros(){
       var fuera=[];
       for await (var e of FS.handle.values()){
         if(e.kind!=="file") continue;
-        if(e.name==="mapa-amigos.json"||e.name==="mapa-amigos-anterior.json"||/^copia-\d{4}-\d{2}-\d{2}\.json$/.test(e.name)) fuera.push(e.name);
+        if(e.name==="friends-map.json"||e.name==="mapa-amigos.json"||e.name==="friends-map-anterior.json"||e.name==="friends-map-anterior.json"||/^copia-\d{4}-\d{2}-\d{2}\.json$/.test(e.name)) fuera.push(e.name);
       }
       for(var i=0;i<fuera.length;i++){ try{ await FS.handle.removeEntry(fuera[i]); }catch(e2){} }
       if(fuera.length) toast("Quitados de la nube "+fuera.length+" archivo(s) sin cifrar");
@@ -2500,8 +2505,8 @@ function purgarClaros(){
 /* ---------- sincronizacion con carpeta ---------- */
 var FS={handle:null,local:null,timer:null};
 function hoyISO(){ return new Date().toISOString().slice(0,10); }
-function syncMeta(){ try{ return JSON.parse(localStorage.getItem("mapaAmigos.sync")||"{}"); }catch(e){ return {}; } }
-function setSyncMeta(o){ try{ var m=syncMeta(); for(var k in o) m[k]=o[k]; localStorage.setItem("mapaAmigos.sync",JSON.stringify(m)); }catch(e){} }
+function syncMeta(){ try{ return JSON.parse(lsGet("sync")||"{}"); }catch(e){ return {}; } }
+function setSyncMeta(o){ try{ var m=syncMeta(); for(var k in o) m[k]=o[k]; lsSet("sync",JSON.stringify(m)); }catch(e){} }
 function savedLocal(){ try{ return (JSON.parse(localStorage.getItem(KEY)||"{}").saved)||""; }catch(e){ return ""; } }
 function payload(){ return JSON.stringify({people:state.people,me:state.me,v:3,saved:new Date().toISOString()},null,2); }
 function setSync(t){ var e=document.getElementById("syncSt"); if(e) e.textContent=t||""; FS.msg=t||""; }
@@ -2562,7 +2567,7 @@ function leerNombre(n){
 }
 function leerArchivo(){
   if(!FS.handle) return Promise.resolve(null);
-  return leerNombre("mapa-amigos.enc").then(function(t){
+  return leerNombre("friends-map.enc").then(function(t){
     var pass=getPass();
     if(!pass){ FS.pideClave=true; return null; }
     return descifrar(t,pass).then(function(plano){
@@ -2570,7 +2575,7 @@ function leerArchivo(){
       var d=JSON.parse(plano); return (d&&Array.isArray(d.people))?d:null;
     }).catch(function(){ FS.claveMala=true; return null; });
   }).catch(function(){
-    return leerNombre("mapa-amigos.json").then(function(t){
+    return leerNombre("friends-map.json").then(function(t){
       var d=JSON.parse(t); return (d&&Array.isArray(d.people))?d:null;
     }).catch(function(){ return null; });
   });
@@ -2585,7 +2590,7 @@ function escribirArchivo(){
   try{ marca=JSON.parse(txt).saved; }catch(e){}
   var pass=getPass();
   var prep = pass ? cifrar(txt,pass) : Promise.resolve(txt);
-  var nombre = pass ? "mapa-amigos.enc" : "mapa-amigos.json";
+  var nombre = pass ? "friends-map.enc" : "friends-map.json";
   return prep.then(function(contenido){
     return escribirEn(FS.handle,nombre,contenido).then(function(){
       setSyncMeta({ultimaEscritura:marca});
@@ -2600,7 +2605,7 @@ function escribirArchivo(){
 }
 function escribirLocal(txt){
   if(!FS.local) return Promise.resolve();
-  return escribirEn(FS.local,"mapa-amigos.json",txt).catch(function(){});
+  return escribirEn(FS.local,"friends-map.json",txt).catch(function(){});
 }
 function copiaDiaria(txt,ext){
   if(!FS.handle) return Promise.resolve();
@@ -2625,7 +2630,7 @@ async function limpiarCopias(){
 }
 function copiaSeguridad(d){
   if(!FS.handle||!d) return Promise.resolve();
-  return FS.handle.getFileHandle("mapa-amigos-anterior.json",{create:true})
+  return FS.handle.getFileHandle("friends-map-anterior.json",{create:true})
     .then(function(f){ return f.createWritable(); })
     .then(function(w){ return w.write(JSON.stringify(d,null,2)).then(function(){ return w.close(); }); })
     .catch(function(){});
@@ -2668,7 +2673,7 @@ function avisoFaltan(d,f){
     +'<p style="font-size:13px;margin:0 0 8px">Traigo lo que falta, lo uno con lo tuyo y después guardo. No se pierde nada de ningún lado.</p>'
     +'<button class="btn primary" id="fx_unir">Combinar y guardar</button></fieldset>'
     +'<fieldset><legend>Si sabes lo que haces</legend>'
-    +'<p style="font-size:13px;margin:0 0 8px">Guardar igualmente y borrar esas fichas de la carpeta. Antes dejo una copia en <code>mapa-amigos-anterior.json</code>.</p>'
+    +'<p style="font-size:13px;margin:0 0 8px">Guardar igualmente y borrar esas fichas de la carpeta. Antes dejo una copia en <code>friends-map-anterior.json</code>.</p>'
     +'<button class="btn danger" id="fx_forzar">Guardar de todas formas</button></fieldset>'
     +'<div class="modal-actions"><button class="btn" id="cancel">Cancelar</button></div>';
   showModal(h);
@@ -2682,7 +2687,7 @@ function avisoFaltan(d,f){
   };
   document.getElementById("fx_forzar").onclick=function(){
     if(!confirm("Se borrarán de la carpeta. ¿Seguro?")) return;
-    closeModal(); escribirCarpeta(true).then(function(){ toast("Guardado. La copia anterior está en mapa-amigos-anterior.json"); });
+    closeModal(); escribirCarpeta(true).then(function(){ toast("Guardado. La copia anterior está en friends-map-anterior.json"); });
   };
 }
 function programarSync(){
@@ -2801,7 +2806,7 @@ function enviarArchivo(){
   try{
     var txt=payload();
     try{ setSyncMeta({ultimoEnvio:JSON.parse(txt).saved}); }catch(e){}
-    var file=new File([txt],"mapa-amigos.json",{type:"application/json"});
+    var file=new File([txt],"friends-map.json",{type:"application/json"});
     if(navigator.canShare&&navigator.canShare({files:[file]})){
       navigator.share({files:[file],title:"Friends Map"}).then(function(){ revisarAvisos(); }).catch(function(){});
       return;
@@ -2811,8 +2816,8 @@ function enviarArchivo(){
 }
 /* ---------- IA: auto-relleno de la ficha desde notas y dictados ---------- */
 var IA_CAMPOS=[["preocupa","qué le preocupa o le quita el sueño"],["fascina","qué le fascina o le apasiona"],["exito","en qué quiere tener éxito"],["admirado","por qué querría sentirse admirado y por quién"],["importante","qué le hace sentir importante"],["ayuda","cómo podría ayudarle a conseguir lo suyo"],["logros","logros concretos suyos que reconocerle"],["quienesImportan","a quién quiere de verdad (su gente)"],["queQuierenLosSuyos","qué persiguen los suyos"],["gustosDeLosSuyos","aficiones y gustos de los suyos"],["pareja","su pareja"],["hijos","sus hijos"],["aficiones","sus aficiones e intereses"],["cebo","su cebo: lo que de verdad le mueve"],["gesto","un gesto que hacerle que cueste tiempo"]];
-function iaCfg(){ try{ return JSON.parse(localStorage.getItem("mapaAmigos.ia")||"{}"); }catch(e){ return {}; } }
-function iaSetCfg(o){ try{ var c=iaCfg(); for(var k in o) c[k]=o[k]; localStorage.setItem("mapaAmigos.ia",JSON.stringify(c)); }catch(e){} }
+function iaCfg(){ try{ return JSON.parse(lsGet("ia")||"{}"); }catch(e){ return {}; } }
+function iaSetCfg(o){ try{ var c=iaCfg(); for(var k in o) c[k]=o[k]; lsSet("ia",JSON.stringify(c)); }catch(e){} }
 function iaActiva(){ var c=iaCfg(); return !!(c.on && c.url); }
 function iaDesdeNota(p,nota){
   if(!iaActiva() || !nota || p.iaOff) return;
@@ -2932,7 +2937,7 @@ function openSync(){
     +'</div></fieldset>';
   if(puede && !gdActivo()){
     h+='<fieldset><legend>Carpeta manual (alternativa)</legend>'
-      +'<p style="font-size:13px;margin:0 0 8px">Elige una vez la carpeta <b>Mi unidad → Claude → App Amigos</b> de tu Drive y la app escribirá ahí <code>mapa-amigos.json</code> sola, cada vez que cambies algo. Es lo que lee tu aviso de las mañanas.</p>'
+      +'<p style="font-size:13px;margin:0 0 8px">Elige una vez la carpeta <b>Mi unidad</b> de tu Drive y la app escribirá ahí <code>friends-map.json</code> sola, cada vez que cambies algo. Es lo que lee tu aviso de las mañanas.</p>'
       +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
       +'<button class="btn primary" id="sy_conectar">'+(conectada?"Cambiar carpeta":"Conectar carpeta")+'</button>'
       +(conectada?'<button class="btn" id="sy_guardar">Guardar ahora</button><button class="btn" id="sy_traer">Traer de la carpeta</button>':'')
@@ -3020,7 +3025,7 @@ function openSync(){
   if((b=document.getElementById("sy_guardar"))) b.onclick=function(){ escribirCarpeta().then(function(ok){ if(ok){ closeModal(); } }); };
   if((b=document.getElementById("sy_traer"))) b.onclick=function(){
     leerCarpeta().then(function(d){
-      if(!d){ alert("No he podido leer mapa-amigos.json en esa carpeta."); return; }
+      if(!d){ alert("No he podido leer friends-map.json en esa carpeta."); return; }
       if(!state.people.length){ aplicarDatos(d); closeModal(); toast("Cargado desde la carpeta"); return; }
       elegirComo(d,"desde la carpeta compartida");
     });
@@ -3380,7 +3385,7 @@ var TERMINOS_HTML=''
  +'<p><b>Estadísticas anónimas.</b> Para mejorar la app se envían datos de uso <b>anónimos</b> (pantallas usadas, errores, nº de fichas y su categoría, y temas en categorías amplias). <b>Nunca</b> se envía el contenido de tus fichas ni nombres, ni nada que identifique a tus contactos. Puedes desactivarlo cuando quieras en <b>Sincronizar → Monitoreo anónimo</b>.</p>'
  +'<p><b>Tus derechos.</b> Puedes exportar o borrar tus datos en cualquier momento desde la app.</p>'
  +'<p style="color:var(--muted);font-size:12px">La app se ofrece "tal cual". Versión de condiciones: '+TERMS_VER+'.</p>';
-function consentOK(){ try{ return localStorage.getItem("mapaAmigos.consent")===TERMS_VER; }catch(e){ return false; } }
+function consentOK(){ try{ return lsGet("consent")===TERMS_VER; }catch(e){ return false; } }
 function pedirConsentimiento(){
   if(consentOK()) return;
   var o=document.createElement("div"); o.id="consent";
@@ -3393,7 +3398,7 @@ function pedirConsentimiento(){
   document.body.appendChild(o);
   var chk=o.querySelector("#cst_ok"), go=o.querySelector("#cst_go");
   chk.onchange=function(){ go.disabled=!chk.checked; };
-  go.onclick=function(){ try{ localStorage.setItem("mapaAmigos.consent",TERMS_VER); }catch(e){} o.remove(); try{ telInit(); }catch(e){} };
+  go.onclick=function(){ try{ lsSet("consent",TERMS_VER); }catch(e){} o.remove(); try{ telInit(); }catch(e){} };
 }
 function verPrivacidad(){
   showModal('<h2>Privacidad y condiciones</h2><div style="font-size:13.5px;line-height:1.55">'+TERMINOS_HTML+'</div>'
@@ -3405,13 +3410,13 @@ function verPrivacidad(){
 var TEL_T0=Date.now();
 var TEL_URL="https://mapa-amigos-monitor.geselectiberica.workers.dev/collect"; // endpoint de estadísticas anónimas, integrado para todas las instalaciones
 function telUrl(){ var c=telCfg(); return c.url || TEL_URL; }
-function telCfg(){ try{ return JSON.parse(localStorage.getItem("mapaAmigos.tel")||"{}"); }catch(e){ return {}; } }
-function telSetCfg(o){ try{ var c=telCfg(); for(var k in o) c[k]=o[k]; localStorage.setItem("mapaAmigos.tel",JSON.stringify(c)); }catch(e){} }
+function telCfg(){ try{ return JSON.parse(lsGet("tel")||"{}"); }catch(e){ return {}; } }
+function telSetCfg(o){ try{ var c=telCfg(); for(var k in o) c[k]=o[k]; lsSet("tel",JSON.stringify(c)); }catch(e){} }
 function telActiva(){ var c=telCfg(); return !!(telUrl() && c.on!==false && consentOK()); }
 function telId(){
-  try{ var i=localStorage.getItem("mapaAmigos.telid"); if(i) return i;
+  try{ var i=lsGet("telid"); if(i) return i;
     i=(crypto&&crypto.randomUUID)?crypto.randomUUID():("id"+Date.now()+Math.random().toString(16).slice(2));
-    localStorage.setItem("mapaAmigos.telid",i); return i; }catch(e){ return "anon"; }
+    lsSet("telid",i); return i; }catch(e){ return "anon"; }
 }
 function tel(ev,data){
   try{
