@@ -256,11 +256,11 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 <div class="wrap">
   <header class="top">
     <div class="titlewrap"><div class="title"><h1>Friends Map</h1><small id="count"></small></div>
-      <p class="lema"><span class="ver" id="verEt" title="Versión de la app">2026.09.02-29</span> Todo el mundo quiere sentirse <b>admirado</b>, <b>importante</b>, <b>tener éxito</b> y que recuerden <b>su nombre</b>.</p></div>
+      <p class="lema"><span class="ver" id="verEt" title="Versión de la app">2026.09.02-31</span> Todo el mundo quiere percibir que es <b>importante</b>, que <b>tiene éxito</b> y que recuerdan <b>su nombre</b>.</p></div>
     <div class="tabs">
       <button data-tab="fichas" class="on">Fichas</button>
       <button data-tab="citas">Citas</button>
-      <button data-tab="mapa">Mapa</button>
+      <button data-tab="mapa">Network Map</button>
       <button data-tab="agenda">Agenda</button>
       <button data-tab="negocio">Negocio</button>
       <button data-tab="informe">Informe</button>
@@ -291,6 +291,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
         <option value="personas">Mapa de personas</option>
         <option value="industrias">Mapa profesional (por sector)</option>
         <option value="afinidad">Afinidad por objetivos</option>
+        <option value="sinergias">Sinergias entre fichas</option>
       </select>
     </div>
     <div id="graphBox">
@@ -303,6 +304,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
     </div>
     <div id="circulosBox" style="display:none"></div>
     <div id="afinidadBox" style="display:none"></div>
+    <div id="sinergiasBox" style="display:none"></div>
     <p id="mapaHint" style="color:var(--muted);font-size:12.5px">Arrastra los nodos, rueda para acercar, clic en una persona para abrir su ficha. El color indica la categoría.</p>
   </div>
   <div id="view-agenda" style="display:none"><div id="agenda"></div></div>
@@ -329,7 +331,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.02-29";
+var VERSION="2026.09.02-31";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -348,6 +350,7 @@ var CEBOS={
   admiracion:"que alguien reconozca de verdad lo que hace, y que se diga delante de quien le importa"
 };
 var TIPOS=[
+  ["personal","Personal","#5aa8a0"],
   ["amigo","Amigo","#2f9d78"],
   ["familiar","Familiar","#8c5aa8"],
   ["conocido","Conocido","#6d7a8c"],
@@ -525,6 +528,7 @@ function renderCards(){
       +'<div class="cardacts"><button class="btn sm" onclick="openNota(\''+p.id+'\')">+ Conversación</button>'
       +'<button class="btn sm" onclick="verEscena(\''+p.id+'\')">Imagen</button>'
       +'<button class="btn sm" onclick="openGuion(\''+p.id+'\')">Guión</button>'
+      +'<button class="btn sm" onclick="openPersuasion(\''+p.id+'\')">Persuasión</button>'
       +'<button class="btn sm" onclick="openPlan(\''+p.id+'\')">Plan</button>'
       +'<button class="btn sm" onclick="openCita(\''+p.id+'\')">Agendar</button>'
       +'<button class="btn sm" onclick="openFeedback(\''+p.id+'\',null)">¿Cómo fue?</button></div></div>';
@@ -674,6 +678,99 @@ function vinculoHTML(p){
   h+='</div>';
   return h;
 }
+/* ---------- Plan de persuasión sugerido por la app ---------- */
+function motorPrincipal(p){
+  var m=p.mot||{}, mejor=null, max=0;
+  MOTS.forEach(function(x){ var v=(m[x[0]]&&+m[x[0]].n)||0; if(v>max){ max=v; mejor={id:x[0],nombre:x[1],nota:(m[x[0]].t||"")}; } });
+  return mejor;
+}
+function trozos(txt,n){
+  var s=String(txt||"").trim(); if(!s) return [];
+  return s.split(/[.;\n]+/).map(function(x){return x.trim();}).filter(function(x){return x.length>3;}).slice(0,n||3);
+}
+function persPaso(num,titulo,cuerpo,frase){
+  return '<div style="background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:9px">'
+    +'<div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:800;margin-bottom:3px">Paso '+num+' · '+esc(titulo)+'</div>'
+    +'<div style="font-size:13px;color:#33415a">'+cuerpo+'</div>'
+    +(frase?'<div style="margin-top:7px;background:#f4f7fb;border-left:3px solid #8b9fd0;border-radius:0 8px 8px 0;padding:7px 10px;font-size:12.5px;font-style:italic;color:#2b3b50">'+frase+'</div>':'')
+    +'</div>';
+}
+function openPersuasion(id){
+  var p=ensure(byId(id)); if(!p) return;
+  var el=EL(p), motor=motorPrincipal(p), c=(p.cebo||"").trim();
+  var quiero=(p.necesito||"").trim(), doy=(p.meAporta||"").trim(), buscaDeMi=(p.buscaDeMi||"").trim();
+  var recon=trozos(p.logros||p.presume,2), preo=trozos(p.preocupa,2), fasc=trozos(p.fascina||p.aficiones,3);
+  var faltan=[];
+  if(!quiero) faltan.push("qué necesitas de "+el);
+  if(!c && !motor) faltan.push("su cebo o qué le mueve");
+  if(!recon.length) faltan.push("algo que reconocerle");
+
+  var h='<h2>Plan de persuasión — '+esc(p.nombre)+'</h2>'
+   +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 12px">Sugerido por la app a partir de lo que has anotado en su ficha.</p>';
+
+  if(faltan.length){
+    h+='<div class="warnbox">Para afinar el plan, completa en su ficha: <b>'+faltan.join("</b>, <b>")+'</b>. Con eso te doy una estrategia mucho más concreta.</div>';
+  }
+
+  h+='<div class="infobox"><b>El objetivo:</b> '+(quiero?esc(quiero):'<i>sin definir todavía</i>')
+    +(motor?'<br><b>Su motor principal:</b> '+esc(motor.nombre)+(motor.nota?' — '+esc(motor.nota):''):'')
+    +(c?'<br><b>Su cebo:</b> '+esc(c):'')+'</div>';
+
+  // Paso 1
+  h+=persPaso(1,"Reconocimiento sincero",
+    recon.length ? 'Empieza por algo real que hayas visto en '+el+': <b>'+esc(recon[0])+'</b>. Concreto y verificable, nunca halago vacío.'
+                 : 'Antes de pedir nada, busca algo real que reconocerle. Si no lo tienes anotado, obsérvalo en la próxima conversación.',
+    recon.length ? '«Me fijé en '+esc(recon[0].toLowerCase())+'. No es fácil, y me pareció de mérito.»' : '');
+
+  // Paso 2
+  h+=persPaso(2,"Habla de lo suyo, no de lo tuyo",
+    preo.length ? 'Lo que le quita el sueño: <b>'+esc(preo[0])+'</b>. Pregunta por ahí y escucha antes de proponer.'
+                : (fasc.length ? 'Le interesa <b>'+esc(fasc.join(", "))+'</b>. Entra por ahí y deja que hable.'
+                               : 'Pregúntale por su situación y escucha: la información que te falta te la va a dar '+el+' mismo.'),
+    preo.length ? '«¿Cómo lo estás llevando con '+esc(preo[0].toLowerCase())+'?»' : (fasc.length?'«Cuéntame cómo empezaste con '+esc(fasc[0].toLowerCase())+'.»':''));
+
+  // Paso 3
+  var enc = motor ? ({
+      dinero:'enmárcalo como algo que le ahorra o le hace ganar',
+      importancia:'enmárcalo como algo donde él queda como el que lo resolvió',
+      admiracion:'enmárcalo como algo que otros le van a reconocer',
+      trascendencia:'enmárcalo como algo que deja huella y dura',
+      afecto:'enmárcalo como algo que le acerca a los suyos',
+      hijos:'enmárcalo como algo bueno para sus hijos',
+      salud:'enmárcalo como algo que le quita preocupación',
+      sustento:'enmárcalo como algo que le da estabilidad'
+    })[motor.id] || 'enmárcalo en sus términos' : 'enmárcalo en sus términos';
+  h+=persPaso(3,"La petición, en su moneda",
+    quiero ? 'Quieres <b>'+esc(quiero)+'</b>. No lo pidas como favor: '+enc+'.'+(doy?' Recuerda que tú le aportas: <b>'+esc(doy)+'</b>.':'')
+           : 'Define primero qué necesitas de '+el+' y pídelo enmarcado en lo que a '+el+' le importa, no en lo que te importa a ti.',
+    quiero ? '«Se me ocurre algo que creo que te encaja: '+esc(quiero.toLowerCase())+'. Y a ti te vendría bien porque…»' : '');
+
+  // Paso 4
+  h+=persPaso(4,"Pónselo fácil y deja que la idea sea suya",
+    'Reduce el esfuerzo al mínimo: propón tú la fecha, el formato y el siguiente paso. Y si puedes, haz que la conclusión la diga '+el+'.'
+    +(buscaDeMi?' Ojo: '+el+' busca de ti <b>'+esc(buscaDeMi)+'</b> — dáselo primero.':''),
+    '«Yo lo preparo y te lo dejo listo; tú solo dime si te encaja.»');
+
+  // Paso 5
+  h+=persPaso(5,"Cierra con la puerta abierta",
+    'No fuerces el sí en la misma conversación. Deja un compromiso pequeño y una fecha concreta para volver.',
+    '«Piénsalo sin prisa. ¿Te escribo el jueves y lo vemos?»');
+
+  if(p.evitar) h+='<div class="warnbox" style="margin-top:4px"><b>Evita:</b> '+esc(p.evitar)+'</div>';
+
+  h+='<div class="modal-actions"><button class="btn" onclick="closeModal()">Cerrar</button>'
+    +'<button class="btn" id="pers_ficha">Abrir su ficha</button>'
+    +'<button class="btn primary" id="pers_copiar">Copiar el plan</button></div>';
+  showModal(h);
+  var b1=document.getElementById("pers_ficha"); if(b1) b1.onclick=function(){ closeModal(); openEdit(p.id); };
+  var b2=document.getElementById("pers_copiar");
+  if(b2) b2.onclick=function(){
+    var t=document.getElementById("modal").innerText.replace(/\n{3,}/g,"\n\n");
+    try{ navigator.clipboard.writeText(t); toast("Plan copiado"); }catch(e){ toast("No se pudo copiar"); }
+  };
+  tel("action",{a:"persuasion"});
+}
+
 function openPlan(id){
   var p=ensure(byId(id)); if(!p) return;
   var t=terreno(p), neg=esNegocio(p), c=ceboDe(p);
@@ -846,15 +943,72 @@ function renderAfinidad(){
 }
 function mapaRender(){
   var gb=document.getElementById("graphBox"), ab=document.getElementById("afinidadBox"),
-      cb=document.getElementById("circulosBox"), hint=document.getElementById("mapaHint");
-  var esCir=(state.modoMapa==="circulos"), esAfi=(state.modoMapa==="afinidad");
-  if(gb) gb.style.display=(esCir||esAfi)?"none":"";
-  if(hint) hint.style.display=(esCir||esAfi)?"none":"";
+      cb=document.getElementById("circulosBox"), sb=document.getElementById("sinergiasBox"),
+      hint=document.getElementById("mapaHint");
+  var esCir=(state.modoMapa==="circulos"), esAfi=(state.modoMapa==="afinidad"), esSin=(state.modoMapa==="sinergias");
+  var otro=esCir||esAfi||esSin;
+  if(gb) gb.style.display=otro?"none":"";
+  if(hint) hint.style.display=otro?"none":"";
   if(ab) ab.style.display=esAfi?"":"none";
   if(cb) cb.style.display=esCir?"":"none";
+  if(sb) sb.style.display=esSin?"":"none";
   if(esAfi){ renderAfinidad(); return; }
+  if(esSin){ renderSinergias(); return; }
   if(esCir){ renderCirculos(); return; }
   buildGraph();
+}
+/* ---------- Sinergias entre fichas: quién encaja con quién ---------- */
+function palabrasClave(txt){
+  var stop={"para":1,"con":1,"que":1,"los":1,"las":1,"del":1,"por":1,"una":1,"uno":1,"sus":1,"más":1,"mas":1,"muy":1,"como":1,"esta":1,"este":1,"pero":1,"todo":1,"toda":1,"hace":1,"hacer":1,"tiene":1,"tener":1,"desde":1,"sobre":1,"entre":1,"cuando":1,"donde":1,"porque":1,"aunque":1,"también":1,"tambien":1,"ser":1,"estar":1,"año":1,"años":1,"vez":1,"casa":1,"gente":1,"cosas":1,"tema":1,"temas":1};
+  return String(txt||"").toLowerCase()
+    .replace(/[^a-záéíóúñü\s]/g," ").split(/\s+/)
+    .filter(function(w){ return w.length>3 && !stop[w]; });
+}
+function perfilDe(p){
+  var campos=[p.aficiones,p.deportes,p.musica,p.comida,p.temas,p.fascina,p.exito,p.preocupa,p.sector,p.empleo,p.ayuda,p.necesito,p.buscaDeMi];
+  var set={}; palabrasClave(campos.join(" ")).forEach(function(w){ set[w]=1; });
+  return Object.keys(set);
+}
+function renderSinergias(){
+  var box=document.getElementById("sinergiasBox"); if(!box) return;
+  var list=filtered();
+  if(list.length<2){ box.innerHTML='<div class="empty">Necesitas al menos dos fichas con intereses anotados para ver sinergias.</div>'; return; }
+  var perfiles=list.map(function(p){ return {p:p, w:perfilDe(p)}; });
+  var pares=[];
+  for(var i=0;i<perfiles.length;i++) for(var j=i+1;j<perfiles.length;j++){
+    var a=perfiles[i], b=perfiles[j];
+    if(!a.w.length||!b.w.length) continue;
+    var comunes=a.w.filter(function(w){ return b.w.indexOf(w)>=0; });
+    if(comunes.length<2) continue;
+    var mismoGrupo=(a.p.grupo||"")===(b.p.grupo||"") && !!a.p.grupo;
+    pares.push({a:a.p, b:b.p, com:comunes, n:comunes.length, mismoGrupo:mismoGrupo});
+  }
+  pares.sort(function(x,y){ return y.n-x.n; });
+  var h='<h3 style="margin:0 0 4px">Sinergias entre fichas</h3>'
+   +'<p style="color:var(--muted);font-size:13px;margin:0 0 12px">Personas de tu red que comparten intereses, sector o preocupaciones. Presentarlas puede aportar valor a las dos — y a ti te convierte en el nexo.</p>';
+  if(!pares.length){
+    h+='<div class="empty">Todavía no encuentro coincidencias claras. Rellena <b>aficiones</b>, <b>temas</b>, <b>qué le fascina</b> o <b>sector</b> en algunas fichas y vuelve.</div>';
+    box.innerHTML=h; return;
+  }
+  pares.slice(0,40).forEach(function(x){
+    var fuerza = x.n>=5 ? "alta" : (x.n>=3 ? "media" : "leve");
+    var col = x.n>=5 ? "#2f9d78" : (x.n>=3 ? "#d99b2b" : "#8a93a3");
+    h+='<div style="background:#fff;border:1px solid var(--line);border-left:4px solid '+col+';border-radius:12px;padding:11px 13px;margin-bottom:9px">'
+      +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px">'
+      +'<b style="cursor:pointer;color:var(--ink)" onclick="openEdit(\''+x.a.id+'\')">'+esc(x.a.nombre)+'</b>'
+      +'<span style="color:var(--muted)">↔</span>'
+      +'<b style="cursor:pointer;color:var(--ink)" onclick="openEdit(\''+x.b.id+'\')">'+esc(x.b.nombre)+'</b>'
+      +'<span style="background:'+col+'22;color:'+col+';border-radius:10px;padding:1px 9px;font-size:11px;font-weight:700">afinidad '+fuerza+'</span>'
+      +(x.mismoGrupo?'<span style="color:var(--muted);font-size:11.5px">· mismo círculo</span>':'')
+      +'</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px">'
+      + x.com.slice(0,8).map(function(w){ return '<span style="background:#eef3f8;border:1px solid var(--line);border-radius:20px;padding:2px 9px;font-size:11.5px">'+esc(w)+'</span>'; }).join("")
+      +'</div>'
+      +'<div style="font-size:12.5px;color:#44506e">Idea: preséntalos o menciona a uno cuando hables con el otro. <i>«Conozco a alguien a quien también le interesa '+esc(x.com[0])+', creo que os llevaríais bien.»</i></div>'
+      +'</div>';
+  });
+  if(pares.length>40) h+='<p style="color:var(--muted);font-size:12px">Mostrando las 40 conexiones más fuertes de '+pares.length+'.</p>';
+  box.innerHTML=h;
 }
 /* ---------- Mapa por círculos: radial y agrupado por familias ---------- */
 var CIRC={x:0,y:0,k:1,orden:null};
@@ -971,11 +1125,11 @@ function renderCirculos(){
   // centro
   s+='<circle cx="'+cx+'" cy="'+cy+'" r="38" fill="#1e2a3a"/><text x="'+cx+'" y="'+(cy+6)+'" font-size="16" font-weight="800" fill="#fff" text-anchor="middle">YO</text>';
   s+='</g></svg>';
-  s+='<div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">'
+  s+='<p style="color:var(--muted);font-size:12.5px;margin-top:6px">Arrastra para mover · rueda para acercar · toca a alguien para abrir su ficha · toca un círculo para quitarlo.</p>';
+  var ctrl='<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;flex-wrap:wrap">'
    +'<button class="btn sm" onclick="cirZoom(1.2)">＋</button><button class="btn sm" onclick="cirZoom(0.83)">－</button>'
-   +'<button class="btn sm" onclick="cirReset()">Centrar</button><button class="btn sm" onclick="cirReordenar()">Reordenar</button>'
-   +'<span style="color:var(--muted);font-size:12.5px">Arrastra para mover · rueda para acercar · toca a alguien para abrir su ficha · toca un círculo para quitarlo.</span></div>';
-  box.innerHTML=chips+s;
+   +'<button class="btn sm" onclick="cirReset()">Centrar</button><button class="btn sm" onclick="cirReordenar()">Reordenar</button></div>';
+  box.innerHTML=ctrl+chips+s;
   cirWire();
 }
 function cirWire(){
@@ -1102,6 +1256,7 @@ function citaRow(x){
     +(e.hecho?'<span class="badge">registrado</span>'
       :'<button class="btn sm" onclick="openPlan(\''+p.id+'\')">Plan</button>'
        +'<button class="btn sm" onclick="openGuion(\''+p.id+'\')">Guión</button>'
+      +'<button class="btn sm" onclick="openPersuasion(\''+p.id+'\')">Persuasión</button>'
        +'<button class="btn sm" onclick="openFeedback(\''+p.id+'\',\''+e.id+'\')">¿Cómo fue?</button>')
     +'</div>';
 }
@@ -3174,7 +3329,7 @@ function renderInforme(){
   if(state.q) alcance+=' · búsqueda "'+state.q+'"';
   var h='<div class="inf-h1">Friends Map</div>'
     +'<div class="inf-meta">'+esc(hoy)+' · '+list.length+' de '+state.people.length+' personas · '+esc(alcance)+'</div>'
-    +'<p class="lema" style="margin:-10px 0 18px">Todo el mundo quiere sentirse <b>admirado</b>, <b>importante</b>, <b>tener éxito</b> y que recuerden <b>su nombre</b>.</p>';
+    +'<p class="lema" style="margin:-10px 0 18px">Todo el mundo quiere percibir que es <b>importante</b>, que <b>tiene éxito</b> y que recuerdan <b>su nombre</b>.</p>';
   if(!list.length){ el.innerHTML=h+'<p style="color:var(--muted)">No hay nadie que cumpla el filtro actual.</p>'; return; }
   var t=today(), citas=0, tocaEscribir=0, cumples=0, pasosPend=0;
   list.forEach(function(p){
@@ -3250,7 +3405,7 @@ function renderInforme(){
 
 /* ---------- render global ---------- */
 var AMBITOS=[
-  {id:"personal",  nombre:"Personal",     tipos:["amigo","conocido","familiar"]},
+  {id:"personal",  nombre:"Personal",     tipos:["personal","amigo","conocido","familiar"]},
   {id:"profesional",nombre:"Profesional", tipos:["profesional","fabricante","proveedor","cliente"]}
 ];
 function ambitoDe(t){ for(var i=0;i<AMBITOS.length;i++) if(AMBITOS[i].tipos.indexOf(t)>=0) return AMBITOS[i].id; return "personal"; }
@@ -3273,7 +3428,7 @@ function renderSeg(){
       +'<button class="ambtit" data-amb="'+A.id+'">'+A.nombre+' <span class="n">'+n+'</span></button>'
       +'<div class="subtipos">';
     // "Profesional" no se muestra como etiqueta: el propio recuadro ya lo dice
-    TIPOS.filter(function(t){ return A.tipos.indexOf(t[0])>=0 && t[0]!=="profesional"; }).forEach(function(t){
+    TIPOS.filter(function(t){ return A.tipos.indexOf(t[0])>=0 && t[0]!=="profesional" && t[0]!=="personal"; }).forEach(function(t){
       var sel=ta.indexOf(t[0])>=0;
       h+='<button data-t="'+t[0]+'" class="'+(sel?"on":"")+'" style="'+(sel&&t[2]?"color:"+t[2]:"")+'">'
         +'<span class="dot" style="background:'+t[2]+'"></span>'+t[1]+'</button>';
@@ -3408,7 +3563,7 @@ function verPrivacidad(){
 
 /* ---------- telemetría anónima (opcional, solo si hay backend y consentimiento) ---------- */
 var TEL_T0=Date.now();
-var TEL_URL="https://mapa-amigos-monitor.geselectiberica.workers.dev/collect"; // endpoint de estadísticas anónimas, integrado para todas las instalaciones
+var TEL_URL="https://friends-map-monitor.satoshinakamoto20383.workers.dev/collect"; // endpoint de estadísticas anónimas, integrado para todas las instalaciones
 function telUrl(){ var c=telCfg(); return c.url || TEL_URL; }
 function telCfg(){ try{ return JSON.parse(lsGet("tel")||"{}"); }catch(e){ return {}; } }
 function telSetCfg(o){ try{ var c=telCfg(); for(var k in o) c[k]=o[k]; lsSet("tel",JSON.stringify(c)); }catch(e){} }
