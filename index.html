@@ -333,7 +333,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.09-36";
+var VERSION="2026.09.09-37";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -1095,64 +1095,162 @@ function renderCirculos(){
   var kPer=orden(Object.keys(g).filter(function(k){ return ambDe[k]!=="profesional"; }));
   var kPro=orden(Object.keys(g).filter(function(k){ return ambDe[k]==="profesional"; }));
 
-  var W=1240,H=820,cx=W/2,cy=H/2,R=250;
-  var s='<svg id="cirSvg" viewBox="-100 -120 '+(W+200)+' '+(H+320)+'" width="100%" style="display:block;height:min(72vh,620px);background:#fff;border:1px solid var(--line);border-radius:14px;cursor:grab;touch-action:none"><g id="cirPan">';
+  /* ---------- cuánto sitio necesita cada círculo ---------- */
+  var rDe={}, necesita={};
+  Object.keys(g).forEach(function(k){
+    var n=g[k].length;
+    rDe[k]=Math.min(120,44+n*9);
+    var anchoNombre=Math.min(150, k.length*7.2+26);
+    necesita[k]=Math.max(anchoNombre, 2*rDe[k]*0.72)+34;   // arco lateral que ocupa
+  });
+  var nPer=kPer.length, nPro=kPro.length;
 
-  // ---- los dos recuadros ----
-  var pad=18, mid=cx, top=-70, alto=H+230;
-  s+='<rect x="'+(-70)+'" y="'+top+'" width="'+(mid-pad+70)+'" height="'+alto+'" rx="22" fill="#f5f2fa" stroke="#e2d9ef" stroke-width="2"/>';
-  s+='<rect x="'+(mid+pad)+'" y="'+top+'" width="'+(W-mid-pad+70)+'" height="'+alto+'" rx="22" fill="#eef4f9" stroke="#d6e3ef" stroke-width="2"/>';
-  s+='<text x="'+(mid-pad-26)+'" y="'+(top+32)+'" font-size="17" font-weight="800" fill="#6a4c93" text-anchor="end" letter-spacing="1.6">PERSONAL</text>';
-  s+='<text x="'+(mid+pad+26)+'" y="'+(top+32)+'" font-size="17" font-weight="800" fill="#3f6fa5" letter-spacing="1.6">PROFESIONAL</text>';
+  /* dos filas concéntricas si un lado lleva muchos círculos: así el anillo no se dispara */
+  function filasDe(ks){
+    if(ks.length<=6) return [ks.slice()];
+    var f=[[],[]]; ks.forEach(function(k,i){ f[i%2].push(k); }); return f;
+  }
+  var FACTOR=1.5;                                   // separación entre las dos filas
+  function radioPara(ks,arco){
+    var fs=filasDe(ks), r=0;
+    fs.forEach(function(f,i){
+      var s=0; f.forEach(function(k){ s+=necesita[k]; });
+      var cand=s/(arco*(i===0?1:FACTOR));
+      if(cand>r) r=cand;
+    });
+    return r;
+  }
+  /* el arco de cada lado depende de cuántos círculos tenga, no es media vuelta fija */
+  function arcoDe(ks){ return Math.min(Math.PI*0.92, Math.max(Math.PI*0.30, ks.length*0.36)); }
+  var arcoPer=arcoDe(kPer), arcoPro=arcoDe(kPro);
+  if(!nPer||!nPro){ arcoPer=arcoPro=Math.PI*1.92; }   // un solo lado: vuelta casi completa
+  /* y cada lado tiene su propio radio: el lado con más gente se abre más */
+  var Rper=nPer?Math.min(760,Math.max(200,radioPara(kPer,arcoPer))):0;
+  var Rpro=nPro?Math.min(760,Math.max(200,radioPara(kPro,arcoPro))):0;
+  var R=Math.max(Rper,Rpro);
 
-  var pos={};
-  // personales: semicírculo izquierdo (de 90° a 270°) · profesionales: derecho (-90° a 90°)
-  function coloca(ks,desde,hasta,tinte){
-    ks.forEach(function(k,i){
-      var t = ks.length===1 ? 0.5 : i/(ks.length-1);
-      var ang = desde + (hasta-desde)*t;
-      var gx=cx+Math.cos(ang)*R, gy=cy+Math.sin(ang)*R;
-      pos[k]={x:gx,y:gy,ang:ang,color:circColor(k,i+(tinte==="pro"?5:0))};
-      s+='<line x1="'+cx+'" y1="'+cy+'" x2="'+gx+'" y2="'+gy+'" stroke="'+(tinte==="pro"?"#dde8f2":"#e6ddf0")+'" stroke-width="2"/>';
+  /* ---------- colocación (centro en 0,0; el encuadre se calcula después) ---------- */
+  var pos={}, etiquetas=[], pts=[];
+  function anota(x,y,an,al){ pts.push({x0:x-an/2,x1:x+an/2,y0:y-al/2,y1:y+al/2}); }
+  function reparte(ks,centro,arco,tinte,Rlado){
+    if(!ks.length) return;
+    filasDe(ks).forEach(function(fila,fi){
+      var Rf=Rlado*(fi===0?1:FACTOR);
+      var pesos=fila.map(function(k){ return necesita[k]; });
+      var suma=0; pesos.forEach(function(w){ suma+=w; });
+      var a0=centro-arco/2, acc=0;
+      fila.forEach(function(k,i){
+        var hueco=arco*pesos[i]/suma;
+        var ang=a0+acc+hueco/2; acc+=hueco;
+        pos[k]={x:Math.cos(ang)*Rf, y:Math.sin(ang)*Rf, ang:ang, hueco:hueco, R:Rf,
+                color:circColor(k,i+fi*3+(tinte==="pro"?5:0))};
+      });
     });
   }
-  coloca(kPer, Math.PI*0.62, Math.PI*1.38, "per");
-  coloca(kPro, -Math.PI*0.38, Math.PI*0.38, "pro");
+  if(nPer&&nPro){ reparte(kPer,Math.PI,arcoPer,"per",Rper); reparte(kPro,0,arcoPro,"pro",Rpro); }
+  else if(nPer){ reparte(kPer,Math.PI,arcoPer,"per",Rper); }
+  else { reparte(kPro,0,arcoPro,"pro",Rpro); }
 
-  // personas alrededor de su círculo
-  Object.keys(pos).forEach(function(k){
-    var gp=pos[k], gente=g[k], n=gente.length;
-    var rBase=Math.min(115,42+n*9), paso=n>8?0.28:(n>4?0.32:0.38);
-    var haciaFuera = Math.cos(gp.ang)>=0 ? 1 : -1;
-    gente.forEach(function(p,j){
-      var a=gp.ang+(j-(n-1)/2)*paso;
-      var rr=rBase+(j%2)*28;
-      var ax=gp.x+Math.cos(a)*rr, ay=gp.y+Math.sin(a)*rr;
-      var col=colorOf(p);
-      s+='<line x1="'+gp.x+'" y1="'+gp.y+'" x2="'+ax+'" y2="'+ay+'" stroke="#e9edf3" stroke-width="1.5"/>';
-      s+='<g class="cirp" style="cursor:pointer" onclick="openEdit(\''+p.id+'\')"><title>'+esc(p.nombre)+(p.empleo?" · "+esc(p.empleo):"")+(p.empresa?" ("+esc(p.empresa)+")":"")+'</title>';
-      s+='<circle cx="'+ax+'" cy="'+ay+'" r="20" fill="transparent"/>';
-      s+='<circle cx="'+ax+'" cy="'+ay+'" r="7" fill="'+col+'" pointer-events="none"/>';
-      s+='<text x="'+ax+'" y="'+(ay-11)+'" font-size="10.5" fill="#3a4453" text-anchor="middle" pointer-events="none">'+esc(cortaTxt(p.nombre,16))+'</text></g>';
-    });
-  });
-  // nodos de círculo — al pulsarlos se ocultan del mapa
+  var cuerpo="";
   Object.keys(pos).forEach(function(k){
     var gp=pos[k];
-    s+='<g style="cursor:pointer" onclick="toggleCirculo('+JSON.stringify(k).replace(/"/g,"&quot;")+')"><title>Pulsa para quitar «'+esc(k)+'» del mapa</title>';
-    s+='<circle cx="'+gp.x+'" cy="'+gp.y+'" r="26" fill="transparent"/>';
-    s+='<circle cx="'+gp.x+'" cy="'+gp.y+'" r="12" fill="'+gp.color+'" stroke="#fff" stroke-width="2.5" pointer-events="none"/>';
-    s+='<text x="'+gp.x+'" y="'+(gp.y+(gp.y<cy?-18:26))+'" font-size="12.5" font-weight="700" fill="#1e2a3a" text-anchor="middle" pointer-events="none">'+esc(k)+' ('+g[k].length+')</text></g>';
+    cuerpo+='<line x1="0" y1="0" x2="'+gp.x.toFixed(1)+'" y2="'+gp.y.toFixed(1)
+      +'" stroke="'+(Math.cos(gp.ang)>=0?"#dde8f2":"#e6ddf0")+'" stroke-width="2"/>';
   });
-  // centro
-  s+='<circle cx="'+cx+'" cy="'+cy+'" r="38" fill="#1e2a3a"/><text x="'+cx+'" y="'+(cy+6)+'" font-size="16" font-weight="800" fill="#fff" text-anchor="middle">YO</text>';
+
+  /* ---------- personas alrededor de su círculo, sin salirse de su hueco ---------- */
+  Object.keys(pos).forEach(function(k){
+    var gp=pos[k], gente=g[k], n=gente.length, rBase=rDe[k];
+    var paso = n>1 ? Math.min(0.44, Math.max(0.17, (gp.hueco*gp.R*0.9)/((n-1)*rBase))) : 0;
+    var anillos = n>10 ? 3 : (n>5 ? 2 : 1);
+    gente.forEach(function(p,j){
+      var ang=gp.ang+(j-(n-1)/2)*paso;
+      var rr=rBase+(j%anillos)*32;
+      var ax=gp.x+Math.cos(ang)*rr, ay=gp.y+Math.sin(ang)*rr;
+      cuerpo+='<line x1="'+gp.x.toFixed(1)+'" y1="'+gp.y.toFixed(1)+'" x2="'+ax.toFixed(1)+'" y2="'+ay.toFixed(1)+'" stroke="#e9edf3" stroke-width="1.5"/>';
+      cuerpo+='<g class="cirp" style="cursor:pointer" onclick="openEdit(\''+p.id+'\')"><title>'+esc(p.nombre)+(p.empleo?" · "+esc(p.empleo):"")+(p.empresa?" ("+esc(p.empresa)+")":"")+'</title>';
+      cuerpo+='<circle cx="'+ax.toFixed(1)+'" cy="'+ay.toFixed(1)+'" r="20" fill="transparent"/>';
+      cuerpo+='<circle cx="'+ax.toFixed(1)+'" cy="'+ay.toFixed(1)+'" r="7.5" fill="'+colorOf(p)+'" pointer-events="none"/></g>';
+      etiquetas.push({x:ax, y:ay-13, t:cortaTxt(p.nombre,18), s:11.5, w:600, c:"#3a4453", pri:2});
+      anota(ax,ay,26,26);
+    });
+  });
+
+  /* ---------- nodos de círculo; el nombre va hacia dentro, donde no hay nadie ---------- */
+  Object.keys(pos).forEach(function(k){
+    var gp=pos[k];
+    cuerpo+='<g style="cursor:pointer" onclick="toggleCirculo('+JSON.stringify(k).replace(/"/g,"&quot;")+')"><title>Pulsa para quitar «'+esc(k)+'» del mapa</title>';
+    cuerpo+='<circle cx="'+gp.x.toFixed(1)+'" cy="'+gp.y.toFixed(1)+'" r="26" fill="transparent"/>';
+    cuerpo+='<circle cx="'+gp.x.toFixed(1)+'" cy="'+gp.y.toFixed(1)+'" r="13" fill="'+gp.color+'" stroke="#fff" stroke-width="2.5" pointer-events="none"/></g>';
+    var et=k+" ("+g[k].length+")";
+    etiquetas.push({x:gp.x-Math.cos(gp.ang)*36, y:gp.y-Math.sin(gp.ang)*36+4,
+                    t:et, s:13.5, w:700, c:"#1e2a3a", pri:1});
+    anota(gp.x,gp.y,32,32);
+  });
+  cuerpo+='<circle cx="0" cy="0" r="40" fill="#1e2a3a"/><text x="0" y="6" font-size="17" font-weight="800" fill="#fff" text-anchor="middle">YO</text>';
+  anota(0,0,90,90);
+
+  /* ---------- etiquetas: se colocan sin pisarse y cuentan para el encuadre ---------- */
+  var textos=pintaEtiquetas(etiquetas);
+  pintaEtiquetas.cajas.forEach(function(q){ anota(q.x,q.y-q.al*0.35,q.an,q.al); });
+
+  /* ---------- encuadre ajustado al contenido ---------- */
+  var x0=-120,x1=120,y0=-120,y1=120;
+  pts.forEach(function(q){ if(q.x0<x0)x0=q.x0; if(q.x1>x1)x1=q.x1; if(q.y0<y0)y0=q.y0; if(q.y1>y1)y1=q.y1; });
+  var m=52; x0-=m; x1+=m; y0-=m+26; y1+=m;
+
+  var s='<svg id="cirSvg" viewBox="'+x0.toFixed(0)+' '+y0.toFixed(0)+' '+(x1-x0).toFixed(0)+' '+(y1-y0).toFixed(0)
+    +'" width="100%" style="display:block;height:min(74vh,660px);background:#fff;border:1px solid var(--line);border-radius:14px;cursor:grab;touch-action:none"><g id="cirPan">';
+
+  /* los recuadros: solo el lado que tiene gente, y ajustados al encuadre */
+  var pad=16;
+  if(nPer){
+    s+='<rect x="'+(x0+10)+'" y="'+(y0+10)+'" width="'+((nPro? -pad : x1-10) - (x0+10))+'" height="'+((y1-10)-(y0+10))+'" rx="22" fill="#f5f2fa" stroke="#e2d9ef" stroke-width="2"/>';
+    s+='<text x="'+((nPro?-pad:x1-10)-24)+'" y="'+(y0+42)+'" font-size="18" font-weight="800" fill="#6a4c93" text-anchor="end" letter-spacing="1.6">PERSONAL</text>';
+  }
+  if(nPro){
+    s+='<rect x="'+(nPer? pad : x0+10)+'" y="'+(y0+10)+'" width="'+((x1-10)-(nPer?pad:x0+10))+'" height="'+((y1-10)-(y0+10))+'" rx="22" fill="#eef4f9" stroke="#d6e3ef" stroke-width="2"/>';
+    s+='<text x="'+((nPer?pad:x0+10)+24)+'" y="'+(y0+42)+'" font-size="18" font-weight="800" fill="#3f6fa5" letter-spacing="1.6">PROFESIONAL</text>';
+  }
+  s+=cuerpo+textos;
   s+='</g></svg>';
-  s+='<p style="color:var(--muted);font-size:12.5px;margin-top:6px">Pellizca con dos dedos para acercar · arrastra para mover · toca a alguien para abrir su ficha · toca un círculo para quitarlo.</p>';
+  s+='<p style="color:var(--muted);font-size:12.5px;margin-top:6px">Pellizca con dos dedos para acercar · arrastra para mover · toca a alguien para abrir su ficha · toca un círculo para quitarlo.'+(pintaEtiquetas.ocultas?' <b>'+pintaEtiquetas.ocultas+'</b> nombre'+(pintaEtiquetas.ocultas>1?'s':'')+' no cabe'+(pintaEtiquetas.ocultas>1?'n':'')+': toca el punto para verlo'+(pintaEtiquetas.ocultas>1?'s':'')+'.':'')+'</p>';
   var ctrl='<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;flex-wrap:wrap">'
    +'<button class="btn sm" onclick="cirZoom(1.2)">＋</button><button class="btn sm" onclick="cirZoom(0.83)">－</button>'
    +'<button class="btn sm" onclick="cirReset()">Centrar</button><button class="btn sm" onclick="cirReordenar()">Reordenar</button></div>';
   box.innerHTML=ctrl+chips+s;
   cirWire();
+}
+/* Coloca los textos evitando que se pisen: primero los círculos (nunca se pierden),
+   luego las personas. Si una etiqueta no cabe tras varios intentos se oculta, pero
+   el punto y su descripción al tocarlo siguen ahí. */
+function pintaEtiquetas(arr){
+  arr.sort(function(a,b){ return (a.pri-b.pri) || (a.y-b.y) || (a.x-b.x); });
+  var puestas=[], out="", ocultas=0;
+  var saltos=[0,-13,13,-26,26,-40,40,-54,54,-68,68];
+  arr.forEach(function(L){
+    var an=L.t.length*L.s*0.53, al=L.s+3, y=L.y, ok=false;
+    for(var i=0;i<saltos.length;i++){
+      y=L.y+saltos[i];
+      var choca=false;
+      for(var j=0;j<puestas.length;j++){
+        var q=puestas[j];
+        if(Math.abs(L.x-q.x) < (an+q.an)/2+5 && Math.abs(y-q.y) < (al+q.al)/2+2){ choca=true; break; }
+      }
+      if(!choca){ ok=true; break; }
+    }
+    if(!ok){
+      if(L.pri>1){ ocultas++; return; }   /* una persona sí puede quedarse sin nombre */
+      y=L.y;                              /* un círculo, nunca */
+    }
+    puestas.push({x:L.x,y:y,an:an,al:al});
+    out+='<text x="'+L.x.toFixed(1)+'" y="'+y.toFixed(1)+'" font-size="'+L.s+'" font-weight="'+L.w
+       +'" fill="'+L.c+'" text-anchor="middle" pointer-events="none" paint-order="stroke"'
+       +' stroke="#fff" stroke-width="3" stroke-linejoin="round">'+esc(L.t)+'</text>';
+  });
+  pintaEtiquetas.ocultas=ocultas;
+  pintaEtiquetas.cajas=puestas;
+  return out;
 }
 function cirWire(){
   var svg=document.getElementById("cirSvg"), gg=document.getElementById("cirPan"); if(!svg||!gg) return;
