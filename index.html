@@ -333,7 +333,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.09-38";
+var VERSION="2026.09.09-39";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -368,7 +368,7 @@ function esF(p){ return p&&p.genero==="f"; }
 function EL(p){ return esF(p)?"ella":"él"; }
 function SU(p){ return esF(p)?"suya":"suyo"; }
 
-var state={ people:[], me:null, tab:"fichas", q:"", grupo:"", tipo:"", tipos:[], modoMapa:"personas" };
+var state={ people:[], me:null, tab:"fichas", q:"", grupo:"", tipo:"", tipos:[], modoMapa:"personas", circExtra:[] };
 var SEED=null;
 
 /* ---------- persistencia ---------- */
@@ -380,12 +380,12 @@ function load(){
   try{
     var raw=localStorage.getItem(KEY);
     if(!raw){ for(var vi=0;vi<KEY_VIEJAS.length&&!raw;vi++) raw=localStorage.getItem(KEY_VIEJAS[vi]); }
-    if(raw){ var d=JSON.parse(raw); state.people=Array.isArray(d.people)?d.people:[]; state.me=d.me||null; }
+    if(raw){ var d=JSON.parse(raw); state.people=Array.isArray(d.people)?d.people:[]; state.me=d.me||null; state.circExtra=Array.isArray(d.circExtra)?d.circExtra:[]; }
   }catch(e){ state.people=[]; }
   if(!state.me) state.me=newMe();
 }
 function save(){
-  try{ localStorage.setItem(KEY,JSON.stringify({people:state.people,me:state.me,v:3,saved:new Date().toISOString()})); }
+  try{ localStorage.setItem(KEY,JSON.stringify({people:state.people,me:state.me,circExtra:state.circExtra||[],v:3,saved:new Date().toISOString()})); }
   catch(e){ if(!save.warned){ save.warned=true;
     alert("Este navegador no permite guardar datos localmente. Usa Sincronizar para no perder lo que escribas."); } }
   try{ if(gdActivo()){ gdProgramar(); } else { programarSync(); } revisarAvisos(); }catch(e){}
@@ -1058,7 +1058,7 @@ function circTodos(ver){
 function renderCirculos(){
   var box=document.getElementById("circulosBox"); if(!box) return;
   var todas=filtered();
-  if(!todas.length){ box.innerHTML='<p style="color:var(--muted);font-size:13px">Añade personas para ver tu mapa por círculos.</p>'; return; }
+  if(!todas.length && !circExtras().length){ box.innerHTML='<p style="color:var(--muted);font-size:13px">Añade personas para ver tu mapa por círculos.</p>'; return; }
   var off=circOcultos();
   // todos los círculos existentes (para los chips), y los visibles (para el dibujo)
   var todosG={},ambTodos={};
@@ -1067,6 +1067,8 @@ function renderCirculos(){
     if(ambitoDe(p.tipo||"amigo")==="profesional") ambTodos[k]="profesional";
     else if(!ambTodos[k]) ambTodos[k]="personal";
   });
+  /* círculos creados a mano que todavía no tienen a nadie */
+  circExtras().forEach(function(x){ if(!todosG[x.n]) todosG[x.n]=[]; ambTodos[x.n]=x.amb; });
   // chips para elegir qué círculos se ven
   var chips='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:9px">'
    +'<span style="font-size:11.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Círculos en el mapa</span>';
@@ -1079,10 +1081,13 @@ function renderCirculos(){
       +'<button class="btn sm" onclick="circTodos(false)">Ninguno</button></div>';
 
   var list=todas.filter(function(p){ return off.indexOf(circGrupo(p))<0; });
-  if(!list.length){ box.innerHTML=chips+'<p style="color:var(--muted);font-size:13px">No has dejado ningún círculo visible. Pulsa «Todos» para verlos.</p>'; return; }
+  if(!list.length && !circExtras().filter(function(x){ return off.indexOf(x.n)<0; }).length){ box.innerHTML=chips+'<p style="color:var(--muted);font-size:13px">No has dejado ningún círculo visible. Pulsa «Todos» para verlos.</p>'; return; }
   var g={},ambDe={};
+  circExtras().forEach(function(x){ if(off.indexOf(x.n)<0){ g[x.n]=g[x.n]||[]; ambDe[x.n]=x.amb; } });
   list.forEach(function(p){
     var k=circGrupo(p); (g[k]=g[k]||[]).push(p);
+    var dec=circAmbitoDeclarado(k);
+    if(dec){ ambDe[k]=dec; return; }                          // si lo creaste tú, manda tu elección
     var a=ambitoDe(p.tipo||"amigo");
     if(a==="profesional") ambDe[k]="profesional";            // si hay alguien profesional, el círculo es profesional
     else if(!ambDe[k]) ambDe[k]="personal";
@@ -1179,12 +1184,21 @@ function renderCirculos(){
   /* ---------- nodos de círculo; el nombre va hacia dentro, donde no hay nadie ---------- */
   Object.keys(pos).forEach(function(k){
     var gp=pos[k];
+    var vacio=!g[k].length;
     cuerpo+='<g style="cursor:pointer" onclick="toggleCirculo('+JSON.stringify(k).replace(/"/g,"&quot;")+')"><title>Pulsa para quitar «'+esc(k)+'» del mapa</title>';
     cuerpo+='<circle cx="'+gp.x.toFixed(1)+'" cy="'+gp.y.toFixed(1)+'" r="26" fill="transparent"/>';
-    cuerpo+='<circle cx="'+gp.x.toFixed(1)+'" cy="'+gp.y.toFixed(1)+'" r="13" fill="'+gp.color+'" stroke="#fff" stroke-width="2.5" pointer-events="none"/></g>';
+    cuerpo+='<circle cx="'+gp.x.toFixed(1)+'" cy="'+gp.y.toFixed(1)+'" r="13" fill="'+(vacio?"#fff":gp.color)+'" stroke="'+(vacio?gp.color:"#fff")+'" stroke-width="'+(vacio?"2.5":"2.5")+'"'+(vacio?' stroke-dasharray="4 3"':'')+' pointer-events="none"/></g>';
+    /* aspa para borrar el círculo */
+    var bx=gp.x+16, by=gp.y-16;
+    cuerpo+='<g style="cursor:pointer" onclick="borrarCirculo('+JSON.stringify(k).replace(/"/g,"&quot;")+')"><title>Borrar el círculo «'+esc(k)+'»</title>';
+    cuerpo+='<circle cx="'+bx.toFixed(1)+'" cy="'+by.toFixed(1)+'" r="15" fill="transparent"/>';
+    cuerpo+='<circle cx="'+bx.toFixed(1)+'" cy="'+by.toFixed(1)+'" r="8" fill="#fff" stroke="#c9d2de" stroke-width="1.4" pointer-events="none"/>';
+    cuerpo+='<path d="M'+(bx-3.4).toFixed(1)+' '+(by-3.4).toFixed(1)+' l6.8 6.8 M'+(bx+3.4).toFixed(1)+' '+(by-3.4).toFixed(1)+' l-6.8 6.8" stroke="#94a2b3" stroke-width="1.7" stroke-linecap="round" fill="none" pointer-events="none"/></g>';
     var et=k+" ("+g[k].length+")";
-    etiquetas.push({x:gp.x-Math.cos(gp.ang)*36, y:gp.y-Math.sin(gp.ang)*36+4,
-                    t:et, s:13.5, w:700, c:"#1e2a3a", pri:1});
+    var haciaDentro=-Math.cos(gp.ang);           // el nombre va del punto hacia YO
+    etiquetas.push({x:gp.x+haciaDentro*24, y:gp.y-Math.sin(gp.ang)*30+5,
+                    t:et, s:13.5, w:700, c:"#1e2a3a", pri:1,
+                    a:(haciaDentro>=0?"start":"end")});
     anota(gp.x,gp.y,32,32);
   });
   cuerpo+='<circle cx="0" cy="0" r="40" fill="#1e2a3a"/><text x="0" y="6" font-size="17" font-weight="800" fill="#fff" text-anchor="middle">YO</text>';
@@ -1192,7 +1206,7 @@ function renderCirculos(){
 
   /* ---------- etiquetas: se colocan sin pisarse y cuentan para el encuadre ---------- */
   var textos=pintaEtiquetas(etiquetas);
-  pintaEtiquetas.cajas.forEach(function(q){ anota(q.x,q.y-q.al*0.35,q.an,q.al); });
+  pintaEtiquetas.cajas.forEach(function(q){ anota((q.x0+q.x1)/2,q.y-q.al*0.35,q.x1-q.x0,q.al); });
 
   /* ---------- encuadre ajustado al contenido ---------- */
   var x0=-120,x1=120,y0=-120,y1=120;
@@ -1207,14 +1221,16 @@ function renderCirculos(){
   if(nPer){
     s+='<rect x="'+(x0+10)+'" y="'+(y0+10)+'" width="'+((nPro? -pad : x1-10) - (x0+10))+'" height="'+((y1-10)-(y0+10))+'" rx="22" fill="#f5f2fa" stroke="#e2d9ef" stroke-width="2"/>';
     s+='<text x="'+((nPro?-pad:x1-10)-24)+'" y="'+(y0+42)+'" font-size="18" font-weight="800" fill="#6a4c93" text-anchor="end" letter-spacing="1.6">PERSONAL</text>';
+    s+=botonMas(x0+52, y0+40, "#6a4c93", "personal", "Añadir círculo personal");
   }
   if(nPro){
     s+='<rect x="'+(nPer? pad : x0+10)+'" y="'+(y0+10)+'" width="'+((x1-10)-(nPer?pad:x0+10))+'" height="'+((y1-10)-(y0+10))+'" rx="22" fill="#eef4f9" stroke="#d6e3ef" stroke-width="2"/>';
     s+='<text x="'+((nPer?pad:x0+10)+24)+'" y="'+(y0+42)+'" font-size="18" font-weight="800" fill="#3f6fa5" letter-spacing="1.6">PROFESIONAL</text>';
+    s+=botonMas(x1-52, y0+40, "#3f6fa5", "profesional", "Añadir círculo profesional");
   }
   s+=cuerpo+textos;
   s+='</g></svg>';
-  s+='<p style="color:var(--muted);font-size:12.5px;margin-top:6px">Pellizca con dos dedos para acercar · arrastra para mover · toca a alguien para abrir su ficha · toca un círculo para quitarlo.'+(pintaEtiquetas.ocultas?' <b>'+pintaEtiquetas.ocultas+'</b> nombre'+(pintaEtiquetas.ocultas>1?'s':'')+' no cabe'+(pintaEtiquetas.ocultas>1?'n':'')+': toca el punto para verlo'+(pintaEtiquetas.ocultas>1?'s':'')+'.':'')+'</p>';
+  s+='<p style="color:var(--muted);font-size:12.5px;margin-top:6px">Pellizca con dos dedos para acercar · arrastra para mover · toca a alguien para abrir su ficha · toca un círculo para quitarlo del mapa · el aspa lo borra · el + de cada recuadro crea uno nuevo.'+(pintaEtiquetas.ocultas?' <b>'+pintaEtiquetas.ocultas+'</b> nombre'+(pintaEtiquetas.ocultas>1?'s':'')+' no cabe'+(pintaEtiquetas.ocultas>1?'n':'')+': toca el punto para verlo'+(pintaEtiquetas.ocultas>1?'s':'')+'.':'')+'</p>';
   var ctrl='<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;flex-wrap:wrap">'
    +'<button class="btn sm" onclick="cirZoom(1.2)">＋</button><button class="btn sm" onclick="cirZoom(0.83)">－</button>'
    +'<button class="btn sm" onclick="cirReset()">Centrar</button><button class="btn sm" onclick="cirReordenar()">Reordenar</button>'
@@ -1230,14 +1246,21 @@ function pintaEtiquetas(arr){
   arr.sort(function(a,b){ return (a.pri-b.pri) || (a.y-b.y) || (a.x-b.x); });
   var puestas=[], out="", ocultas=0;
   var saltos=[0,-13,13,-26,26,-40,40,-54,54,-68,68];
+  function caja(x,an,a){
+    if(a==="start") return {x0:x, x1:x+an};
+    if(a==="end")   return {x0:x-an, x1:x};
+    return {x0:x-an/2, x1:x+an/2};
+  }
   arr.forEach(function(L){
+    var a=L.a||"middle";
     var an=L.t.length*L.s*0.53, al=L.s+3, y=L.y, ok=false;
+    var c=caja(L.x,an,a);
     for(var i=0;i<saltos.length;i++){
       y=L.y+saltos[i];
       var choca=false;
       for(var j=0;j<puestas.length;j++){
         var q=puestas[j];
-        if(Math.abs(L.x-q.x) < (an+q.an)/2+5 && Math.abs(y-q.y) < (al+q.al)/2+2){ choca=true; break; }
+        if(c.x0 < q.x1+5 && c.x1 > q.x0-5 && Math.abs(y-q.y) < (al+q.al)/2+2){ choca=true; break; }
       }
       if(!choca){ ok=true; break; }
     }
@@ -1245,14 +1268,25 @@ function pintaEtiquetas(arr){
       if(L.pri>1){ ocultas++; return; }   /* una persona sí puede quedarse sin nombre */
       y=L.y;                              /* un círculo, nunca */
     }
-    puestas.push({x:L.x,y:y,an:an,al:al});
-    out+='<text x="'+L.x.toFixed(1)+'" y="'+y.toFixed(1)+'" font-size="'+L.s+'" font-weight="'+L.w
-       +'" fill="'+L.c+'" text-anchor="middle" pointer-events="none" paint-order="stroke"'
-       +' stroke="#fff" stroke-width="3" stroke-linejoin="round">'+esc(L.t)+'</text>';
+    puestas.push({x:L.x,y:y,an:an,al:al,x0:c.x0,x1:c.x1});
+    /* el halo va en un texto aparte, debajo: así se ve bien aunque el motor
+       no soporte paint-order (algunos exportadores y navegadores viejos) */
+    var atr='x="'+L.x.toFixed(1)+'" y="'+y.toFixed(1)+'" font-size="'+L.s+'" font-weight="'+L.w
+          +'" text-anchor="'+a+'" pointer-events="none"';
+    out+='<text '+atr+' fill="none" stroke="#fff" stroke-width="3.2" stroke-linejoin="round">'+esc(L.t)+'</text>';
+    out+='<text '+atr+' fill="'+L.c+'">'+esc(L.t)+'</text>';
   });
   pintaEtiquetas.ocultas=ocultas;
   pintaEtiquetas.cajas=puestas;
   return out;
+}
+function botonMas(x,y,color,amb,titulo){
+  var o='<g style="cursor:pointer" onclick="nuevoCirculo(\''+amb+'\')"><title>'+esc(titulo)+'</title>';
+  o+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="24" fill="transparent"/>';
+  o+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="15" fill="#fff" stroke="'+color+'" stroke-width="2" pointer-events="none"/>';
+  o+='<path d="M'+(x-7).toFixed(1)+' '+y.toFixed(1)+' h14 M'+x.toFixed(1)+' '+(y-7).toFixed(1)+' v14" stroke="'+color+'" stroke-width="2.4" stroke-linecap="round" pointer-events="none"/>';
+  o+='<text x="'+x.toFixed(1)+'" y="'+(y+30).toFixed(1)+'" font-size="10.5" font-weight="700" fill="'+color+'" text-anchor="middle" pointer-events="none">añadir</text></g>';
+  return o;
 }
 function cirWire(){
   var svg=document.getElementById("cirSvg"), gg=document.getElementById("cirPan"); if(!svg||!gg) return;
@@ -1333,6 +1367,47 @@ function cirWire(){
   svg.addEventListener("click",function(e){ if(moved){ e.stopPropagation(); e.preventDefault(); } moved=false; },true);
   svg._apply=apply;
 }
+/* ---------- crear y borrar círculos ---------- */
+function circExtras(){ if(!Array.isArray(state.circExtra)) state.circExtra=[]; return state.circExtra; }
+function circAmbitoDeclarado(k){
+  var e=circExtras().filter(function(x){ return x.n===k; })[0];
+  return e?e.amb:null;
+}
+function circGente(k){ return state.people.filter(function(p){ return (p.grupo||"").trim()===k; }); }
+function nuevoCirculo(amb){
+  var n=prompt(amb==="profesional"
+    ? "Nombre del nuevo círculo profesional (cliente, feria, sector…)"
+    : "Nombre del nuevo círculo personal (barrio, equipo, colegio…)");
+  if(n===null) return;
+  n=String(n).trim().replace(/\s+/g," ");
+  if(!n) return;
+  var ya={}; state.people.forEach(function(p){ var k=(p.grupo||"").trim(); if(k) ya[k]=1; });
+  circExtras().forEach(function(x){ ya[x.n]=1; });
+  if(ya[n]){ alert("Ya tienes un círculo que se llama «"+n+"»."); return; }
+  circExtras().push({n:n, amb:(amb==="profesional"?"profesional":"personal")});
+  var off=circOcultos(), i=off.indexOf(n); if(i>=0) off.splice(i,1);
+  save(); renderSeg(); renderAll(); if(state.tab==="mapa") mapaRender();
+  toast("Círculo «"+n+"» creado. Ya puedes asignarlo en la ficha de cualquiera.");
+}
+function borrarCirculo(k){
+  var gente=circGente(k), ex=circExtras().filter(function(x){ return x.n===k; }).length>0;
+  if(gente.length){
+    if(!confirm("«"+k+"» tiene "+gente.length+" persona"+(gente.length===1?"":"s")+".\n\n"
+      +"Si lo borras, "+(gente.length===1?"esa persona se queda":"esas personas se quedan")+" sin círculo, pero "
+      +(gente.length===1?"no se borra su ficha":"no se borra ninguna ficha")+".\n\n¿Borrar el círculo?")) return;
+    gente.forEach(function(p){ p.grupo=""; });
+  } else if(!ex){
+    return;
+  }
+  state.circExtra=circExtras().filter(function(x){ return x.n!==k; });
+  var off=circOcultos(), i=off.indexOf(k); if(i>=0) off.splice(i,1);
+  if(state.grupo===k) state.grupo="";
+  save(); renderSeg(); renderAll(); if(state.tab==="mapa") mapaRender();
+  toast(gente.length? ("Círculo borrado · "+gente.length+" ficha"+(gente.length===1?"":"s")+" sin círculo")
+                    : "Círculo «"+k+"» borrado");
+}
+window.nuevoCirculo=nuevoCirculo; window.borrarCirculo=borrarCirculo;
+
 /* ---------- unificar círculos escritos de varias formas ---------- */
 function circNorm(t){
   t=String(t||"");
@@ -3030,7 +3105,7 @@ function hoyISO(){ return new Date().toISOString().slice(0,10); }
 function syncMeta(){ try{ return JSON.parse(lsGet("sync")||"{}"); }catch(e){ return {}; } }
 function setSyncMeta(o){ try{ var m=syncMeta(); for(var k in o) m[k]=o[k]; lsSet("sync",JSON.stringify(m)); }catch(e){} }
 function savedLocal(){ try{ return (JSON.parse(localStorage.getItem(KEY)||"{}").saved)||""; }catch(e){ return ""; } }
-function payload(){ return JSON.stringify({people:state.people,me:state.me,v:3,saved:new Date().toISOString()},null,2); }
+function payload(){ return JSON.stringify({people:state.people,me:state.me,circExtra:state.circExtra||[],v:3,saved:new Date().toISOString()},null,2); }
 function setSync(t){ var e=document.getElementById("syncSt"); if(e) e.textContent=t||""; FS.msg=t||""; }
 function fsSoportado(){ return typeof window.showDirectoryPicker==="function"; }
 function idb(){ return new Promise(function(res,rej){
@@ -3301,6 +3376,7 @@ function elegirComo(d,origen){
 }
 function aplicarDatos(d){
   state.people=d.people.map(ensure); if(d.me) state.me=d.me;
+  if(Array.isArray(d.circExtra)) state.circExtra=d.circExtra;
   save(); renderSeg(); renderAll();
 }
 function restaurarCarpeta(){
