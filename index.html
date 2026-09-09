@@ -270,7 +270,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
   <div class="seg" id="seg"></div>
 
   <div class="toolbar">
-    <div class="buscador"><span class="lupa">⌕</span><input type="search" id="q" placeholder="Buscar persona, interés, empleo, ciudad…"><button class="btnx" id="qclear" title="Limpiar" aria-label="Limpiar">✕</button></div>
+    <div class="buscador"><span class="lupa">⌕</span><input type="search" id="q" placeholder="Buscar persona, interés, empleo, ciudad…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button class="btnx" id="qclear" title="Limpiar" aria-label="Limpiar">✕</button></div>
     <select id="fGrupo"><option value="">Todos los círculos</option></select>
     <button class="btn primary" id="add">+ Persona</button>
     <button class="btn" id="meBtn">Mi perfil</button>
@@ -281,6 +281,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
     <input type="file" id="file" accept="application/json" style="display:none">
   </div>
 
+  <div id="qAviso" style="display:none"></div>
   <div id="aviso"></div>
   <div id="view-fichas"><div class="grid" id="cards"></div></div>
   <div id="view-citas" style="display:none"><div id="citas"></div></div>
@@ -331,7 +332,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.02-32";
+var VERSION="2026.09.09-34";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -2505,9 +2506,43 @@ function gdToken(prompt){
 }
 function gdBuscar(tok){
   var q=encodeURIComponent("(name='friends-map.json' or name='mapa-amigos.json') and trashed=false");
-  return fetch("https://www.googleapis.com/drive/v3/files?q="+q+"&orderBy=modifiedTime desc&fields=files(id,modifiedTime)",
-    {headers:{Authorization:"Bearer "+tok}}).then(function(r){ return r.json(); })
-    .then(function(j){ var f=(j.files||[])[0]; GD.fileId=f?f.id:null; return f||null; });
+  return fetch("https://www.googleapis.com/drive/v3/files?q="+q+"&orderBy=modifiedTime desc&fields=files(id,name,modifiedTime,size)",
+    {headers:{Authorization:"Bearer "+tok}})
+    .then(function(r){
+      if(!r.ok) return r.text().then(function(t){ throw new Error("Drive "+r.status+": "+t.slice(0,200)); });
+      return r.json();
+    })
+    .then(function(j){ var f=(j.files||[])[0]; GD.fileId=f?f.id:null; GD.info=f||null; return f||null; });
+}
+/* Lectura con diagnostico: nunca devuelve "nada" sin decir por que. */
+function gdLeer(tok){
+  return gdBuscar(tok).then(function(f){
+    if(!f) return {estado:"sinArchivo"};
+    return fetch("https://www.googleapis.com/drive/v3/files/"+GD.fileId+"?alt=media",
+      {headers:{Authorization:"Bearer "+tok}})
+      .then(function(r){
+        if(!r.ok) return r.text().then(function(t){ throw new Error("Drive "+r.status+": "+t.slice(0,200)); });
+        return r.text();
+      })
+      .then(function(t){
+        var pass=getPass();
+        var lee=function(txt){ var d=JSON.parse(txt); if(!d||!Array.isArray(d.people)) throw new Error("formato"); return d; };
+        try{ return {estado:"ok", d:lee(t), f:f}; }
+        catch(e){
+          if(!pass) return {estado:"cifrado", f:f};
+          return descifrar(t,pass).then(function(txt){ return {estado:"ok", d:lee(txt), f:f}; })
+                 .catch(function(){ return {estado:"claveMala", f:f}; });
+        }
+      })
+      .catch(function(e){ return {estado:"error", msg:(e&&e.message)||"", f:f}; });
+  }).catch(function(e){ return {estado:"error", msg:(e&&e.message)||""}; });
+}
+function gdExplica(r){
+  if(r.estado==="sinArchivo") return "En tu Drive no hay ningún friends-map.json todavía.";
+  if(r.estado==="cifrado")   return "El archivo de Drive está cifrado y este dispositivo no tiene la contraseña. Ponla en Sincronizar → Cifrado (la misma que en el ordenador) y vuelve a intentarlo.";
+  if(r.estado==="claveMala") return "La contraseña de cifrado de este dispositivo no abre el archivo de Drive. Tiene que ser exactamente la misma que en el ordenador.";
+  if(r.estado==="error")     return "No se pudo leer el archivo de Drive.\n\nDetalle: "+(r.msg||"");
+  return "";
 }
 function gdDescargar(tok){
   if(!GD.fileId) return Promise.resolve(null);
@@ -2597,14 +2632,24 @@ function gdConectar(){
   if(!gdSoportado()){ alert("La conexión con Drive necesita la app en su dirección de internet, no abierta como archivo."); return; }
   gdToken("consent").then(function(tok){
     gdGuardarHint(tok);
-    return gdBuscar(tok).then(function(f){
-      if(f) return gdDescargar(tok).then(function(d){
-        if(d && d.people.length){
-          if(!state.people.length){ aplicarDatos(d); gdSet(true); apagarCarpeta(); setSyncMeta({driveGuardado:savedLocal()}); toast("Conectado a Drive. Cargadas "+d.people.length+" fichas."); openSync&&openSync(); return; }
-          gdSet(true); apagarCarpeta(); elegirComo(d,"desde Google Drive"); return;
-        }
-        gdSet(true); apagarCarpeta(); return gdSubir(tok).then(function(){ setSyncMeta({driveGuardado:savedLocal()}); toast("Conectado a Drive. Se subieron tus fichas."); openSync&&openSync(); });
-      });
+    return gdLeer(tok).then(function(r){
+      /* Si hay archivo pero no se ha podido leer, NO subimos nada encima. */
+      if(r.estado!=="ok" && r.estado!=="sinArchivo"){
+        gdSet(true); apagarCarpeta();
+        alert("Drive conectado, pero no he podido traer tus fichas.\n\n"+gdExplica(r)+"\n\nNo he subido nada para no pisar el archivo que ya tienes.");
+        openSync&&openSync(); return;
+      }
+      if(r.estado==="ok" && r.d && r.d.people.length){
+        gdSet(true); apagarCarpeta();
+        if(!state.people.length){ aplicarDatos(r.d); setSyncMeta({driveGuardado:savedLocal()}); toast("Conectado a Drive. Cargadas "+r.d.people.length+" fichas."); openSync&&openSync(); return; }
+        elegirComo(r.d,"desde Google Drive"); return;
+      }
+      /* Aqui solo llegamos si en Drive no hay archivo, o lo hay y esta vacio. */
+      if(!state.people.length){
+        gdSet(true); apagarCarpeta();
+        alert("Drive conectado.\n\nPero ni este dispositivo ni tu Drive tienen fichas todavía, así que no hay nada que traer. Conecta primero el ordenador donde están tus fichas y pulsa Guardar ahora.");
+        openSync&&openSync(); return;
+      }
       gdSet(true); apagarCarpeta(); return gdSubir(tok).then(function(){ setSyncMeta({driveGuardado:savedLocal()}); toast("Conectado a Drive. Se subieron tus fichas."); openSync&&openSync(); });
     });
   }).catch(function(e){
@@ -2619,19 +2664,24 @@ function gdArranque(){
   if(!gdActivo() || !gdSoportado()) return;
   setSync("Drive: conectando…");
   gdToken("").then(function(tok){
-    return gdBuscar(tok).then(function(f){
-      if(!f) return;
-      return gdDescargar(tok).then(function(d){
-        setSyncMeta({driveGuardado:savedLocal()}); GD.error=false;
-        if(d && d.saved){
-          var local=savedLocal();
-          if(d.saved>local){
-            if(!state.people.length || d.people.length>=state.people.length){ aplicarDatos(d); setSyncMeta({driveGuardado:savedLocal()}); toast("Actualizado desde Drive"); }
-            else elegirComo(d,"Drive tiene una versión más reciente");
-          }
+    return gdLeer(tok).then(function(r){
+      GD.ultimo=r;
+      if(r.estado==="sinArchivo"){ setSync("Drive: sin archivo todavía"); revisarAvisos(); return; }
+      if(r.estado!=="ok"){ setSync("Drive: "+(r.estado==="cifrado"||r.estado==="claveMala"?"falta la contraseña de cifrado":"no se pudo leer")); revisarAvisos(); return; }
+      setSyncMeta({driveGuardado:savedLocal()}); GD.error=false;
+      var d=r.d;
+      /* si este dispositivo está vacío, traemos SIEMPRE — aunque el archivo no traiga fecha */
+      if(d && d.people.length && !state.people.length){
+        aplicarDatos(d); setSyncMeta({driveGuardado:savedLocal()});
+        toast("Traídas "+d.people.length+" fichas desde Drive");
+      } else if(d && d.saved){
+        var local=savedLocal();
+        if(d.saved>local){
+          if(d.people.length>=state.people.length){ aplicarDatos(d); setSyncMeta({driveGuardado:savedLocal()}); toast("Actualizado desde Drive"); }
+          else elegirComo(d,"Drive tiene una versión más reciente");
         }
-        setSync("Drive conectado"); revisarAvisos();
-      });
+      }
+      setSync("Drive conectado"); revisarAvisos();
     });
   }).catch(function(){ setSync("Drive: pulsa Sincronizar para reconectar"); revisarAvisos(); });
 }
@@ -3108,8 +3158,9 @@ function openSync(){
       : "Conéctalo una vez en cada dispositivo, con tu cuenta de Google, y a partir de ahí se sincroniza solo, aquí y en el móvil, sin enviar ni traer nada.")+'</p>'
     +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
     +'<button class="btn primary" id="gd_conectar">'+(gdon?"Reconectar":"Conectar Google Drive")+'</button>'
+    +'<button class="btn" id="gd_traer">Traer fichas de Drive</button>'
     +(gdon?'<button class="btn" id="gd_ahora">Guardar ahora</button><button class="btn danger" id="gd_desconectar">Desconectar</button>':'')
-    +'</div></fieldset>';
+    +'</div><div id="gd_diag" style="margin-top:8px;font-size:12px;color:var(--muted)"></div></fieldset>';
   if(puede && !gdActivo()){
     h+='<fieldset><legend>Carpeta manual (alternativa)</legend>'
       +'<p style="font-size:13px;margin:0 0 8px">Elige una vez la carpeta <b>Mi unidad</b> de tu Drive y la app escribirá ahí <code>friends-map.json</code> sola, cada vez que cambies algo. Es lo que lee tu aviso de las mañanas.</p>'
@@ -3181,6 +3232,24 @@ function openSync(){
   if((b=document.getElementById("gd_conectar"))) b.onclick=gdConectar;
   if((b=document.getElementById("gd_desconectar"))) b.onclick=function(){ gdSet(false); gdSetHint(""); GD.token=null; GD.fileId=null; toast("Drive desconectado en este dispositivo"); openSync(); };
   if((b=document.getElementById("gd_ahora"))) b.onclick=function(){ gdSyncSubir().then(function(ok){ if(ok){ closeModal(); toast("Guardado en Drive"); } }); };
+  if((b=document.getElementById("gd_traer"))) b.onclick=function(){
+    var dg=document.getElementById("gd_diag"); if(dg) dg.textContent="Mirando en tu Drive…";
+    gdToken("").then(function(tok){ return gdLeer(tok); }).then(function(r){
+      if(r.estado!=="ok"){
+        if(dg) dg.textContent="";
+        alert("No he podido traer las fichas.\n\n"+gdExplica(r));
+        return;
+      }
+      var n=r.d.people.length, cuando=(r.f&&r.f.modifiedTime||"").slice(0,10);
+      if(dg) dg.textContent="En tu Drive hay "+n+" fichas"+(cuando?" (guardadas el "+cuando+")":"")+".";
+      if(!n){ alert("El archivo de tu Drive está vacío: no tiene ninguna ficha.\n\nConecta el dispositivo donde sí las tienes y pulsa Guardar ahora."); return; }
+      if(!state.people.length){ gdSet(true); apagarCarpeta(); aplicarDatos(r.d); setSyncMeta({driveGuardado:savedLocal()}); toast("Traídas "+n+" fichas desde Drive"); openSync(); return; }
+      gdSet(true); apagarCarpeta(); elegirComo(r.d,"desde Google Drive");
+    }).catch(function(e){
+      if(dg) dg.textContent="";
+      alert("No se pudo hablar con Drive.\n\nDetalle: "+((e&&e.message)||"")+"\n\nSi es la primera vez en este móvil, pulsa antes Conectar Google Drive.");
+    });
+  };
   if((b=document.getElementById("ia_guardar"))) b.onclick=function(){
     var url=document.getElementById("ia_url").value.trim();
     var on=document.getElementById("ia_on").checked, ok=document.getElementById("ia_ok").checked;
@@ -3477,6 +3546,7 @@ function renderAll(){
     +grupos().map(function(g){return '<option'+(g===cur?" selected":"")+'>'+esc(g)+'</option>';}).join("");
   var n=filtered().length,tot=state.people.length;
   document.getElementById("count").textContent=tot?(tiposActivos().length?n+" de "+tot+" personas":tot+" personas"):"";
+  try{ pintaAvisoBusqueda(); }catch(e){}
   renderCards(); renderCitas(); renderAgenda(); try{ revisarAvisos(); }catch(e){}
   if(state.tab==="mapa") buildGraph();
   if(state.tab==="informe") renderInforme();
@@ -3643,7 +3713,23 @@ seedIfEmpty();
 renderSeg();
 document.querySelectorAll(".tabs button").forEach(function(b){ b.onclick=function(){ setTab(b.dataset.tab); }; });
 document.getElementById("q").oninput=function(e){ state.q=e.target.value; renderAll(); };
-document.getElementById("qclear").onclick=function(){ var q=document.getElementById("q"); q.value=""; state.q=""; renderAll(); q.focus(); };
+function pintaAvisoBusqueda(){
+  var av=document.getElementById("qAviso"); if(!av) return;
+  var t=(state.q||"").trim();
+  if(!t){ av.style.display="none"; av.innerHTML=""; return; }
+  av.style.display="";
+  av.innerHTML='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;'
+    +'background:#fff7e6;border:1px solid #f0d9a8;border-radius:8px;padding:8px 12px;margin:8px 0;font-size:13px">'
+    +'<span>Filtrando por <b>"'+esc(t)+'"</b> — no estás viendo a todas tus personas.</span>'
+    +'<button class="btn" style="padding:4px 10px" onclick="limpiarBusqueda()">Ver a todos</button></div>';
+}
+function limpiarBusqueda(reRender){
+  var q=document.getElementById("q"); if(q) q.value="";
+  state.q="";
+  if(reRender!==false) renderAll();
+}
+window.limpiarBusqueda=limpiarBusqueda;
+document.getElementById("qclear").onclick=function(){ var q=document.getElementById("q"); limpiarBusqueda(); q.focus(); };
 document.getElementById("fGrupo").onchange=function(e){ state.grupo=e.target.value; renderAll(); };
 document.getElementById("add").onclick=function(){ openEdit(null); };
 document.getElementById("meBtn").onclick=openMe;
@@ -3661,7 +3747,16 @@ document.getElementById("overlay").onclick=function(e){ if(e.target.id==="overla
 document.addEventListener("keydown",function(e){ if(e.key==="Escape") closeModal(); });
 window.addEventListener("resize",function(){ if(state.tab==="mapa"){ G.alpha=0.3; tick(); } });
 initGraphEvents();
+try{ limpiarBusqueda(false); }catch(e){}
 renderAll();
+/* la búsqueda no sobrevive a cerrar y reabrir la app */
+window.addEventListener("pageshow",function(e){ if(e.persisted && (state.q||"").trim()){ limpiarBusqueda(); } });
+var _ocultaDesde=0;
+document.addEventListener("visibilitychange",function(){
+  if(document.hidden){ _ocultaDesde=Date.now(); return; }
+  if(_ocultaDesde && Date.now()-_ocultaDesde > 120000 && (state.q||"").trim()) limpiarBusqueda();
+  _ocultaDesde=0;
+});
 lockIfNeeded();
 try{ pedirConsentimiento(); }catch(e){}
 try{ telInit(); }catch(e){}
