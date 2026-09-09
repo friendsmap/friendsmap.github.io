@@ -288,15 +288,16 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
   <div id="view-mapa" style="display:none">
     <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
       <select id="modoMapa" style="width:auto;padding:6px 10px;font-size:13px">
-        <option value="circulos">Mapa por círculos (familias)</option>
         <option value="personas">Mapa de personas</option>
-        <option value="industrias">Mapa profesional (por sector)</option>
-        <option value="afinidad">Afinidad por objetivos</option>
+        <option value="circulos">Mapa por familias</option>
+        <option value="industrias">Mapa por sector</option>
         <option value="sinergias">Sinergias entre fichas</option>
+        <option value="afinidad">Afinidad por objetivos</option>
       </select>
     </div>
     <div id="graphBox">
       <svg id="graph"></svg>
+      <div style="position:absolute;left:10px;bottom:8px;font-size:11px;color:var(--muted);background:rgba(255,255,255,.82);border-radius:6px;padding:3px 8px;pointer-events:none">Pellizca para acercar · arrastra para mover</div>
       <div class="mapctl">
         <button class="btn sm" id="reflow">Reordenar</button>
         <label class="chip"><input type="checkbox" id="byGroup" style="width:auto" checked> unir por círculo</label>
@@ -332,7 +333,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.09-34";
+var VERSION="2026.09.09-35";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -367,7 +368,7 @@ function esF(p){ return p&&p.genero==="f"; }
 function EL(p){ return esF(p)?"ella":"él"; }
 function SU(p){ return esF(p)?"suya":"suyo"; }
 
-var state={ people:[], me:null, tab:"fichas", q:"", grupo:"", tipo:"", tipos:[], modoMapa:"circulos" };
+var state={ people:[], me:null, tab:"fichas", q:"", grupo:"", tipo:"", tipos:[], modoMapa:"personas" };
 var SEED=null;
 
 /* ---------- persistencia ---------- */
@@ -1461,17 +1462,50 @@ function svgPoint(ev){
   var svg=document.getElementById("graph"),r=svg.getBoundingClientRect();
   return {x:(ev.clientX-r.left-G.tx)/G.s,y:(ev.clientY-r.top-G.ty)/G.s};
 }
+function zoomEn(ns,mx,my){
+  ns=Math.max(0.25,Math.min(4,ns));
+  if(ns===G.s) return;
+  G.tx=mx-(mx-G.tx)*(ns/G.s); G.ty=my-(my-G.ty)*(ns/G.s); G.s=ns; draw();
+}
 function initGraphEvents(){
   var svg=document.getElementById("graph");
+  var toques={};                 /* punteros activos, para el pellizco */
+  var pin=null;                  /* estado del pellizco en curso */
+  function nToques(){ var n=0; for(var k in toques) n++; return n; }
+  function medida(){
+    var a=null,b=null;
+    for(var k in toques){ if(!a) a=toques[k]; else if(!b) b=toques[k]; }
+    var dx=a.x-b.x, dy=a.y-b.y;
+    var r=svg.getBoundingClientRect();
+    return { d:Math.sqrt(dx*dx+dy*dy)||1, cx:(a.x+b.x)/2-r.left, cy:(a.y+b.y)/2-r.top };
+  }
+
   svg.addEventListener("pointerdown",function(ev){
+    toques[ev.pointerId]={x:ev.clientX,y:ev.clientY};
+    if(nToques()===2){
+      /* empieza el pellizco: cancelamos arrastre y desplazamiento */
+      G.drag=null; G.pan=null; svg.classList.remove("grabbing");
+      var m=medida(); pin={d:m.d, s:G.s, cx:m.cx, cy:m.cy};
+      return;
+    }
+    if(nToques()>2) return;
     var g=ev.target.closest?ev.target.closest(".node"):null;
     var id=g&&g.getAttribute("data-id"), sec=g&&g.getAttribute("data-sec");
     if(sec) G.drag={id:"sec:"+sec,sector:sec,moved:false};
     else if(id) G.drag={id:id,moved:false};
     else { G.pan={x:ev.clientX-G.tx,y:ev.clientY-G.ty}; svg.classList.add("grabbing"); }
-    svg.setPointerCapture(ev.pointerId);
+    try{ svg.setPointerCapture(ev.pointerId); }catch(e){}
   });
+
   svg.addEventListener("pointermove",function(ev){
+    if(toques[ev.pointerId]){ toques[ev.pointerId].x=ev.clientX; toques[ev.pointerId].y=ev.clientY; }
+    if(pin && nToques()>=2){
+      ev.preventDefault();
+      var m=medida();
+      /* el zoom se ancla en el punto medio entre los dos dedos */
+      zoomEn(pin.s*(m.d/pin.d), m.cx, m.cy);
+      return;
+    }
     if(G.drag){
       var pt=svgPoint(ev),n=G.nodes.filter(function(x){return x.id===G.drag.id;})[0];
       if(n){
@@ -1480,19 +1514,32 @@ function initGraphEvents(){
         n.x=pt.x;n.y=pt.y;G.alpha=Math.max(G.alpha,0.35);tick();
       }
     } else if(G.pan){ G.tx=ev.clientX-G.pan.x; G.ty=ev.clientY-G.pan.y; draw(); }
-  });
-  svg.addEventListener("pointerup",function(){
+  },{passive:false});
+
+  function suelta(ev){
+    delete toques[ev.pointerId];
+    if(nToques()<2) pin=null;
+    if(nToques()>0){ G.drag=null; G.pan=null; return; }   /* aún queda un dedo: no es un clic */
     if(G.drag&&!G.drag.moved){
       if(G.drag.sector) verSector(G.drag.sector); else openEdit(G.drag.id);
     }
     G.drag=null;G.pan=null;svg.classList.remove("grabbing");
-  });
+  }
+  svg.addEventListener("pointerup",suelta);
+  svg.addEventListener("pointercancel",suelta);
+
   svg.addEventListener("wheel",function(ev){
     ev.preventDefault();
     var r=svg.getBoundingClientRect(),mx=ev.clientX-r.left,my=ev.clientY-r.top;
-    var k=ev.deltaY<0?1.12:1/1.12,ns=Math.max(0.35,Math.min(2.6,G.s*k));
-    G.tx=mx-(mx-G.tx)*(ns/G.s); G.ty=my-(my-G.ty)*(ns/G.s); G.s=ns; draw();
+    zoomEn(G.s*(ev.deltaY<0?1.12:1/1.12), mx, my);
   },{passive:false});
+
+  /* doble toque / doble clic: acerca; con dos dedos o alt, aleja */
+  svg.addEventListener("dblclick",function(ev){
+    ev.preventDefault();
+    var r=svg.getBoundingClientRect();
+    zoomEn(G.s*(ev.altKey?1/1.6:1.6), ev.clientX-r.left, ev.clientY-r.top);
+  });
 }
 
 function verSector(sec){
@@ -3742,7 +3789,8 @@ document.getElementById("file").onchange=function(e){ if(e.target.files[0]) impo
 document.getElementById("pdfBtn").onclick=function(){ renderInforme(); setTimeout(function(){ window.print(); },150); };
 document.getElementById("reflow").onclick=function(){ G.tx=0;G.ty=0;G.s=1;G.nodes=[]; buildGraph(); };
 document.getElementById("byGroup").onchange=buildGraph;
-document.getElementById("modoMapa").onchange=function(e){ state.modoMapa=e.target.value; G.nodes=[]; mapaRender(); };
+(function(){ var mm=document.getElementById("modoMapa"); if(mm) mm.value=state.modoMapa; })();
+document.getElementById("modoMapa").onchange=function(e){ state.modoMapa=e.target.value; G.nodes=[]; G.tx=0; G.ty=0; G.s=1; mapaRender(); };
 document.getElementById("overlay").onclick=function(e){ if(e.target.id==="overlay") closeModal(); };
 document.addEventListener("keydown",function(e){ if(e.key==="Escape") closeModal(); });
 window.addEventListener("resize",function(){ if(state.tab==="mapa"){ G.alpha=0.3; tick(); } });
