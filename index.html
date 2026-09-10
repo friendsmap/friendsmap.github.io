@@ -276,7 +276,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
   <div class="seg" id="seg"></div>
 
   <div class="toolbar">
-    <div class="buscador"><span class="lupa">⌕</span><input type="search" id="q" placeholder="Buscar persona, interés, empleo, ciudad…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button class="btnx" id="qclear" title="Limpiar" aria-label="Limpiar">✕</button></div>
+    <form class="buscador" autocomplete="off" onsubmit="return false"><span class="lupa">⌕</span><input type="search" id="q" name="buscar_personas" placeholder="Buscar persona, interés, empleo, ciudad…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="search" enterkeyhint="search" data-lpignore="true" data-1p-ignore data-bwignore data-form-type="other"><button class="btnx" id="qclear" title="Limpiar" aria-label="Limpiar">✕</button></form>
     <select id="fGrupo"><option value="">Todos los círculos</option></select>
     <button class="btn primary" id="add">+ Persona</button>
     <button class="btn" id="meBtn">Mi perfil</button>
@@ -332,14 +332,14 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 </div>
 
 <div id="lock"><div class="box"><h2>Friends Map</h2><p>Introduce tu PIN</p>
-  <input type="password" inputmode="numeric" id="pinIn" maxlength="8" autocomplete="off">
+  <input type="password" inputmode="numeric" id="pinIn" name="pin_local" maxlength="8" autocomplete="one-time-code" data-lpignore="true" data-1p-ignore data-bwignore data-form-type="other">
   <div style="margin-top:10px"><button class="btn primary" id="pinOk" style="width:100%">Entrar</button></div>
   <p id="pinErr" style="color:var(--accent);display:none;margin-top:8px">PIN incorrecto</p></div></div>
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
 
 <script>
 "use strict";
-var VERSION="2026.09.10-43";
+var VERSION="2026.09.10-44";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -3883,7 +3883,7 @@ function openSync(){
     +'<p style="font-size:13px;margin:0 0 8px">'+(pass
       ? 'Lo que sube a la nube es un bloque ilegible. Ni Google ni nadie con acceso a tu Drive puede leerlo. La contraseña se queda en este dispositivo y nunca viaja.'
       : 'Ahora mismo el archivo sube <b>legible</b>. Con una contraseña, la app lo cifra aquí antes de subirlo y en la nube solo queda ruido.')+'</p>'
-    +'<div class="fld"><label>Contraseña de cifrado</label><input type="password" id="cf_pass" data-nomic="1" value="'+esc(pass||"")+'" placeholder="una frase larga que recuerdes"></div>'
+    +'<div class="fld"><label>Contraseña de cifrado</label><input type="password" id="cf_pass" name="clave_cifrado_local" autocomplete="new-password" data-lpignore="true" data-1p-ignore data-bwignore data-form-type="other" data-nomic="1" value="'+esc(pass||"")+'" placeholder="una frase larga que recuerdes"></div>'
     +'<p style="color:var(--muted);font-size:11.5px;margin:-4px 0 8px">Si la pierdes, el archivo de la nube es irrecuperable. Por eso conviene la copia local de abajo. Usa la misma frase en el móvil y en el ordenador.</p>'
     +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
     +'<button class="btn primary" id="cf_activar">'+(pass?'Cambiar contraseña':'Activar cifrado')+'</button>'
@@ -4087,12 +4087,18 @@ function openPaste(){
 var PINKEY="mapaAmigos.pin";
 function getPin(){ try{ return localStorage.getItem(PINKEY)||""; }catch(e){ return ""; } }
 function setPin(v){ try{ v?localStorage.setItem(PINKEY,v):localStorage.removeItem(PINKEY); }catch(e){} }
+function quitaCampoPin(){
+  /* Android ofrece «usar contraseñas de Google» en CUALQUIER campo de una página
+     que contenga un input de contraseña. Si ya estamos dentro, lo eliminamos. */
+  var el=document.getElementById("pinIn");
+  if(el && el.parentNode) el.parentNode.removeChild(el);
+}
 function lockIfNeeded(){
-  var p=getPin(); if(!p) return;
+  var p=getPin(); if(!p){ quitaCampoPin(); return; }
   var lk=document.getElementById("lock");
   lk.classList.add("on");
   var tryIt=function(){
-    if(document.getElementById("pinIn").value===p){ lk.classList.remove("on"); }
+    if(document.getElementById("pinIn").value===p){ lk.classList.remove("on"); quitaCampoPin(); }
     else { document.getElementById("pinErr").style.display="block"; document.getElementById("pinIn").value=""; }
   };
   document.getElementById("pinOk").onclick=tryIt;
