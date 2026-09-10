@@ -60,6 +60,12 @@ header.top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-conte
 .cchip:hover{opacity:1}
 .subtipos button{border:0;background:transparent;padding:6px 14px;border-radius:8px;color:var(--muted);font-weight:550;display:flex;align-items:center;gap:6px;cursor:pointer}
 .subtipos button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);font-weight:650}
+.subtipos .addt{color:#8d97a6;font-weight:700;font-size:16px;padding:5px 12px;line-height:1}
+.sugbtn{border:1px solid #e6d4dd;background:#fdf6f9;color:#b5476b;border-radius:6px;font-size:10.5px;font-weight:700;padding:2px 8px;margin-left:8px;cursor:pointer;vertical-align:1px}
+.sugbtn:hover{background:#b5476b;color:#fff;border-color:#b5476b}
+.subtipos .addt:hover{background:#fff;color:#1e2a3a}
+.subtipos .delt{margin-left:7px;font-size:10px;color:#b3bcc9;padding:1px 3px;border-radius:4px}
+.subtipos .delt:hover{background:#ffe8e6;color:#d2402c}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
 .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 12px;font-weight:550}
 .btn:hover{border-color:#c3ccd9}
@@ -333,7 +339,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.09-39";
+var VERSION="2026.09.10-43";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -351,7 +357,7 @@ var CEBOS={
   importancia:"que su acierto se vea, y que se vea que fue suyo",
   admiracion:"que alguien reconozca de verdad lo que hace, y que se diga delante de quien le importa"
 };
-var TIPOS=[
+var TIPOS_BASE=[
   ["personal","Personal","#5aa8a0"],
   ["amigo","Amigo","#2f9d78"],
   ["familiar","Familiar","#8c5aa8"],
@@ -361,14 +367,29 @@ var TIPOS=[
   ["proveedor","Proveedor","#20b6a6"],
   ["cliente","Cliente","#e2543f"]
 ];
+var TIPOS=TIPOS_BASE.slice();
+/* Las categorías que crees tú se guardan aquí: {id, nombre, color, amb} */
+function tiposExtra(){ if(!Array.isArray(state.tipoExtra)) state.tipoExtra=[]; return state.tipoExtra; }
+function esTipoBase(id){ return TIPOS_BASE.some(function(t){ return t[0]===id; }); }
+function reconstruyeTipos(){
+  TIPOS=TIPOS_BASE.slice();
+  AMBITOS[0].tipos=["personal","amigo","conocido","familiar"];
+  AMBITOS[1].tipos=["profesional","fabricante","proveedor","cliente"];
+  tiposExtra().forEach(function(x){
+    if(esTipoBase(x.id)) return;
+    TIPOS.push([x.id,x.nombre,x.color]);
+    var A=(x.amb==="profesional")?AMBITOS[1]:AMBITOS[0];
+    if(A.tipos.indexOf(x.id)<0) A.tipos.push(x.id);
+  });
+}
 function tipoLabel(t){ for(var i=0;i<TIPOS.length;i++) if(TIPOS[i][0]===t) return TIPOS[i][1]; return "Amigo"; }
 function tipoColor(t){ for(var i=0;i<TIPOS.length;i++) if(TIPOS[i][0]===t) return TIPOS[i][2]; return "#3f7d5c"; }
-function esNegocio(p){ return p.tipo==="cliente"||p.tipo==="profesional"||p.tipo==="proveedor"||p.tipo==="fabricante"; }
+function esNegocio(p){ return ambitoDe(p&&p.tipo||"amigo")==="profesional"; }
 function esF(p){ return p&&p.genero==="f"; }
 function EL(p){ return esF(p)?"ella":"él"; }
 function SU(p){ return esF(p)?"suya":"suyo"; }
 
-var state={ people:[], me:null, tab:"fichas", q:"", grupo:"", tipo:"", tipos:[], modoMapa:"personas", circExtra:[] };
+var state={ people:[], me:null, tab:"fichas", q:"", grupo:"", tipo:"", tipos:[], modoMapa:"personas", circExtra:[], tipoExtra:[] };
 var SEED=null;
 
 /* ---------- persistencia ---------- */
@@ -380,12 +401,13 @@ function load(){
   try{
     var raw=localStorage.getItem(KEY);
     if(!raw){ for(var vi=0;vi<KEY_VIEJAS.length&&!raw;vi++) raw=localStorage.getItem(KEY_VIEJAS[vi]); }
-    if(raw){ var d=JSON.parse(raw); state.people=Array.isArray(d.people)?d.people:[]; state.me=d.me||null; state.circExtra=Array.isArray(d.circExtra)?d.circExtra:[]; }
+    if(raw){ var d=JSON.parse(raw); state.people=Array.isArray(d.people)?d.people:[]; state.me=d.me||null; state.circExtra=Array.isArray(d.circExtra)?d.circExtra:[]; state.tipoExtra=Array.isArray(d.tipoExtra)?d.tipoExtra:[]; }
+  try{ reconstruyeTipos(); }catch(e){}
   }catch(e){ state.people=[]; }
   if(!state.me) state.me=newMe();
 }
 function save(){
-  try{ localStorage.setItem(KEY,JSON.stringify({people:state.people,me:state.me,circExtra:state.circExtra||[],v:3,saved:new Date().toISOString()})); }
+  try{ localStorage.setItem(KEY,JSON.stringify({people:state.people,me:state.me,circExtra:state.circExtra||[],tipoExtra:state.tipoExtra||[],v:3,saved:new Date().toISOString()})); }
   catch(e){ if(!save.warned){ save.warned=true;
     alert("Este navegador no permite guardar datos localmente. Usa Sincronizar para no perder lo que escribas."); } }
   try{ if(gdActivo()){ gdProgramar(); } else { programarSync(); } revisarAvisos(); }catch(e){}
@@ -428,7 +450,7 @@ function newPerson(){
     aficiones:"", deportes:"", musica:"", comida:"", temas:"", evitar:"",
     exito:"", admirado:"", importante:"", preocupa:"", fascina:"", ayuda:"", logros:"", estilo:"",
     quienesImportan:"", queQuierenLosSuyos:"", gustosDeLosSuyos:"", gesto:"",
-    meAporta:"", necesito:"", buscaDeMi:"", problema:"", presume:"", cebo:"",
+    meAporta:"", necesito:"", buscaDeMi:"", problema:"", presume:"", cebo:"", decisionCuesta:"", vestir:"",
     nosUne:"", nosSepara:"", hitos:"", sies:"",
     pasos:[], discurso:"",
     cumple:"", aniversario:"", ultimoContacto:"", frecuencia:90,
@@ -444,7 +466,7 @@ function ensure(p){
     var base=String(p.tipo).split(/[·,\/]| y /)[0].trim().toLowerCase();
     p.tipo = TIPOS.some(function(t){return t[0]===base;}) ? base : "amigo";
   }
-  ["genero","exito","admirado","importante","preocupa","fascina","ayuda","logros","estilo","sector","meAporta","necesito","buscaDeMi","problema","presume","cebo","discurso","nosUne","nosSepara","hitos","sies","quienesImportan","queQuierenLosSuyos","gustosDeLosSuyos","gesto"]
+  ["genero","exito","admirado","importante","preocupa","fascina","ayuda","logros","estilo","sector","meAporta","necesito","buscaDeMi","problema","presume","cebo","decisionCuesta","vestir","discurso","nosUne","nosSepara","hitos","sies","quienesImportan","queQuierenLosSuyos","gustosDeLosSuyos","gesto"]
     .forEach(function(k){ if(p[k]==null) p[k]=""; });
   ["conexiones","notas","encuentros","pasos"].forEach(function(k){ if(!Array.isArray(p[k])) p[k]=[]; });
   return p;
@@ -1221,16 +1243,14 @@ function renderCirculos(){
   if(nPer){
     s+='<rect x="'+(x0+10)+'" y="'+(y0+10)+'" width="'+((nPro? -pad : x1-10) - (x0+10))+'" height="'+((y1-10)-(y0+10))+'" rx="22" fill="#f5f2fa" stroke="#e2d9ef" stroke-width="2"/>';
     s+='<text x="'+((nPro?-pad:x1-10)-24)+'" y="'+(y0+42)+'" font-size="18" font-weight="800" fill="#6a4c93" text-anchor="end" letter-spacing="1.6">PERSONAL</text>';
-    s+=botonMas(x0+52, y0+40, "#6a4c93", "personal", "Añadir círculo personal");
   }
   if(nPro){
     s+='<rect x="'+(nPer? pad : x0+10)+'" y="'+(y0+10)+'" width="'+((x1-10)-(nPer?pad:x0+10))+'" height="'+((y1-10)-(y0+10))+'" rx="22" fill="#eef4f9" stroke="#d6e3ef" stroke-width="2"/>';
     s+='<text x="'+((nPer?pad:x0+10)+24)+'" y="'+(y0+42)+'" font-size="18" font-weight="800" fill="#3f6fa5" letter-spacing="1.6">PROFESIONAL</text>';
-    s+=botonMas(x1-52, y0+40, "#3f6fa5", "profesional", "Añadir círculo profesional");
   }
   s+=cuerpo+textos;
   s+='</g></svg>';
-  s+='<p style="color:var(--muted);font-size:12.5px;margin-top:6px">Pellizca con dos dedos para acercar · arrastra para mover · toca a alguien para abrir su ficha · toca un círculo para quitarlo del mapa · el aspa lo borra · el + de cada recuadro crea uno nuevo.'+(pintaEtiquetas.ocultas?' <b>'+pintaEtiquetas.ocultas+'</b> nombre'+(pintaEtiquetas.ocultas>1?'s':'')+' no cabe'+(pintaEtiquetas.ocultas>1?'n':'')+': toca el punto para verlo'+(pintaEtiquetas.ocultas>1?'s':'')+'.':'')+'</p>';
+  s+='<p style="color:var(--muted);font-size:12.5px;margin-top:6px">Pellizca con dos dedos para acercar · arrastra para mover · toca a alguien para abrir su ficha · toca un círculo para quitarlo del mapa · el aspa lo borra.'+(pintaEtiquetas.ocultas?' <b>'+pintaEtiquetas.ocultas+'</b> nombre'+(pintaEtiquetas.ocultas>1?'s':'')+' no cabe'+(pintaEtiquetas.ocultas>1?'n':'')+': toca el punto para verlo'+(pintaEtiquetas.ocultas>1?'s':'')+'.':'')+'</p>';
   var ctrl='<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;flex-wrap:wrap">'
    +'<button class="btn sm" onclick="cirZoom(1.2)">＋</button><button class="btn sm" onclick="cirZoom(0.83)">－</button>'
    +'<button class="btn sm" onclick="cirReset()">Centrar</button><button class="btn sm" onclick="cirReordenar()">Reordenar</button>'
@@ -2272,6 +2292,8 @@ function escenaSVG(p){
   var adm=esencia(p.admirado||"(aún no sé por qué querría que le admiraran)",90);
   var cebo=esencia(p.cebo||ceboDe(p)||"",60);
   var gesto=esencia(p.gesto||"",56);
+  var presu=esencia(p.presume||"",42);
+  var deci=esencia(p.decisionCuesta||"",46);
   var nom=p.nombre||"Sin nombre";
   return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 900" width="900" height="900">'
    +'<defs><style>'
@@ -2376,6 +2398,9 @@ function promptEscena(p){
   if(p.fascina||p.aficiones) l.push('- Taza de café con el texto: "'+recorta(p.fascina||p.aficiones,45)+'"');
   if(p.cebo||ceboDe(p)) l.push('- Lomo de un libro sobre la mesa: "'+recorta(p.cebo||ceboDe(p),50)+'"');
   l.push('- Placa de bronce sobre la mesa, sin nombres, con un rasgo suyo: "'+recorta(pinceladaDe(p),30)+'"');
+  if(p.presume) l.push('- Trofeo o diploma en la estantería con el texto: "'+recorta(p.presume,50)+'"');
+  if(p.decisionCuesta) l.push('- Papel a medio escribir sobre la mesa, con una sola línea: "'+recorta(p.decisionCuesta,55)+'"');
+  if(p.vestir) l.push("El gato viste acorde a esta descripción: "+recorta(p.vestir,70)+".");
   if(p.aficiones) l.push("Objetos de atrezo relacionados con: "+recorta(p.aficiones,80)+".");
   l.push("Estilo: fotografía de estudio, tonos cálidos y apagados, profundidad de campo suave, aire de retrato corporativo antiguo.");
   return l.join("\n");
@@ -2520,23 +2545,23 @@ function openEdit(id){
     +'<option value="m"'+(p.genero==="m"?" selected":"")+'>Él</option>'
     +'<option value="f"'+(p.genero==="f"?" selected":"")+'>Ella</option></select></div>'
     +fld("Círculo (equipo, barrio, familia…)","grupo",p.grupo)
-    +fld("Ciudad","ciudad",p.ciudad)+fld("Sector / ámbito","sector",p.sector)+'</div>'
-    +fld("Cómo os conocisteis","comoConocimos",p.comoConocimos,"ta")+'</fieldset>';
-  h+='<fieldset style="border-color:#8c5aa8"><legend style="color:#8c5aa8">Familia y trabajo</legend><div class="cols">'
-    +fld("Pareja","pareja",p.pareja)+fld("Hijos (nombres y edades)","hijos",p.hijos)
+    +fld("Ciudad","ciudad",p.ciudad)+fld("Sector / ámbito","sector",p.sector)
     +fld("Empleo / puesto","empleo",p.empleo)+fld("Empresa","empresa",p.empresa)+'</div>'
-    +fld("Otros datos de familia","familia",p.familia,"ta")+'</fieldset>';
+    +fld("Cómo os conocisteis","comoConocimos",p.comoConocimos,"ta")+'</fieldset>';
   h+='<fieldset style="border-color:#20b6a6"><legend style="color:#20b6a6">Lo que persigue</legend>'
     +fld("Qué le preocupa","preocupa",p.preocupa,"ta")
+    +fld("¿Qué decisión le está costando tomar?","decisionCuesta",p.decisionCuesta,"ta")
     +fld("Qué le fascina","fascina",p.fascina,"ta")
     +fld("Cómo puedo ayudarle a conseguirlo","ayuda",p.ayuda,"ta")
-    +fld("Logros suyos que puedes reconocer (concretos)","logros",p.logros,"ta")+'</fieldset>';
+    +fld("Logros suyos que puedes reconocer (concretos)","logros",p.logros,"ta")
+    +fld("¿De qué presume?","presume",p.presume,"ta")+'</fieldset>';
   h+='<fieldset style="border-color:#d99b2b"><legend style="color:#d99b2b">Gustos e intereses</legend>'
     +fld("Aficiones (separadas por comas)","aficiones",p.aficiones)
     +'<div class="cols">'+fld("Deporte / equipo","deportes",p.deportes)+fld("Música","musica",p.musica)
     +fld("Comida y bebida","comida",p.comida)+fld("Temas que le encienden","temas",p.temas)+'</div>'
     +fld("Temas a evitar","evitar",p.evitar)
-    +(esF(p)?fld("Cómo suele vestir / su estilo","estilo",p.estilo,"ta"):"")+'</fieldset>';
+    +fld("¿Cómo es su forma de vestir? (qué cuida y qué descuida)","vestir",p.vestir,"ta")
+    +fld("Cómo tratarle (su estilo en el trato)","estilo",p.estilo,"ta")+'</fieldset>';
   var citaProx=nextMeeting(p);
   h+='<fieldset style="border-color:#2f9d78"><legend style="color:#2f9d78">Fechas</legend><div class="cols3">'
     +fld("Cumpleaños","cumple",p.cumple,"date")
@@ -2567,10 +2592,25 @@ function openEdit(id){
     +'</fieldset>';
   h+='<fieldset style="border-color:#7a5bd0"><legend style="color:#7a5bd0">Su gente</legend>'
     +'<p style="color:var(--muted);font-size:12px;margin:0 0 10px">Nadie se abre tanto hablando de sí mismo como hablando de los suyos. Y casi nadie le pregunta por ellos.</p>'
+    +'<div class="cols">'+fld("Pareja","pareja",p.pareja)+fld("Hijos (nombres y edades)","hijos",p.hijos)+'</div>'
+    +fld("Otros de su familia (padres, hermanos…)","familia",p.familia,"ta")
     +fld("A quién quiere más (nombres y qué son suyos)","quienesImportan",p.quienesImportan,"ta")
     +fld("Qué quieren ellos (lo que persiguen los suyos)","queQuierenLosSuyos",p.queQuierenLosSuyos,"ta")
     +fld("Aficiones y gustos de los suyos","gustosDeLosSuyos",p.gustosDeLosSuyos,"ta")
     +fld("Un gesto que le pueda hacer y me cueste tiempo","gesto",p.gesto,"ta")+'</fieldset>';
+  h+='<fieldset style="border-color:#b5476b"><legend style="color:#b5476b">Lectura del perfil</legend>'
+    +'<p style="color:var(--muted);font-size:12px;margin:0 0 4px">Once preguntas para entenderle mejor. Puedes escribirlas tú, o pulsar <b>Sugerir</b> y la app propone una hipótesis a partir de lo que ya has anotado más arriba.</p>'
+    +'<p style="font-size:11.5px;margin:0 0 10px;color:#b5476b"><b>Son hipótesis, no diagnósticos.</b> Sirven para preguntar mejor y comprobar si aciertas, no para etiquetar a nadie. Si no encaja, bórralo.</p>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'
+    +'<button type="button" class="btn sm primary" onclick="sugerirTodo(\''+p.id+'\')">Sugerir todas</button>'
+    +'<button type="button" class="btn sm" onclick="limpiarLectura()">Vaciar</button></div>'
+    + bloquePsico(p)
+    + LECTURA.map(function(L){
+        return '<div class="fld"><label>'+esc(L[1])
+          +' <button type="button" class="sugbtn" onclick="sugerirUno(\''+p.id+'\',\''+L[0]+'\')">Sugerir</button></label>'
+          +'<textarea id="f_'+L[0]+'">'+esc(p[L[0]]||"")+'</textarea></div>';
+      }).join("")
+    +'</fieldset>';
   h+='<div class="modal-actions">'
     +(isNew?"":'<button class="btn danger" id="del">Eliminar</button>')
     +(isNew?"":'<button class="btn" onclick="openPlan(\''+p.id+'\')">Plan</button>')
@@ -2654,6 +2694,290 @@ function borrarNota(id,i,silencio){
   if(!silencio && !confirm("¿Borrar esta anotación?\n\n"+p.notas[i].t.slice(0,120))) return;
   p.notas.splice(i,1); save(); refrescarNotas(p); renderAll(); toast("Nota borrada");
 }
+/* ---------- retrato psicológico estimado ----------
+   Rasgos: modelo de los cinco grandes (OCEAN). Motivos: lo que ya has puntuado
+   en «Qué le mueve» (0-3) y, si está vacío, se estima del texto.
+   Es una ESTIMACIÓN a partir de tus notas, no un test. */
+var LEX={
+  apertura:["idea","ideas","curios","viaj","arte","música","musica","leer","libro","aprend","innov","nuev","cambio","cambiar","probar","tecnolog","diseñ","crear","creativ","filosof","explorar","proyecto"],
+  responsable:["método","metodo","orden","plan","control","detalle","cumplir","rigor","disciplin","puntual","organiz","estructura","proceso","calidad","compromiso","respons","seri","exigen"],
+  extravers:["gente","equipo","red ","habla","event","feria","reunion","reunión","social","amig","lider","present","comunic","fiesta","cena","conoc","contact"],
+  amable:["ayud","familia","hijo","cuid","apoy","escuch","confianz","generos","colabor","empat","acompañ","juntos","suyos","cerca"],
+  inestable:["preocup","miedo","estrés","estres","ansi","teme","temor","riesgo","incertidumbre","presión","presion","agobi","duda","nervi","perder","fracas"]
+};
+function _texto(p){
+  return ["exito","admirado","importante","preocupa","fascina","ayuda","logros","estilo","vestir","presume",
+          "aficiones","deportes","musica","comida","temas","evitar","empleo","sector","comoConocimos",
+          "quienesImportan","queQuierenLosSuyos","cebo","buscaDeMi","necesito","problema","decisionCuesta"]
+    .map(function(k){ return _t(p,k); }).concat((p.notas||[]).map(function(n){ return n.t||""; }))
+    .join(" ").toLowerCase();
+}
+function _cuenta(txt,lista){ var n=0; lista.forEach(function(w){ var i=0; while((i=txt.indexOf(w,i))>=0){ n++; i+=w.length; } }); return n; }
+function perfilPsico(p){
+  var txt=_texto(p), largo=txt.replace(/\s+/g," ").trim().length;
+  function esc100(n,peso){ return Math.max(12,Math.min(95, Math.round(50+n*peso))); }
+  var big={
+    "Apertura":        esc100(_cuenta(txt,LEX.apertura),5),
+    "Método y orden":  esc100(_cuenta(txt,LEX.responsable),5),
+    "Sociabilidad":    esc100(_cuenta(txt,LEX.extravers),5),
+    "Cercanía":        esc100(_cuenta(txt,LEX.amable),4.5),
+    "Serenidad":       esc100(-_cuenta(txt,LEX.inestable),5)
+  };
+  if(_t(p,"hijos")||_t(p,"pareja")) big["Cercanía"]=Math.min(95,big["Cercanía"]+8);
+  if((p.notas||[]).length>4) big["Sociabilidad"]=Math.min(95,big["Sociabilidad"]+6);
+  if(_t(p,"aficiones").split(",").length>2) big["Apertura"]=Math.min(95,big["Apertura"]+6);
+
+  /* motivos: primero lo que TÚ has puntuado */
+  var mot={}, suma=0;
+  MOTS.forEach(function(m){ var v=(p.mot&&p.mot[m[0]]&&p.mot[m[0]].n)||0; suma+=v; mot[m[1]]=Math.round(v/3*100); });
+  var motPropio=suma>0;
+  if(!motPropio){
+    var M={ "Salud y vida":["salud","descans","dormir","deporte","cuid"],
+            "Alimento y descanso":["estabilidad","tranquil","seguridad","casa"],
+            "Dinero y lo que compra":["dinero","salario","factur","coste","precio","margen","vender","cifra"],
+            "Sentido / trascendencia":["sentido","legado","dejar","perdure","orgullo","propósito","proposito","construir"],
+            "Afecto y pareja":["pareja","afecto","quiere","querid","amor","juntos"],
+            "Bienestar de los hijos":["hijo","hija","niñ","familia","colegio"],
+            "Sentirse importante":["important","referen","respet","reconoc","protagon"],
+            "Ser admirado":["admir","presum","prestigio","que se vea","reconocimiento"] };
+    MOTS.forEach(function(m){ mot[m[1]]=Math.max(8,Math.min(100,_cuenta(txt,M[m[1]]||[])*22)); });
+  }
+  /* la descripción */
+  var rasgos=Object.keys(big).map(function(k){ return [k,big[k]]; }).sort(function(a,b){ return b[1]-a[1]; });
+  var moti=Object.keys(mot).map(function(k){ return [k,mot[k]]; }).sort(function(a,b){ return b[1]-a[1]; });
+  var alto=rasgos[0], seg=rasgos[1], bajo=rasgos[rasgos.length-1];
+  var m1=moti[0], m2=moti[1];
+  var COMO={
+    "Apertura":"le interesan las ideas antes que los procedimientos",
+    "Método y orden":"necesita saber cómo se va a hacer antes de decidir si se hace",
+    "Sociabilidad":"piensa hablando y decide con gente delante",
+    "Cercanía":"mide las decisiones por cómo afectan a los suyos",
+    "Serenidad":"aguanta bien la presión y no se precipita"
+  };
+  var RIESGO={
+    "Apertura":"puede cerrarse a lo que no encaja con lo que ya conoce",
+    "Método y orden":"puede lanzarse sin plan y luego improvisar de más",
+    "Sociabilidad":"puede aislarse y decidir sin contrastar",
+    "Cercanía":"puede sonar frío aunque no lo sea",
+    "Serenidad":"se le nota la tensión, y decide peor cuando la lleva encima"
+  };
+  var l1="En el modelo de los cinco grandes destaca en <b>"+alto[0].toLowerCase()+"</b> y <b>"+seg[0].toLowerCase()+"</b>: "+COMO[alto[0]]+".";
+  var l2="Lo que más le mueve es <b>"+m1[0].toLowerCase()+"</b>"+(m2[1]>40?", seguido de <b>"+m2[0].toLowerCase()+"</b>":"")+", así que agradece que le hables de eso antes que del producto.";
+  var l3="Su punto flojo aparente es <b>"+bajo[0].toLowerCase()+"</b>: "+RIESGO[bajo[0]]+".";
+  return {big:big, mot:mot, motPropio:motPropio, lineas:[l1,l2,l3], datos:largo};
+}
+function radarSVG(titulo,datos,color,sub){
+  var ejes=Object.keys(datos), n=ejes.length, W=460, H=300, cx=W/2, cy=152, R=84;
+  var CORTO={"Método y orden":"Método","Sentido / trascendencia":"Sentido","Alimento y descanso":"Descanso",
+             "Dinero y lo que compra":"Dinero","Bienestar de los hijos":"Los hijos","Sentirse importante":"Importante",
+             "Afecto y pareja":"Afecto","Salud y vida":"Salud"};
+  var s='<svg viewBox="0 0 '+W+' '+H+'" width="100%" style="display:block">';
+  s+='<text x="'+cx+'" y="16" text-anchor="middle" font-size="11" font-weight="700" fill="#1e2a3a" letter-spacing=".06em">'+esc(titulo)+'</text>';
+  if(sub) s+='<text x="'+cx+'" y="30" text-anchor="middle" font-size="9" fill="#8d97a6">'+esc(sub)+'</text>';
+  [0.25,0.5,0.75,1].forEach(function(f){
+    var pts=[]; for(var i=0;i<n;i++){ var a=-Math.PI/2+i*2*Math.PI/n; pts.push((cx+Math.cos(a)*R*f).toFixed(1)+","+(cy+Math.sin(a)*R*f).toFixed(1)); }
+    s+='<polygon points="'+pts.join(" ")+'" fill="none" stroke="#e6eaf0" stroke-width="1"/>';
+  });
+  for(var i=0;i<n;i++){
+    var a=-Math.PI/2+i*2*Math.PI/n;
+    s+='<line x1="'+cx+'" y1="'+cy+'" x2="'+(cx+Math.cos(a)*R).toFixed(1)+'" y2="'+(cy+Math.sin(a)*R).toFixed(1)+'" stroke="#eef1f5" stroke-width="1"/>';
+  }
+  var pol=[];
+  for(i=0;i<n;i++){ var a2=-Math.PI/2+i*2*Math.PI/n, v=Math.max(6,Math.min(100,datos[ejes[i]]))/100;
+    pol.push((cx+Math.cos(a2)*R*v).toFixed(1)+","+(cy+Math.sin(a2)*R*v).toFixed(1)); }
+  s+='<polygon points="'+pol.join(" ")+'" fill="'+color+'" fill-opacity=".22" stroke="'+color+'" stroke-width="2"/>';
+  for(i=0;i<n;i++){ var a3=-Math.PI/2+i*2*Math.PI/n, v3=Math.max(6,Math.min(100,datos[ejes[i]]))/100;
+    s+='<circle cx="'+(cx+Math.cos(a3)*R*v3).toFixed(1)+'" cy="'+(cy+Math.sin(a3)*R*v3).toFixed(1)+'" r="2.8" fill="'+color+'"/>'; }
+  for(i=0;i<n;i++){
+    var a4=-Math.PI/2+i*2*Math.PI/n, lx=cx+Math.cos(a4)*(R+20), ly=cy+Math.sin(a4)*(R+20)+3;
+    var an=Math.abs(Math.cos(a4))<0.25?"middle":(Math.cos(a4)>0?"start":"end");
+    var et=CORTO[ejes[i]]||ejes[i];
+    s+='<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" font-size="9.5" fill="#5a6678" text-anchor="'+an+'">'+esc(et)+'<title>'+esc(ejes[i])+'</title></text>';
+    s+='<text x="'+lx.toFixed(1)+'" y="'+(ly+10).toFixed(1)+'" font-size="8.5" font-weight="700" fill="'+color+'" text-anchor="'+an+'">'+Math.round(datos[ejes[i]])+'</text>';
+  }
+  return s+'</svg>';
+}
+function bloquePsico(p){
+  var r=perfilPsico(p);
+  if(r.datos<120) return '<div class="card" style="padding:12px 14px;font-size:12.5px;color:var(--muted)">Cuando tengas algo más escrito de esta persona aparecerá aquí su retrato: dos gráficos de araña y tres líneas de resumen.</div>';
+  return '<div style="background:#fbfcfd;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:12px">'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
+    +'<div style="flex:1 1 230px;min-width:210px">'+radarSVG("PERSONALIDAD",r.big,"#6a4c93","cinco grandes · estimado")+'</div>'
+    +'<div style="flex:1 1 230px;min-width:210px">'+radarSVG("LO QUE LE MUEVE",r.mot,"#c0468a",r.motPropio?"según tus puntuaciones":"estimado del texto")+'</div>'
+    +'</div>'
+    +'<div style="font-size:12.5px;line-height:1.55;border-top:1px solid var(--line);padding-top:10px;margin-top:4px">'
+    + r.lineas.map(function(l){ return '<div style="margin-bottom:3px">'+l+'</div>'; }).join("")
+    +'</div>'
+    +'<p style="font-size:10.5px;color:var(--muted);margin:8px 0 0">Estimación calculada con lo que has escrito en esta ficha. No es un test ni un diagnóstico: si algo no encaja, lo que falla es la estimación, no la persona.</p>'
+    +'</div>';
+}
+
+var LECTURA=[
+  ["lecDeduce",  "1 · Cinco cosas que se deducen de su perfil y que nunca te ha contado"],
+  ["lecPatrones","2 · Cinco patrones en su forma de pensar, actuar y decidir"],
+  ["lecDecision","3 · ¿Qué decisión le preocupa y no quiere tomar, aunque no lo diga?"],
+  ["lecRenuncia","4 · ¿A qué no quiere renunciar si la toma, y por qué no se atreve?"],
+  ["lecGana",    "5 · ¿Qué gana si la toma, aceptando las pérdidas?"],
+  ["lecPierde",  "6 · ¿Qué pierde?"],
+  ["lecNiega",   "7 · Qué está negando y no quiere aceptar"],
+  ["lecTresSin", "8 · Cómo serán sus próximos 3 años si no cambia"],
+  ["lecFreno",   "9 · El patrón que más le frena"],
+  ["lecTresCon", "10 · Cómo serán sus próximos 3 años si lo cambia"],
+  ["lecMantra",  "11 · La frase que debería decirse a sí mismo cada mañana"]
+];
+function _t(p,k){ return String(p&&p[k]||"").trim(); }
+function _frase(s,n){ s=String(s||"").replace(/\s+/g," ").trim(); if(!s) return ""; return s.length>n? s.slice(0,n-1)+"…" : s; }
+function _elLa(p){ return esF(p)?"ella":"él"; }
+/* "quienesImportan" a veces son nombres ("Carmen, sus hijas…") y a veces una frase
+   entera ("Trabaja codo con codo con…"). Solo lo usamos cuando son nombres. */
+function _losSuyos(p){
+  var q=_t(p,"quienesImportan"); if(!q) return "";
+  var pal=q.replace(/\s+/g," ").trim().split(" ");
+  if(pal.length>8) return "";
+  if(/\b(trabaja|trabajan|tiene|tienen|quiere|quieren|busca|buscan|est[áa]|est[áa]n|son|hace|hacen|lleva|llevan)\b/i.test(q)) return "";
+  return _frase(q,42);
+}
+function _seniales(p){
+  var s={}, n=0;
+  ["preocupa","fascina","exito","admirado","importante","ayuda","logros","quienesImportan",
+   "queQuierenLosSuyos","cebo","estilo","evitar","empleo","empresa","sector","aficiones",
+   "pareja","hijos","buscaDeMi","necesito","meAporta","problema","comoConocimos"].forEach(function(k){
+    var v=_t(p,k); if(v){ s[k]=v; n++; }
+  });
+  s._n=n; s._notas=(p.notas||[]).length;
+  return s;
+}
+/* Genera hipótesis SOLO a partir de lo que ya has escrito. Si hay poco, lo dice. */
+function sugerirLectura(p,cual){
+  var s=_seniales(p), out={}, nom=(p.apodo||p.nombre||"").split(" ")[0]||"esta persona";
+  if(s._n<3){
+    var aviso="Todavía hay muy poco escrito de "+nom+" para deducir nada con sentido.\n\n"
+      +"Rellena arriba al menos qué le preocupa, en qué quiere tener éxito y qué le hace sentir importante, y vuelve a pulsar Sugerir.";
+    LECTURA.forEach(function(L){ out[L[0]]=aviso; });
+    return cual?out[cual]:out;
+  }
+  var H="HIPÓTESIS · ";
+  var L=[];
+
+  /* 1 · deducciones */
+  L=[];
+  if(s.importante&&s.admirado) L.push("Le mueve más el reconocimiento que el resultado: quiere sentirse importante por «"+_frase(s.importante,70)+"» y admirado por «"+_frase(s.admirado,60)+"». Probablemente un elogio delante de otros le vale más que uno a solas.");
+  if(s.preocupa) L.push("Lo que dice que le preocupa («"+_frase(s.preocupa,70)+"») rara vez es un problema de medios: suele ser de control. Quien teme eso necesita anticiparse, y le cuesta delegar.");
+  if(s.exito&&s.preocupa) L.push("Hay tensión entre lo que persigue y lo que teme. Eso normalmente se traduce en que avanza a rachas: empuja fuerte y luego se frena solo.");
+  if(s.hijos||s.pareja) L.push("Con "+(s.hijos?"hijos":"pareja")+" de por medio, su recurso escaso no es el dinero: es el tiempo y la tranquilidad. Cualquier propuesta que le quite tiempo parte con desventaja aunque sea buena.");
+  if(s.logros) L.push("Cuenta sus logros («"+_frase(s.logros,60)+"»), así que le importa que se sepan. No es vanidad: es que necesita saber que lo que hizo sirvió para algo.");
+  if(s.evitar) L.push("Evita «"+_frase(s.evitar,50)+"». Lo que alguien evita suele señalar dónde se sintió mal alguna vez, no lo que no le interesa.");
+  if(s.empleo&&s.empresa) L.push("Su puesto ("+_frase(s.empleo,40)+" en "+_frase(s.empresa,30)+") le obliga a responder ante alguien. Buena parte de lo que decide no lo decide por gusto.");
+  if(s.aficiones) L.push("Lo que hace en su tiempo libre («"+_frase(s.aficiones,50)+"») dice más de cómo quiere sentirse que de lo que le divierte.");
+  out.lecDeduce=H+"cinco lecturas a contrastar hablando, no conclusiones.\n\n"+L.slice(0,5).map(function(x,i){ return (i+1)+". "+x; }).join("\n\n");
+
+  /* 2 · patrones */
+  L=[];
+  if(s.estilo) L.push("Trato: "+_frase(s.estilo,90)+". Ahí está su ritmo; si le cambias el ritmo, se cierra.");
+  if(s.preocupa) L.push("Decide para no perder antes que para ganar. Ante la duda, elige la opción que menos le expone.");
+  if(s.exito) L.push("Cuando algo encaja con «"+_frase(s.exito,55)+"» se mueve rápido. Cuando no, lo aparca sin decir que no.");
+  if(s.quienesImportan) L.push("Consulta con los suyos"+(_losSuyos(p)?" ("+_losSuyos(p)+")":"")+" antes de comprometerse, aunque no lo diga en la reunión.");
+  if(s.cebo) L.push("Lo que de verdad le enciende es «"+_frase(s.cebo,55)+"». Si eso no aparece, la conversación se le vuelve trámite.");
+  if(s.ayuda) L.push("Acepta ayuda mejor cuando llega como una idea suya. Presentarle algo cerrado le hace buscarle los fallos.");
+  if(s.logros) L.push("Vuelve a lo que ya le salió bien. Tiende a repetir la jugada que le funcionó, incluso cuando el contexto ha cambiado.");
+  out.lecPatrones=H+"cinco patrones deducidos de lo que has anotado.\n\n"+L.slice(0,5).map(function(x,i){ return (i+1)+". "+x; }).join("\n\n");
+
+  /* 3 · la decisión aplazada */
+  var dec="";
+  if(_t(p,"decisionCuesta")) dec="Ya lo has anotado tú: «"+_frase(_t(p,"decisionCuesta"),110)+"». Lo que falta no es identificarla, es entender qué la sostiene — mira las dos preguntas siguientes.";
+  else if(s.exito&&s.preocupa) dec="La que le obliga a elegir. Persigue «"+_frase(s.exito,60)+"» y a la vez teme «"+_frase(s.preocupa,55)+"»: mientras no decida, puede seguir teniendo las dos cosas a medias. Decidir significa renunciar a una, y por eso lo aplaza.";
+  else if(s.empleo&&s.exito) dec="Probablemente una decisión sobre su sitio: si sigue haciendo lo que hace bien ("+_frase(s.empleo,40)+") o se mueve hacia «"+_frase(s.exito,50)+"». Las dos cosas a la vez no caben.";
+  else if(s.preocupa) dec="La decisión que quitaría de en medio «"+_frase(s.preocupa,60)+"». Sabe cuál es. Lo que no tiene es la certeza de que salga bien.";
+  else dec="Algo que lleva tiempo rondándole y que no aparece en ninguna conversación. Cuando alguien evita un tema en concreto, suele ser ahí.";
+  out.lecDecision=H+dec+"\n\nCómo comprobarlo sin señalarle: «¿Hay algo que sepas que tienes que hacer y que llevas tiempo aplazando?» "
+    +"Si cambia de tema, has dado. Si te lo cuenta, no opines todavía: pregunta desde cuándo lo piensa.";
+
+  /* 4 · a qué no quiere renunciar */
+  var ren=[];
+  if(s.hijos||s.pareja) ren.push("al tiempo y la estabilidad de los suyos"+(s.hijos?" — con hijos, cualquier riesgo se paga en casa":""));
+  if(s.logros) ren.push("a lo que ya ha construido («"+_frase(s.logros,45)+"»), que le costó y le identifica");
+  if(s.importante) ren.push("a lo que le hace sentirse importante («"+_frase(s.importante,45)+"»), que es de donde saca la seguridad");
+  if(s.empresa) ren.push("al sitio que ocupa hoy en "+_frase(s.empresa,28)+" y a lo que ese sitio le da por defecto");
+  if(!ren.length) ren.push("a la seguridad de lo conocido, aunque lo conocido ya no le llene");
+  out.lecRenuncia=H+"no quiere renunciar "+ren.slice(0,3).join("; ni ")+".\n\n"
+    +"Y por qué no se atreve: porque lo que arriesga es seguro y lo que gana es probable. "
+    +"Nadie cambia algo cierto por algo posible mientras lo cierto siga siendo soportable. "
+    +"Se atreverá el día que lo de ahora deje de serlo, o el día que vea a alguien parecido hacerlo y salir bien.";
+
+  /* 5 · qué gana */
+  out.lecGana=H+"si la toma asumiendo lo que cuesta.\n\n"
+    +(s.exito?"Lo evidente: «"+_frase(s.exito,65)+"» deja de depender de que las circunstancias acompañen.\n\n":"")
+    +"Lo que no es evidente y suele pesar más: deja de gastar energía en sostener las dos opciones a la vez. "
+    +"Aplazar no es gratis — cuesta atención todos los días, aunque no se note en ningún sitio.\n\n"
+    +(_losSuyos(p)?"Y los suyos ("+_losSuyos(p)+") "+(esF(p)?"la":"lo")+" recuperan más presente, que es lo que de verdad echan de menos."
+                  :"Y recupera la sensación de estar eligiendo su vida en vez de administrarla.");
+
+  /* 6 · qué pierde */
+  var pier=[];
+  if(s.logros) pier.push("Parte de lo construido no se puede llevar consigo. Hay reconocimiento que solo vale donde está.");
+  if(s.empresa) pier.push("La comodidad de que en "+_frase(s.empresa,25)+" ya sabe cómo funciona todo: dónde pedir, a quién llamar, qué no tocar. Eso se tarda años en recuperar.");
+  if(s.hijos||s.pareja) pier.push("Un período de incertidumbre en casa. No es dramático, pero es real, y quien decide suele minimizarlo antes y sufrirlo después.");
+  pier.push("Y la coartada. Mientras no decide, si algo sale mal la culpa es de las circunstancias. Después ya no.");
+  out.lecPierde=H+"lo que pierde de verdad, sin adornarlo.\n\n"+pier.slice(0,4).map(function(x,i){ return "· "+x; }).join("\n\n")
+    +"\n\nEsto es lo que más se agradece que alguien te diga en voz alta. Casi todo el mundo le cuenta lo que ganaría; casi nadie le reconoce lo que le va a doler.";
+
+  /* 7 · qué niega */
+  var niega="";
+  if(s.exito&&s.preocupa) niega="Que lo que teme («"+_frase(s.preocupa,60)+"») es justo el precio de lo que persigue («"+_frase(s.exito,60)+"»). No se puede tener lo segundo sin pasar por lo primero, y probablemente aún no lo ha aceptado.";
+  else if(s.preocupa) niega="Que «"+_frase(s.preocupa,70)+"» no se resuelve trabajando más. Es lo primero que intentará, y es lo que no funciona.";
+  else if(s.exito) niega="Que para «"+_frase(s.exito,70)+"» hace falta soltar algo que hoy le da seguridad.";
+  out.lecNiega=H+niega+"\n\nNo se lo digas: pregúntaselo. «¿Qué tendrías que soltar para conseguirlo?» hace el trabajo solo.";
+
+  /* 4 · tres años sin cambiar */
+  out.lecTresSin=H+"si nada cambia.\n\n"
+    +"Seguirá siendo bueno en lo suyo y "+(s.logros?"acumulando resultados":"cumpliendo")+", pero con la misma sensación de fondo. "
+    +(s.preocupa?"«"+_frase(s.preocupa,60)+"» seguirá ahí, solo que más caro de resolver.\n\n":"\n\n")
+    +"Lo que suele pasar en tres años a este perfil: el trabajo crece, el margen personal se estrecha, y la decisión que hoy aplaza se la acaba tomando otro. "
+    +"No es un desastre; es un desgaste. Y es más difícil de ver desde dentro que desde fuera.";
+
+  /* 5 · el freno */
+  var freno="";
+  if(s.preocupa&&s.exito) freno="Querer asegurarlo todo antes de moverse. Con «"+_frase(s.preocupa,50)+"» encima, espera a tener certeza — y la certeza llega siempre tarde.";
+  else if(s.estilo) freno="Su forma de relacionarse ("+_frase(s.estilo,50)+") le funciona tan bien que no la revisa. Lo que más frena no suele ser un defecto: es una virtud usada de más.";
+  else freno="Confiar en el esfuerzo por encima del método. Le ha funcionado hasta aquí, y por eso no lo cuestiona.";
+  out.lecFreno=H+freno+"\n\nSeñal para comprobarlo: fíjate en si aplaza decisiones pequeñas. El patrón grande se ve mejor en lo pequeño.";
+
+  /* 6 · tres años cambiando */
+  out.lecTresCon=H+"si lo cambia.\n\n"
+    +(s.exito?"«"+_frase(s.exito,65)+"» deja de ser una aspiración y pasa a ser un plan con fechas.\n\n":"")
+    +"Lo que cambia de verdad no es el resultado: es que deja de depender de "+_elLa(p)+" empujando. "
+    +(_losSuyos(p)?"Y los suyos ("+_losSuyos(p)+") lo notan antes que nadie.":"Y lo nota primero en casa, antes que en el trabajo.")
+    +"\n\nNo hace falta que cambie de carácter. Basta con que decida una cosa antes de estar seguro.";
+
+  /* 7 · la frase */
+  var m="";
+  if(s.exito) m="«Hoy doy un paso hacia "+_frase(s.exito,45).toLowerCase()+", aunque no esté seguro del todo.»";
+  else if(s.preocupa) m="«Lo que me preocupa no se arregla esperando. Hoy hago la parte que sí depende de mí.»";
+  else m="«Hoy decido una cosa sin tenerlo todo atado.»";
+  out.lecMantra=H+m+"\n\nAjústala a sus palabras: funciona mucho mejor si la frase suena a "+_elLa(p)+" y no a manual.";
+
+  return cual?out[cual]:out;
+}
+function sugerirUno(id,campo){
+  var p=state.people.filter(function(x){ return x.id===id; })[0]; if(!p) return;
+  var e=document.getElementById("f_"+campo); if(!e) return;
+  if(e.value.trim() && !confirm("Ya hay algo escrito ahí. ¿Lo sustituyo por la hipótesis?")) return;
+  e.value=sugerirLectura(p,campo); e.dispatchEvent(new Event("input",{bubbles:true}));
+}
+function sugerirTodo(id){
+  var p=state.people.filter(function(x){ return x.id===id; })[0]; if(!p) return;
+  var lleno=LECTURA.some(function(L){ var e=document.getElementById("f_"+L[0]); return e&&e.value.trim(); });
+  if(lleno && !confirm("Voy a sustituir lo que haya escrito en las once. ¿Sigo?")) return;
+  var todo=sugerirLectura(p);
+  LECTURA.forEach(function(L){ var e=document.getElementById("f_"+L[0]); if(e){ e.value=todo[L[0]]||""; e.dispatchEvent(new Event("input",{bubbles:true})); } });
+  toast(LECTURA.length+" hipótesis propuestas · revísalas y quédate con lo que encaje");
+}
+function limpiarLectura(){
+  if(!confirm("¿Vaciar todas las respuestas de esta ficha?")) return;
+  LECTURA.forEach(function(L){ var e=document.getElementById("f_"+L[0]); if(e){ e.value=""; e.dispatchEvent(new Event("input",{bubbles:true})); } });
+}
+window.sugerirUno=sugerirUno; window.sugerirTodo=sugerirTodo; window.limpiarLectura=limpiarLectura;
+
 function fld(label,key,val,type){
   if(type==="ta") return '<div class="fld"><label>'+label+'</label><textarea id="f_'+key+'">'+esc(val)+'</textarea></div>';
   return '<div class="fld"><label>'+label+'</label><input type="'+(type==="date"?"date":"text")+'" id="f_'+key+'" value="'+esc(val)+'"></div>';
@@ -2661,7 +2985,10 @@ function fld(label,key,val,type){
 function leerCampos(p){
   ["nombre","apodo","ciudad","grupo","sector","comoConocimos","pareja","hijos","familia","empleo","empresa",
    "exito","admirado","importante","preocupa","fascina","ayuda","logros","quienesImportan","queQuierenLosSuyos","gustosDeLosSuyos","gesto",
-   "aficiones","deportes","musica","comida","temas","evitar","estilo","cumple","aniversario","ultimoContacto"]
+   "aficiones","deportes","musica","comida","temas","evitar","estilo","vestir","presume","decisionCuesta",
+   "cumple","aniversario","ultimoContacto",
+   "lecDeduce","lecPatrones","lecDecision","lecRenuncia","lecGana","lecPierde",
+   "lecNiega","lecTresSin","lecFreno","lecTresCon","lecMantra"]
    .forEach(function(k){ var e=document.getElementById("f_"+k); if(e) p[k]=e.value.trim(); });
   var tp=document.getElementById("f_tipo"); if(tp) p.tipo=tp.value;
   var pc=document.getElementById("f_proximaCita");
@@ -3105,7 +3432,7 @@ function hoyISO(){ return new Date().toISOString().slice(0,10); }
 function syncMeta(){ try{ return JSON.parse(lsGet("sync")||"{}"); }catch(e){ return {}; } }
 function setSyncMeta(o){ try{ var m=syncMeta(); for(var k in o) m[k]=o[k]; lsSet("sync",JSON.stringify(m)); }catch(e){} }
 function savedLocal(){ try{ return (JSON.parse(localStorage.getItem(KEY)||"{}").saved)||""; }catch(e){ return ""; } }
-function payload(){ return JSON.stringify({people:state.people,me:state.me,circExtra:state.circExtra||[],v:3,saved:new Date().toISOString()},null,2); }
+function payload(){ return JSON.stringify({people:state.people,me:state.me,circExtra:state.circExtra||[],tipoExtra:state.tipoExtra||[],v:3,saved:new Date().toISOString()},null,2); }
 function setSync(t){ var e=document.getElementById("syncSt"); if(e) e.textContent=t||""; FS.msg=t||""; }
 function fsSoportado(){ return typeof window.showDirectoryPicker==="function"; }
 function idb(){ return new Promise(function(res,rej){
@@ -3377,6 +3704,8 @@ function elegirComo(d,origen){
 function aplicarDatos(d){
   state.people=d.people.map(ensure); if(d.me) state.me=d.me;
   if(Array.isArray(d.circExtra)) state.circExtra=d.circExtra;
+  if(Array.isArray(d.tipoExtra)) state.tipoExtra=d.tipoExtra;
+  reconstruyeTipos();
   save(); renderSeg(); renderAll();
 }
 function restaurarCarpeta(){
@@ -3880,6 +4209,47 @@ function toggleAmbito(a){
                       : ta.concat(tp.filter(function(t){ return ta.indexOf(t)<0; }));
   state.grupo=""; renderSeg(); renderAll();
 }
+/* ---------- crear y borrar categorías ---------- */
+var PALETA_TIPOS=["#c0468a","#5a8f3a","#3f7d9c","#9c6b3f","#6a4c93","#d9762b","#2f9d78","#4a6fa5","#b5476b","#417a5a"];
+function idDeTipo(n){
+  var b=n.normalize?n.normalize("NFD").replace(/[̀-ͯ]/g,""):n;
+  b=b.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"") || "cat";
+  var usado={}; TIPOS.forEach(function(t){ usado[t[0]]=1; });
+  var id=b, k=2; while(usado[id]){ id=b+"-"+(k++); }
+  return id;
+}
+function nuevoTipo(amb){
+  var n=prompt(amb==="profesional"
+    ? "Nueva categoría profesional (por ejemplo: Prescriptor, Instalador, Distribuidor…)"
+    : "Nueva categoría personal (por ejemplo: Mentor, Vecino, Compañero…)");
+  if(n===null) return;
+  n=String(n).trim().replace(/\s+/g," ");
+  if(!n) return;
+  if(TIPOS.some(function(t){ return t[1].toLowerCase()===n.toLowerCase(); })){
+    alert("Ya tienes una categoría que se llama «"+n+"»."); return;
+  }
+  var col=PALETA_TIPOS[tiposExtra().length%PALETA_TIPOS.length];
+  tiposExtra().push({id:idDeTipo(n), nombre:n, color:col, amb:(amb==="profesional"?"profesional":"personal")});
+  reconstruyeTipos(); save(); renderSeg(); renderAll();
+  toast("Categoría «"+n+"» creada");
+}
+function borrarTipo(id){
+  var x=tiposExtra().filter(function(t){ return t.id===id; })[0];
+  if(!x) return;
+  var gente=state.people.filter(function(p){ return (p.tipo||"")===id; });
+  var destino=(x.amb==="profesional")?"profesional":"amigo";
+  if(gente.length && !confirm("«"+x.nombre+"» la tienen "+gente.length+" persona"+(gente.length===1?"":"s")+".\n\n"
+      +"Si la borras "+(gente.length===1?"pasa":"pasan")+" a «"+tipoLabel(destino)+"». No se borra ninguna ficha.\n\n¿Borrar la categoría?")) return;
+  gente.forEach(function(p){ p.tipo=destino; });
+  state.tipoExtra=tiposExtra().filter(function(t){ return t.id!==id; });
+  var i=state.tipos.indexOf(id); if(i>=0) state.tipos.splice(i,1);
+  reconstruyeTipos(); save(); renderSeg(); renderAll();
+  if(state.tab==="mapa") mapaRender();
+  toast(gente.length? ("Categoría borrada · "+gente.length+" ficha"+(gente.length===1?"":"s")+" a «"+tipoLabel(destino)+"»")
+                    : "Categoría «"+x.nombre+"» borrada");
+}
+window.nuevoTipo=nuevoTipo; window.borrarTipo=borrarTipo;
+
 function renderSeg(){
   var el=document.getElementById("seg"), ta=tiposActivos();
   var h='<div class="ambitos">';
@@ -3891,10 +4261,13 @@ function renderSeg(){
       +'<div class="subtipos">';
     // "Profesional" no se muestra como etiqueta: el propio recuadro ya lo dice
     TIPOS.filter(function(t){ return A.tipos.indexOf(t[0])>=0 && t[0]!=="profesional" && t[0]!=="personal"; }).forEach(function(t){
-      var sel=ta.indexOf(t[0])>=0;
+      var sel=ta.indexOf(t[0])>=0, propia=!esTipoBase(t[0]);
       h+='<button data-t="'+t[0]+'" class="'+(sel?"on":"")+'" style="'+(sel&&t[2]?"color:"+t[2]:"")+'">'
-        +'<span class="dot" style="background:'+t[2]+'"></span>'+t[1]+'</button>';
+        +'<span class="dot" style="background:'+t[2]+'"></span>'+esc(t[1])
+        +(propia?'<span class="delt" data-del="'+t[0]+'" title="Borrar la categoría «'+esc(t[1])+'»">✕</span>':'')
+        +'</button>';
     });
+    h+='<button class="addt" data-add="'+A.id+'" title="Añadir una categoría '+A.nombre.toLowerCase()+'">+</button>';
     h+='</div></div>';
   });
   h+='</div>';
@@ -3902,6 +4275,12 @@ function renderSeg(){
   el.innerHTML=h;
   el.querySelectorAll("[data-amb]").forEach(function(b){
     b.onclick=function(){ toggleAmbito(b.getAttribute("data-amb")); };
+  });
+  el.querySelectorAll("[data-add]").forEach(function(b){
+    b.onclick=function(e){ e.stopPropagation(); nuevoTipo(b.getAttribute("data-add")); };
+  });
+  el.querySelectorAll("[data-del]").forEach(function(b){
+    b.onclick=function(e){ e.stopPropagation(); e.preventDefault(); borrarTipo(b.getAttribute("data-del")); };
   });
   el.querySelectorAll("[data-t]").forEach(function(b){
     b.onclick=function(){
@@ -4121,6 +4500,9 @@ document.getElementById("overlay").onclick=function(e){ if(e.target.id==="overla
 document.addEventListener("keydown",function(e){ if(e.key==="Escape") closeModal(); });
 window.addEventListener("resize",function(){ if(state.tab==="mapa"){ G.alpha=0.3; tick(); } });
 initGraphEvents();
+/* AMBITOS se declara más abajo que load(), así que las categorías propias
+   se registran aquí, cuando ya existe todo. */
+try{ reconstruyeTipos(); renderSeg(); }catch(e){}
 try{ limpiarBusqueda(false); }catch(e){}
 renderAll();
 /* La etiqueta de versión se pinta desde VERSION, nunca a mano. */
