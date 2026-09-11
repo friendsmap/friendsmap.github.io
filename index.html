@@ -347,7 +347,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.11-50";
+var VERSION="2026.09.11-51";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -402,7 +402,8 @@ var SEED=null;
 
 /* ---------- persistencia ---------- */
 function newMe(){ return {nombre:"",titular:"",experiencia:"",resuelvo:"",logros:"",sectores:"",pido:"",patron:"",mantra:"",frases:""}; }
-var FRASES_SEED="Decidir es conducir mi vida, y disfruto haciéndolo aunque tenga un coste.\nMe mantengo ocupado, pero no estoy haciendo lo que de verdad quiero hacer.\nNo estoy convencido de mi experiencia y mi rigor. Busco validación fuera, y no me equivoco tanto.\nMe vale más actuar y equivocarme para luego corregir que no actuar.\nMás seguridad en mí mismo: apoyarme en lo que he construido decidiendo.";
+var FRASES_SEED="Decidir es conducir la vida, y disfruta moviendo el timón y consiguiendo tu vida aunque toda decisión tenga un coste. El mayor coste es siempre no decidir y permanecer pensando.\nMantenerse ocupado no es lo mismo que hacer lo que de verdad importa. Mira si el día de hoy va donde tú quieres ir.\nLa experiencia y el rigor ya están ahí. Buscar validación fuera no los aumenta: solo los retrasa. Se falla mucho menos de lo que se teme.\nVale más actuar y corregir que no actuar. El error se arregla; el tiempo parado no se recupera.\nLa seguridad no llega antes de decidir: llega de decidir. Apóyate en lo que ya has construido eligiendo.\nNo hace falta más certeza para empezar. Pensar es una herramienta, no un escondite.\nMantener abiertas todas las posibilidades es no elegir ninguna. Elige una y acepta el precio de las demás.\nUno puede equivocarse y corregir. Lo que no se recupera es el tiempo esperando a sentirse preparado.\nNo existe la decisión perfecta. Existe una suficientemente buena a la que se le da trabajo hasta hacerla grande.\nLa duda no es una señal para parar. Casi siempre es solo la señal de que algo importa.\nHoy toca hacer lo que se sabe que toca, sobre todo cuando todavía no se siente uno preparado.\nLa ventaja no está en pensar más que ayer, sino en que lo que ya se sabe se convierta en acción.\nSi algo lleva días analizándose, ya se sabe lo que se quiere. Lo que falta es aceptar lo que cuesta.\nAnalizar de más mantiene vivas todas las opciones. Elegir mata algunas: por eso cuesta, y por eso hay que hacerlo.\nEntender el mecanismo está muy bien. Pero hoy toca mover algo.\nElegir, ejecutar y construir. En ese orden, y hoy.";
+var FRASES_VIEJAS=["Decidir es conducir mi vida, y disfruto haciéndolo aunque tenga un coste.", "Me mantengo ocupado, pero no estoy haciendo lo que de verdad quiero hacer.", "No estoy convencido de mi experiencia y mi rigor. Busco validación fuera, y no me equivoco tanto.", "Me vale más actuar y equivocarme para luego corregir que no actuar.", "Más seguridad en mí mismo: apoyarme en lo que he construido decidiendo."];
 /* Semilla: solo se copia a tus datos si la instalación ya existía. */
 var PATRON_SEED="Piensas buscando comprensión, no solo respuestas. Buscas la regla que hay detrás de las cosas: si entiendes el mecanismo, sientes que puedes manejar mejor el resultado. Por eso te atraen más las explicaciones que reorganizan el problema que una lista de consejos.\n\nDecides combinando intuición y verificación racional. Muchas veces sabes bastante pronto qué quieres hacer; después buscas argumentos e información para someter esa intuición a presión. El análisis funciona como auditor de una decisión que ya está germinando.\n\nTiendes a optimizar. Ante varias alternativas no te resulta natural pensar «esta es suficientemente buena». Es una ventaja cuando la decisión importa, y fricción cuando la diferencia entre lo óptimo y lo bueno es insignificante.\n\nIntentas reducir la incertidumbre antes de comprometerte. No por indeciso: porque quieres que la decisión tenga fundamentos. Pero algunas decisiones importantes no dan esa certeza por adelantado — solo se sabe después.\n\nY buscas activamente perspectivas que puedan romper tu propio relato. Aunque incluso ahí mantienes el volante: decides qué preguntar, qué marco usar y qué evidencia te parece convincente.\n\nLA HIPÓTESIS INCÓMODA: quizá estás intentando resolver intelectualmente una decisión que ya has tomado emocionalmente. No niegas qué quieres — eso lo sabes. Lo que cuesta aceptar es el precio de elegirlo. Mientras la decisión siga siendo analizable, todas las posibilidades siguen vivas; en cuanto actúas, algunas desaparecen.\n\nEL PATRÓN PRINCIPAL: esperar suficiente certeza antes de comprometerte, para reducir el coste emocional de renunciar a las alternativas.";
 var MANTRA_SEED="No necesito más certeza para empezar. Mi capacidad para pensar es una herramienta, no un escondite. Hoy no voy a intentar mantener abiertas todas las posibilidades: voy a elegir cuál merece convertirse en realidad y aceptaré el precio de renunciar a las demás. Puedo equivocarme y corregir; lo que no puedo recuperar es el tiempo que gasto esperando sentirme completamente preparado. No necesito tomar la decisión perfecta, sino una suficientemente buena y darle tiempo, trabajo y compromiso para convertirla en una gran decisión. Cuando aparezca la duda, no la interpretaré automáticamente como una señal para detenerme. Haré lo que sé que toca, especialmente cuando todavía no me sienta preparado. Mi ventaja no estará en pensar más que ayer, sino en conseguir que lo que ya sé se traduzca en acción. Hoy elijo, ejecuto y construyo.";
@@ -433,13 +434,24 @@ function uid(){ return "p"+Math.random().toString(36).slice(2,9); }
 function sembrarMisTextos(){
   try{
     if(!state.me) state.me=newMe();
-    if(state.me.sembrado) return;
-    if(HABIA_DATOS && state.people.length){
-      if(!String(state.me.frases||"").trim()) state.me.frases=FRASES_SEED;
-      if(!String(state.me.patron||"").trim()) state.me.patron=PATRON_SEED;
-      if(!String(state.me.mantra||"").trim()) state.me.mantra=MANTRA_SEED;
+    if(!state.me.sembrado){
+      if(HABIA_DATOS && state.people.length){
+        if(!String(state.me.frases||"").trim()) state.me.frases=FRASES_SEED;
+        if(!String(state.me.patron||"").trim()) state.me.patron=PATRON_SEED;
+        if(!String(state.me.mantra||"").trim()) state.me.mantra=MANTRA_SEED;
+      }
+      state.me.sembrado=1;   /* también en instalaciones nuevas: así nunca se siembra */
     }
-    state.me.sembrado=1;   /* marcado también en instalaciones nuevas: nunca se sembrará */
+    /* v51: las frases pasan a estar en impersonal y vuelven las once. Se respeta
+       cualquier frase que hayas escrito tú; solo se sustituyen las que puse yo. */
+    if(!state.me.sembrado2){
+      if(HABIA_DATOS && state.people.length){
+        var tuyas=String(state.me.frases||"").split("\n").map(function(s){ return s.trim(); })
+          .filter(function(s){ return s && FRASES_VIEJAS.indexOf(s)<0 && FRASES_SEED.indexOf(s)<0; });
+        state.me.frases=FRASES_SEED+(tuyas.length?"\n"+tuyas.join("\n"):"");
+      }
+      state.me.sembrado2=1;
+    }
     save();
   }catch(e){}
 }
@@ -1670,26 +1682,35 @@ function citaRow(x){
 /* ---------- citas y alarmas propias ---------- */
 function filtroActivo(){ return (tiposActivos().length>0) || !!state.grupo || !!String(state.q||"").trim(); }
 function agendaList(){ if(!Array.isArray(state.agenda)) state.agenda=[]; return state.agenda; }
-function openCitaNueva(tipo,pid){
-  var esAl=(tipo==="alarma");
+function openCitaEditar(id){
+  var a=agendaList().filter(function(x){ return x.id===id; })[0]; if(!a) return;
+  openCitaNueva(a.tipo, a.pid||"", a);
+}
+window.openCitaEditar=openCitaEditar;
+function openCitaNueva(tipo,pid,edit){
+  var esAl=(tipo==="alarma"), ed=edit||null;
   var gente=state.people.slice().sort(function(a,b){ return (a.nombre||"").localeCompare(b.nombre||""); });
-  var h='<h2>'+(esAl?"Nueva alarma":"Nueva cita")+'</h2>'
+  var h='<h2>'+(ed?(esAl?"Modificar alarma":"Modificar cita"):(esAl?"Nueva alarma":"Nueva cita"))+'</h2>'
    +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 14px">'
    +(esAl?"Un aviso para ti. Puedes vincularlo a una persona o dejarlo suelto."
         :"Una cita tuya. Si es con alguien de tus fichas, vincúlala y quedará en su historia.")+'</p>'
    +'<div class="fld"><label>'+(esAl?"¿De qué te quieres acordar?":"¿Qué es?")+'</label>'
-   +'<input type="text" id="ag_tit" placeholder="'+(esAl?"Ej.: felicitar a Marta por el ascenso":"Ej.: comer con Javier")+'"></div>'
+   +'<input type="text" id="ag_tit" value="'+(ed?esc(ed.titulo||""):"")+'" placeholder="'+(esAl?"Ej.: felicitar a Marta por el ascenso":"Ej.: comer con Javier")+'"></div>'
    +'<div class="cols">'
-   +'<div class="fld"><label>Fecha</label><input type="date" id="ag_fecha" value="'+todayStr()+'"></div>'
-   +'<div class="fld"><label>Hora (opcional)</label><input type="time" id="ag_hora"></div></div>'
+   +'<div class="fld"><label>Fecha</label><input type="date" id="ag_fecha" value="'+(ed&&ed.fecha?ed.fecha:todayStr())+'"></div>'
+   +'<div class="fld"><label>Hora (opcional)</label><input type="time" id="ag_hora" value="'+(ed&&ed.hora?ed.hora:"")+'"></div></div>'
    +'<div class="fld"><label>Persona (opcional)</label><select id="ag_pid"><option value="">— sin vincular —</option>'
-   + gente.map(function(x){ return '<option value="'+x.id+'"'+(pid===x.id?" selected":"")+'>'+esc(x.nombre||"(sin nombre)")+'</option>'; }).join("")
+   + gente.map(function(x){ return '<option value="'+x.id+'"'+(((ed?ed.pid:pid)===x.id)?" selected":"")+'>'+esc(x.nombre||"(sin nombre)")+'</option>'; }).join("")
    +'</select></div>'
    +(esAl?'<div class="fld" style="max-width:240px"><label>Avisarme</label><select id="ag_pre">'
-      +'<option value="0">el mismo día</option><option value="1">1 día antes</option>'
-      +'<option value="3">3 días antes</option><option value="7">una semana antes</option></select></div>':'')
-   +'<div class="fld"><label>Nota (opcional)</label><textarea id="ag_nota" placeholder="'+(esAl?"Por qué te importa acordarte":"Dónde, con quién, para qué")+'"></textarea></div>'
-   +'<div class="modal-actions"><button class="btn" onclick="closeModal()">Cancelar</button>'
+      + [[0,"el mismo día"],[1,"1 día antes"],[3,"3 días antes"],[7,"una semana antes"]].map(function(o){
+          return '<option value="'+o[0]+'"'+((ed&&(ed.pre||0)===o[0])?" selected":"")+'>'+o[1]+'</option>'; }).join("")
+      +'</select></div>':'')
+   +'<div class="fld"><label>Nota (opcional)</label><textarea id="ag_nota" placeholder="'
+   +(esAl?"Por qué te importa acordarte":"Dónde, con quién, para qué")+'">'+(ed?esc(ed.nota||""):"")+'</textarea></div>'
+   +'<div class="modal-actions">'
+   +(ed?'<button class="btn" style="color:#b3455b;border-color:#e8bcc6" onclick="agendaBorrar(\''+ed.id+'\');closeModal()">Borrar</button>':'')
+   +'<button class="btn" onclick="closeModal()">Cancelar</button>'
    +'<button class="btn primary" id="ag_ok">Guardar</button></div>';
   showModal(h);
   document.getElementById("ag_ok").onclick=function(){
@@ -1697,13 +1718,15 @@ function openCitaNueva(tipo,pid){
     var f=document.getElementById("ag_fecha").value;
     if(!t){ alert("Ponle un título, aunque sea corto."); return; }
     if(!f){ alert("Falta la fecha."); return; }
-    agendaList().push({id:uid(), tipo:(esAl?"alarma":"cita"), titulo:t, fecha:f,
-      hora:document.getElementById("ag_hora").value||"",
-      pid:document.getElementById("ag_pid").value||"",
-      pre:esAl?parseInt(document.getElementById("ag_pre").value,10)||0:0,
-      nota:document.getElementById("ag_nota").value.trim(), hecho:false});
+    var o=ed||{id:uid(), tipo:(esAl?"alarma":"cita"), hecho:false};
+    o.titulo=t; o.fecha=f;
+    o.hora=document.getElementById("ag_hora").value||"";
+    o.pid=document.getElementById("ag_pid").value||"";
+    o.pre=esAl?parseInt(document.getElementById("ag_pre").value,10)||0:0;
+    o.nota=document.getElementById("ag_nota").value.trim();
+    if(!ed) agendaList().push(o);
     save(); closeModal(); state.tab="agenda"; renderAll();
-    toast(esAl?"Alarma guardada":"Cita guardada");
+    toast(ed?"Cambios guardados":(esAl?"Alarma guardada":"Cita guardada"));
   };
 }
 function agendaHecho(id){
@@ -1877,7 +1900,11 @@ function briefingHTML(){
      +(b.olvidados?'Tienes <b>'+b.olvidados+'</b> ficha'+(b.olvidados===1?'':'s')+' sin ninguna nota ni fecha de contacto: ese es buen sitio para empezar.':'Todo al día.')+'</p>';
   }
   h+='<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">'
-   +'<div style="font-size:12.5px;color:#5a6678;font-style:italic;line-height:1.55;margin-bottom:9px">'+esc(pausa)+'</div>'
+   +'<div style="background:#eef7f1;border:1px solid #cfe6d8;border-left:3px solid #2e7d5b;border-radius:10px;'
+     +'padding:10px 12px;margin-bottom:10px;display:flex;gap:10px;align-items:flex-start">'
+     +'<svg viewBox="0 0 40 40" width="30" height="30" style="flex:none;margin-top:1px" aria-hidden="true"><circle cx="20" cy="15" r="11" fill="none" stroke="#bfe0cd" stroke-width="1.3"/><path d="M9.5 33.5c0-3.4 4.7-5.6 10.5-5.6s10.5 2.2 10.5 5.6z" fill="#2e7d5b" opacity=".2"/><path d="M6.5 34.2h27" stroke="#2e7d5b" stroke-width="1.7" stroke-linecap="round"/><path d="M12 30.4c2-2.6 4.8-4 8-4s6 1.4 8 4" fill="none" stroke="#2e7d5b" stroke-width="1.8" stroke-linecap="round"/><ellipse cx="20" cy="22.6" rx="4.6" ry="5.4" fill="#2e7d5b" opacity=".88"/><circle cx="20" cy="12.4" r="4.8" fill="#2e7d5b"/><circle cx="20" cy="6.9" r="1.5" fill="#2e7d5b"/><path d="M15.6 20.8c-2.3 1-3.9 2.6-4.8 4.7M24.4 20.8c2.3 1 3.9 2.6 4.8 4.7" stroke="#2e7d5b" stroke-width="1.7" stroke-linecap="round" fill="none"/></svg>'
+     +'<div><div style="font-size:10px;font-weight:700;letter-spacing:.09em;color:#2e7d5b;margin-bottom:3px">LA PAUSA DE HOY</div>'
+     +'<div style="font-size:13px;color:#1f5c44;line-height:1.6">'+esc(pausa)+'</div></div></div>'
    + patronHTML()
    +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
    +'<button class="btn sm" onclick="copiarBriefing()">Copiar briefing</button>'
@@ -1932,8 +1959,8 @@ function renderAgenda(){
   var sinPlan=filtered().filter(function(p){ return esNegocio(p)&&!p.necesito; });
   /* 1º los botones, 2º el briefing, 3º todo lo demás */
   var h='<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px">'
-   +'<button class="btn primary" onclick="openCitaNueva(\'cita\')">+ Cita</button>'
-   +'<button class="btn" onclick="openCitaNueva(\'alarma\')">+ Alarma</button></div>';
+   +'<button class="btn primary" onclick="openCitaNueva(\'cita\')">📅 + Cita</button>'
+   +'<button class="btn" onclick="openCitaNueva(\'alarma\')">⏰ + Alarma</button></div>';
   if(filtroActivo()){
     var et=[]; tiposActivos().forEach(function(t){ et.push(tipoLabel(t)); });
     if(state.grupo) et.push(state.grupo);
@@ -1950,25 +1977,45 @@ function renderAgenda(){
     if(x.a.hecho || x.d< -30) return false;
     return x.a.pid ? !!vis[x.a.pid] : !filtroActivo();
   });
-  if(agPend.length){
-    h+='<div class="sec-title">Tu agenda</div>';
-    h+=agPend.slice(0,20).map(function(x){
+  var agCitas=agPend.filter(function(x){ return x.a.tipo!=="alarma"; });
+  var agAlarm=agPend.filter(function(x){ return x.a.tipo==="alarma"; });
+  function cajaAgenda(titulo,icono,col,bg,lista,vacio,tipo){
+    var c='<div style="flex:1 1 170px;min-width:0;background:'+bg+';border:1px solid '+col+'33;'
+     +'border-top:3px solid '+col+';border-radius:12px;padding:10px 11px">'
+     +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
+     +'<span style="font-size:15px;line-height:1">'+icono+'</span>'
+     +'<b style="font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:'+col+'">'+titulo+'</b>'
+     +'<span style="margin-left:auto;font-size:11px;font-weight:700;color:'+col+';background:#fff;'
+     +'border:1px solid '+col+'44;border-radius:20px;padding:1px 7px">'+lista.length+'</span></div>';
+    if(!lista.length) c+='<div style="font-size:11.5px;color:var(--muted);line-height:1.5;padding:2px 0 4px">'+vacio+'</div>';
+    c+=lista.slice(0,12).map(function(x){
       var p=x.a.pid?state.people.filter(function(q){ return q.id===x.a.pid; })[0]:null;
-      var cuando = x.d===0?"hoy":(x.d===1?"mañana":(x.d>0?"en "+x.d+" días":"hace "+(-x.d)+" días"));
-      var col = x.d<0?"#b3455b":(x.d===0?"#0f8a8a":(x.d<=3?"#d9762b":"#8d97a6"));
-      return '<div class="row">'
-        +'<span class="pt" style="background:'+(p?colorOf(p):(x.a.tipo==="alarma"?"#d9762b":"#0f8a8a"))+'"></span>'
-        +'<div class="grow"'+(p?' style="cursor:pointer" onclick="openEdit(\''+p.id+'\')"':'')+'>'
-        +'<div style="font-weight:600">'+esc(x.a.titulo)
-        +' <span style="font-size:11px;font-weight:700;color:'+col+'">'+cuando+'</span></div>'
-        +'<div style="font-size:12.5px;color:var(--muted)">'
+      var cuando = x.d===0?"hoy":(x.d===1?"mañana":(x.d>0?"en "+x.d+" d":"hace "+(-x.d)+" d"));
+      var cc = x.d<0?"#b3455b":(x.d===0?"#0f8a8a":(x.d<=3?"#d9762b":"#8d97a6"));
+      return '<div style="background:#fff;border:1px solid var(--line);border-radius:9px;padding:7px 9px;margin-bottom:6px">'
+        +'<div style="cursor:pointer" onclick="openCitaEditar(\''+x.a.id+'\')" title="Pulsa para modificar">'
+        +'<div style="display:flex;gap:6px;align-items:baseline">'
+        +'<span style="font-weight:600;font-size:12.5px;line-height:1.35;word-break:break-word">'+esc(x.a.titulo)+'</span>'
+        +'<span style="margin-left:auto;flex:none;font-size:10.5px;font-weight:700;color:'+cc+'">'+cuando+'</span></div>'
+        +'<div style="font-size:11px;color:var(--muted);line-height:1.45;margin-top:2px">'
         + esc([fmtDate(x.a.fecha)+(x.a.hora?" · "+x.a.hora:""), p?p.nombre:"", x.a.nota].filter(Boolean).join(" · "))
         +'</div></div>'
-        +'<div style="display:flex;gap:4px;flex:none">'
+        +'<div style="display:flex;gap:4px;margin-top:6px">'
+        +'<button class="btn sm" onclick="openCitaEditar(\''+x.a.id+'\')" title="Modificar">✎</button>'
         +'<button class="btn sm" onclick="agendaHecho(\''+x.a.id+'\')" title="Marcar como hecho">✓</button>'
-        +'<button class="btn sm" onclick="agendaBorrar(\''+x.a.id+'\')" title="Borrar">✕</button></div></div>';
+        +'<button class="btn sm" onclick="agendaBorrar(\''+x.a.id+'\')" title="Borrar">✕</button>'
+        +(p?'<button class="btn sm" style="margin-left:auto" onclick="openEdit(\''+p.id+'\')" title="Abrir su ficha">Ficha</button>':'')
+        +'</div></div>';
     }).join("");
+    c+='<button class="btn sm" style="width:100%" onclick="openCitaNueva(\''+tipo+'\')">+ '+(tipo==="alarma"?"Alarma":"Cita")+'</button>';
+    return c+'</div>';
   }
+  h+='<div class="sec-title">Tu agenda</div>'
+   +'<p style="font-size:11.5px;color:var(--muted);margin:-4px 0 8px">Una <b>cita</b> es algo que ocurre contigo dentro. Una <b>alarma</b> es un aviso para que no se te pase. Pulsa cualquiera para modificarla.</p>'
+   +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">'
+   + cajaAgenda("Citas","📅","#0f8a8a","#f0fafa",agCitas,"Nada en el calendario. Una comida acordada vale más que diez mensajes.","cita")
+   + cajaAgenda("Alarmas","⏰","#d9762b","#fdf6ef",agAlarm,"Ningún aviso pendiente. Úsalas para lo que sabes que se te olvida.","alarma")
+   +'</div>';
   h+='<div class="sec-title">Próximas fechas (120 días)</div>';
   h+=prox.length?prox.map(function(f){
       return rowHTML(f.p,f.tipo,f.date.toLocaleDateString("es-ES",{day:"numeric",month:"long"})+" · en "+f.dias+" d");
