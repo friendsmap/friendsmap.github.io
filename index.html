@@ -347,7 +347,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.11-49";
+var VERSION="2026.09.11-50";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -401,16 +401,20 @@ var state={ people:[], me:null, tab:"fichas", q:"", grupo:"", tipo:"", tipos:[],
 var SEED=null;
 
 /* ---------- persistencia ---------- */
-function newMe(){ return {nombre:"",titular:"",experiencia:"",resuelvo:"",logros:"",sectores:"",pido:"",patron:"",mantra:""}; }
-var PATRON_INI="Piensas buscando comprensión, no solo respuestas. Buscas la regla que hay detrás de las cosas: si entiendes el mecanismo, sientes que puedes manejar mejor el resultado. Por eso te atraen más las explicaciones que reorganizan el problema que una lista de consejos.\n\nDecides combinando intuición y verificación racional. Muchas veces sabes bastante pronto qué quieres hacer; después buscas argumentos e información para someter esa intuición a presión. El análisis funciona como auditor de una decisión que ya está germinando.\n\nTiendes a optimizar. Ante varias alternativas no te resulta natural pensar «esta es suficientemente buena». Es una ventaja cuando la decisión importa, y fricción cuando la diferencia entre lo óptimo y lo bueno es insignificante.\n\nIntentas reducir la incertidumbre antes de comprometerte. No por indeciso: porque quieres que la decisión tenga fundamentos. Pero algunas decisiones importantes no dan esa certeza por adelantado — solo se sabe después.\n\nY buscas activamente perspectivas que puedan romper tu propio relato. Aunque incluso ahí mantienes el volante: decides qué preguntar, qué marco usar y qué evidencia te parece convincente.\n\nLA HIPÓTESIS INCÓMODA: quizá estás intentando resolver intelectualmente una decisión que ya has tomado emocionalmente. No niegas qué quieres — eso lo sabes. Lo que cuesta aceptar es el precio de elegirlo. Mientras la decisión siga siendo analizable, todas las posibilidades siguen vivas; en cuanto actúas, algunas desaparecen.\n\nEL PATRÓN PRINCIPAL: esperar suficiente certeza antes de comprometerte, para reducir el coste emocional de renunciar a las alternativas.";
-var MANTRA_INI="No necesito más certeza para empezar. Mi capacidad para pensar es una herramienta, no un escondite. Hoy no voy a intentar mantener abiertas todas las posibilidades: voy a elegir cuál merece convertirse en realidad y aceptaré el precio de renunciar a las demás. Puedo equivocarme y corregir; lo que no puedo recuperar es el tiempo que gasto esperando sentirme completamente preparado. No necesito tomar la decisión perfecta, sino una suficientemente buena y darle tiempo, trabajo y compromiso para convertirla en una gran decisión. Cuando aparezca la duda, no la interpretaré automáticamente como una señal para detenerme. Haré lo que sé que toca, especialmente cuando todavía no me sienta preparado. Mi ventaja no estará en pensar más que ayer, sino en conseguir que lo que ya sé se traduzca en acción. Hoy elijo, ejecuto y construyo.";
+function newMe(){ return {nombre:"",titular:"",experiencia:"",resuelvo:"",logros:"",sectores:"",pido:"",patron:"",mantra:"",frases:""}; }
+var FRASES_SEED="Decidir es conducir mi vida, y disfruto haciéndolo aunque tenga un coste.\nMe mantengo ocupado, pero no estoy haciendo lo que de verdad quiero hacer.\nNo estoy convencido de mi experiencia y mi rigor. Busco validación fuera, y no me equivoco tanto.\nMe vale más actuar y equivocarme para luego corregir que no actuar.\nMás seguridad en mí mismo: apoyarme en lo que he construido decidiendo.";
+/* Semilla: solo se copia a tus datos si la instalación ya existía. */
+var PATRON_SEED="Piensas buscando comprensión, no solo respuestas. Buscas la regla que hay detrás de las cosas: si entiendes el mecanismo, sientes que puedes manejar mejor el resultado. Por eso te atraen más las explicaciones que reorganizan el problema que una lista de consejos.\n\nDecides combinando intuición y verificación racional. Muchas veces sabes bastante pronto qué quieres hacer; después buscas argumentos e información para someter esa intuición a presión. El análisis funciona como auditor de una decisión que ya está germinando.\n\nTiendes a optimizar. Ante varias alternativas no te resulta natural pensar «esta es suficientemente buena». Es una ventaja cuando la decisión importa, y fricción cuando la diferencia entre lo óptimo y lo bueno es insignificante.\n\nIntentas reducir la incertidumbre antes de comprometerte. No por indeciso: porque quieres que la decisión tenga fundamentos. Pero algunas decisiones importantes no dan esa certeza por adelantado — solo se sabe después.\n\nY buscas activamente perspectivas que puedan romper tu propio relato. Aunque incluso ahí mantienes el volante: decides qué preguntar, qué marco usar y qué evidencia te parece convincente.\n\nLA HIPÓTESIS INCÓMODA: quizá estás intentando resolver intelectualmente una decisión que ya has tomado emocionalmente. No niegas qué quieres — eso lo sabes. Lo que cuesta aceptar es el precio de elegirlo. Mientras la decisión siga siendo analizable, todas las posibilidades siguen vivas; en cuanto actúas, algunas desaparecen.\n\nEL PATRÓN PRINCIPAL: esperar suficiente certeza antes de comprometerte, para reducir el coste emocional de renunciar a las alternativas.";
+var MANTRA_SEED="No necesito más certeza para empezar. Mi capacidad para pensar es una herramienta, no un escondite. Hoy no voy a intentar mantener abiertas todas las posibilidades: voy a elegir cuál merece convertirse en realidad y aceptaré el precio de renunciar a las demás. Puedo equivocarme y corregir; lo que no puedo recuperar es el tiempo que gasto esperando sentirme completamente preparado. No necesito tomar la decisión perfecta, sino una suficientemente buena y darle tiempo, trabajo y compromiso para convertirla en una gran decisión. Cuando aparezca la duda, no la interpretaré automáticamente como una señal para detenerme. Haré lo que sé que toca, especialmente cuando todavía no me sienta preparado. Mi ventaja no estará en pensar más que ayer, sino en conseguir que lo que ya sé se traduzca en acción. Hoy elijo, ejecuto y construyo.";
 function lsGet(k){ try{ var v=localStorage.getItem("friendsMap."+k); if(v===null) v=localStorage.getItem("mapaAmigos."+k); return v; }catch(e){ return null; } }
 function lsSet(k,v){ try{ localStorage.setItem("friendsMap."+k,v); }catch(e){} }
 function lsDel(k){ try{ localStorage.removeItem("friendsMap."+k); localStorage.removeItem("mapaAmigos."+k); }catch(e){} }
+var HABIA_DATOS=false;
 function load(){
   try{
     var raw=localStorage.getItem(KEY);
     if(!raw){ for(var vi=0;vi<KEY_VIEJAS.length&&!raw;vi++) raw=localStorage.getItem(KEY_VIEJAS[vi]); }
+    if(raw) HABIA_DATOS=true;
     if(raw){ var d=JSON.parse(raw); state.people=Array.isArray(d.people)?d.people:[]; state.me=d.me||null; state.circExtra=Array.isArray(d.circExtra)?d.circExtra:[]; state.tipoExtra=Array.isArray(d.tipoExtra)?d.tipoExtra:[]; state.agenda=Array.isArray(d.agenda)?d.agenda:[]; }
   try{ reconstruyeTipos(); }catch(e){}
   }catch(e){ state.people=[]; }
@@ -423,6 +427,23 @@ function save(){
   try{ if(gdActivo()){ gdProgramar(); } else { programarSync(); } revisarAvisos(); }catch(e){}
 }
 function uid(){ return "p"+Math.random().toString(36).slice(2,9); }
+/* Tus textos personales se copian una sola vez a tus datos, y solo si esta
+   instalación ya tenía información antes de actualizar. Una instalación nueva
+   (otro móvil, otra persona) arranca en blanco: no ve nada tuyo. */
+function sembrarMisTextos(){
+  try{
+    if(!state.me) state.me=newMe();
+    if(state.me.sembrado) return;
+    if(HABIA_DATOS && state.people.length){
+      if(!String(state.me.frases||"").trim()) state.me.frases=FRASES_SEED;
+      if(!String(state.me.patron||"").trim()) state.me.patron=PATRON_SEED;
+      if(!String(state.me.mantra||"").trim()) state.me.mantra=MANTRA_SEED;
+    }
+    state.me.sembrado=1;   /* marcado también en instalaciones nuevas: nunca se sembrará */
+    save();
+  }catch(e){}
+}
+
 function applySeed(){
   if(!SEED) return;
   state.people=SEED.people.map(function(p){ return ensure(JSON.parse(JSON.stringify(p))); });
@@ -1556,8 +1577,10 @@ function openMe(){
     +ta("Qué busco ahora mismo","me_pido",m.pido)
     +'<fieldset style="border-color:#6a4c93"><legend style="color:#6a4c93">Tu patrón</legend>'
     +'<p style="color:var(--muted);font-size:12px;margin:0 0 8px">Cómo decides y qué te frena. Aparece plegado en el briefing de cada mañana.</p>'
-    +ta("Cómo piensas y cómo decides","me_patron",m.patron||PATRON_INI)
-    +ta("Lo que te dices cada mañana","me_mantra",m.mantra||MANTRA_INI)
+    +ta("Cómo piensas y cómo decides","me_patron",m.patron||"")
+    +ta("Lo que te dices cada mañana","me_mantra",m.mantra||"")
+    +ta("Tus frases para el briefing · una por línea","me_frases",m.frases||"")
+    +'<p style="color:var(--muted);font-size:11.5px;margin:-6px 0 2px">Rotan cada día junto a las frases generales. Son tuyas y viven en tus datos, no en la app.</p>'
     +'</fieldset>'
     +'<fieldset style="border-color:#20b6a6"><legend style="color:#20b6a6">Afinidad por objetivos</legend>'
     +'<p style="color:var(--muted);font-size:12px;margin:0 0 8px">Según lo que buscas, estas son las personas de tu red con más afinidad para ayudarte a conseguirlo. El mapa completo está en <b>Mapa → Afinidad por objetivos</b>. (Guarda para actualizar.)</p>'
@@ -1569,7 +1592,7 @@ function openMe(){
   showModal(h);
   document.getElementById("cancel").onclick=closeModal;
   document.getElementById("ok").onclick=function(){
-    ["nombre","titular","resuelvo","logros","experiencia","sectores","pido","patron","mantra"].forEach(function(k){
+    ["nombre","titular","resuelvo","logros","experiencia","sectores","pido","patron","mantra","frases"].forEach(function(k){
       var e=document.getElementById("me_"+k); if(e) m[k]=e.value.trim();
     });
     var pv=document.getElementById("me_pin"); if(pv) setPin(pv.value.trim());
@@ -1645,6 +1668,7 @@ function citaRow(x){
 
 /* ---------- agenda ---------- */
 /* ---------- citas y alarmas propias ---------- */
+function filtroActivo(){ return (tiposActivos().length>0) || !!state.grupo || !!String(state.q||"").trim(); }
 function agendaList(){ if(!Array.isArray(state.agenda)) state.agenda=[]; return state.agenda; }
 function openCitaNueva(tipo,pid){
   var esAl=(tipo==="alarma");
@@ -1716,7 +1740,9 @@ function _gestoDe(p){
   return "";
 }
 function briefingDatos(){
-  var now=today(), hoyMD=_mmdd(_hoyISO()), gente=state.people;
+  var now=today(), hoyMD=_mmdd(_hoyISO());
+  var gente=filtered();   /* respeta los chips de categoría, el círculo y la búsqueda */
+  var vis={}; gente.forEach(function(q){ vis[q.id]=1; });
   var cumpleHoy=[], cumpleSem=[], citasHoy=[], citasSem=[];
   gente.forEach(function(p){
     if(p.cumple){
@@ -1751,6 +1777,8 @@ function briefingDatos(){
   agendaActivas().forEach(function(x){
     if(x.a.hecho) return;
     var p=x.a.pid?state.people.filter(function(q){ return q.id===x.a.pid; })[0]:null;
+    if(x.a.pid){ if(!p || !vis[p.id]) return; }        /* su persona está filtrada fuera */
+    else if(filtroActivo()) return;                    /* cita suelta: solo cuando no filtras */
     var e={motivo:x.a.titulo, lugar:x.a.nota||"", hora:x.a.hora};
     var ficticia=p||{id:"", nombre:(x.a.tipo==="alarma"?"⏰ "+x.a.titulo:"📅 "+x.a.titulo), tipo:"amigo"};
     if(x.d===0) citasHoy.push({p:ficticia, e:e, propia:true});
@@ -1799,6 +1827,7 @@ function briefingHTML(){
   var h='<div id="briefBox" style="background:linear-gradient(180deg,#fbfcfd,#fff);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px">';
   var hh=f.getHours();
   var saludo = hh<6?"Aún es de noche" : hh<13?"Buenos días" : hh<20?"Buenas tardes" : "Buenas noches";
+  /* Genéricas: valen para cualquiera. Las tuyas están en Mi perfil, no aquí. */
   var PAUSAS=[
     "Antes de escribir a nadie, respira una vez. Con eso suele bastar.",
     "Hoy escucha el doble de lo que cuentas.",
@@ -1807,20 +1836,9 @@ function briefingHTML(){
     "Un mensaje corto y a tiempo pesa más que uno largo y tarde.",
     "Si hoy solo haces una cosa de esta lista, que sea la que te apetezca menos.",
     "A quien llevas tiempo sin ver probablemente también le pasa contigo.",
-    "No se trata de quedar bien. Se trata de acordarte.",
-    /* lo que has descubierto sobre cómo decides · en tus palabras */
-    "No necesito más certeza para empezar. Pensar es una herramienta, no un escondite.",
-    "Hoy no mantengo abiertas todas las posibilidades: elijo una y acepto el precio de las demás.",
-    "Puedo equivocarme y corregir. Lo que no recupero es el tiempo esperando a sentirme preparado.",
-    "No busco la decisión perfecta. Busco una suficientemente buena y le doy trabajo hasta hacerla grande.",
-    "Cuando aparezca la duda, no la leo automáticamente como una señal para parar.",
-    "Hoy haré lo que sé que toca, sobre todo si todavía no me siento preparado.",
-    "Mi ventaja no está en pensar más que ayer, sino en que lo que ya sé se convierta en acción.",
-    "Si llevo días analizando algo, probablemente ya sé lo que quiero. Lo que me falta es aceptar lo que cuesta.",
-    "Analizar de más mantiene vivas todas las opciones. Elegir mata algunas. Por eso cuesta.",
-    "Entender el mecanismo está muy bien. Pero hoy toca mover algo.",
-    "Hoy elijo, ejecuto y construyo."
-  ];
+    "No se trata de quedar bien. Se trata de acordarte."
+  ].concat(misFrases());
+
   var pausa=PAUSAS[_semilla(_hoyISO())%PAUSAS.length];
   h+='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:2px">'
    +'<b style="font-size:15px;color:#1e2a3a">'+saludo+'</b>'
@@ -1866,16 +1884,21 @@ function briefingHTML(){
    +'<span style="font-size:10.5px;color:var(--muted);align-self:center">Se calcula con tus fichas. Nada sale del dispositivo.</span></div></div>';
   return h+'</div>';
 }
-function miPatron(){ var m=state.me||{}; return (m.patron||"").trim()||PATRON_INI; }
-function miMantra(){ var m=state.me||{}; return (m.mantra||"").trim()||MANTRA_INI; }
+function miPatron(){ var m=state.me||{}; return (m.patron||"").trim(); }
+function misFrases(){
+  return String((state.me||{}).frases||"").split("\n")
+    .map(function(s){ return s.trim(); }).filter(Boolean);
+}
+function miMantra(){ var m=state.me||{}; return (m.mantra||"").trim(); }
 function patronHTML(){
+  if(!miPatron() && !miMantra()) return "";
   return '<details style="margin-bottom:9px">'
    +'<summary style="cursor:pointer;font-size:12px;font-weight:650;color:#6a4c93;list-style:none">Tu patrón · lo que sabes de ti</summary>'
    +'<div style="background:#faf7fd;border:1px solid #ece4f5;border-radius:10px;padding:11px 13px;margin-top:7px">'
-   +'<div style="font-size:12.5px;line-height:1.65;color:#33415a;white-space:pre-wrap">'+esc(miPatron())+'</div>'
-   +'<div style="margin-top:10px;padding-top:9px;border-top:1px solid #ece4f5">'
-   +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.06em;color:#6a4c93;margin-bottom:4px">LO QUE TE DICES CADA MAÑANA</div>'
-   +'<div style="font-size:13px;line-height:1.65;color:#1e2a3a;white-space:pre-wrap">'+esc(miMantra())+'</div></div>'
+   +(miPatron()?'<div style="font-size:12.5px;line-height:1.65;color:#33415a;white-space:pre-wrap">'+esc(miPatron())+'</div>':'')
+   +(miMantra()?'<div style="margin-top:10px;padding-top:9px;border-top:1px solid #ece4f5">'
+     +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.06em;color:#6a4c93;margin-bottom:4px">LO QUE TE DICES CADA MAÑANA</div>'
+     +'<div style="font-size:13px;line-height:1.65;color:#1e2a3a;white-space:pre-wrap">'+esc(miMantra())+'</div></div>':'')
    +'<p style="font-size:10.5px;color:var(--muted);margin:9px 0 0">Se edita en <b>Mi perfil</b>. Lo escribiste tú; aquí solo vuelve a aparecer cuando abres el día.</p>'
    +'</div></details>';
 }
@@ -1886,6 +1909,11 @@ function copiarBriefing(){
   catch(e){ alert(t); }
 }
 window.copiarBriefing=copiarBriefing;
+function verATodos(){ state.tipos=[]; state.grupo=""; state.q="";
+  var q=document.getElementById("q"); if(q) q.value="";
+  var g=document.getElementById("fGrupo"); if(g) g.value="";
+  try{ renderSeg(); }catch(e){} renderAll(); }
+window.verATodos=verATodos;
 
 function renderAgenda(){
   var el=document.getElementById("agenda"),now=today(),fechas=[];
@@ -1906,8 +1934,22 @@ function renderAgenda(){
   var h='<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px">'
    +'<button class="btn primary" onclick="openCitaNueva(\'cita\')">+ Cita</button>'
    +'<button class="btn" onclick="openCitaNueva(\'alarma\')">+ Alarma</button></div>';
+  if(filtroActivo()){
+    var et=[]; tiposActivos().forEach(function(t){ et.push(tipoLabel(t)); });
+    if(state.grupo) et.push(state.grupo);
+    if(String(state.q||"").trim()) et.push('"'+state.q.trim()+'"');
+    var nf=filtered().length;
+    h+='<div style="background:#fff8e8;border:1px solid #f0dcae;border-radius:10px;padding:9px 12px;margin-bottom:12px;'
+     +'font-size:12.5px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+     +'<span>Viendo solo <b>'+esc(et.join(" · "))+'</b> — '+nf+' persona'+(nf===1?'':'s')+'.</span>'
+     +'<button class="btn sm" onclick="verATodos()">Ver a todos</button></div>';
+  }
   h+=briefingHTML();
-  var ag=agendaActivas(), agPend=ag.filter(function(x){ return !x.a.hecho && x.d>=-30; });
+  var vis={}; filtered().forEach(function(q){ vis[q.id]=1; });
+  var ag=agendaActivas(), agPend=ag.filter(function(x){
+    if(x.a.hecho || x.d< -30) return false;
+    return x.a.pid ? !!vis[x.a.pid] : !filtroActivo();
+  });
   if(agPend.length){
     h+='<div class="sec-title">Tu agenda</div>';
     h+=agPend.slice(0,20).map(function(x){
@@ -5009,6 +5051,7 @@ initGraphEvents();
 /* AMBITOS se declara más abajo que load(), así que las categorías propias
    se registran aquí, cuando ya existe todo. */
 try{ reconstruyeTipos(); renderSeg(); }catch(e){}
+try{ sembrarMisTextos(); }catch(e){}
 try{ limpiarBusqueda(false); }catch(e){}
 renderAll();
 /* La etiqueta de versión se pinta desde VERSION, nunca a mano. */
