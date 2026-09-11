@@ -145,6 +145,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 .nacts{position:absolute;right:0;top:0;display:flex;gap:2px}
 .nx{border:0;background:transparent;color:#b8c2d0;cursor:pointer;font-size:12px;padding:2px 5px;border-radius:6px;line-height:1}
 .nx:hover{background:var(--accent-soft);color:var(--accent)}
+.modal-actions.barra{justify-content:flex-start}
 .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
 .multi{display:flex;flex-wrap:wrap;gap:6px;border:1px solid var(--line);border-radius:8px;padding:7px;background:#fff;max-height:120px;overflow:auto}
 .multi label{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;background:#eef1f6;border-radius:6px;padding:3px 8px;cursor:pointer}
@@ -345,7 +346,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.11-47";
+var VERSION="2026.09.11-48";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -395,7 +396,7 @@ function esF(p){ return p&&p.genero==="f"; }
 function EL(p){ return esF(p)?"ella":"él"; }
 function SU(p){ return esF(p)?"suya":"suyo"; }
 
-var state={ people:[], me:null, tab:"fichas", q:"", grupo:"", tipo:"", tipos:[], modoMapa:"personas", circExtra:[], tipoExtra:[] };
+var state={ people:[], me:null, tab:"fichas", q:"", grupo:"", tipo:"", tipos:[], modoMapa:"personas", circExtra:[], tipoExtra:[], agenda:[] };
 var SEED=null;
 
 /* ---------- persistencia ---------- */
@@ -407,13 +408,13 @@ function load(){
   try{
     var raw=localStorage.getItem(KEY);
     if(!raw){ for(var vi=0;vi<KEY_VIEJAS.length&&!raw;vi++) raw=localStorage.getItem(KEY_VIEJAS[vi]); }
-    if(raw){ var d=JSON.parse(raw); state.people=Array.isArray(d.people)?d.people:[]; state.me=d.me||null; state.circExtra=Array.isArray(d.circExtra)?d.circExtra:[]; state.tipoExtra=Array.isArray(d.tipoExtra)?d.tipoExtra:[]; }
+    if(raw){ var d=JSON.parse(raw); state.people=Array.isArray(d.people)?d.people:[]; state.me=d.me||null; state.circExtra=Array.isArray(d.circExtra)?d.circExtra:[]; state.tipoExtra=Array.isArray(d.tipoExtra)?d.tipoExtra:[]; state.agenda=Array.isArray(d.agenda)?d.agenda:[]; }
   try{ reconstruyeTipos(); }catch(e){}
   }catch(e){ state.people=[]; }
   if(!state.me) state.me=newMe();
 }
 function save(){
-  try{ localStorage.setItem(KEY,JSON.stringify({people:state.people,me:state.me,circExtra:state.circExtra||[],tipoExtra:state.tipoExtra||[],v:3,saved:new Date().toISOString()})); }
+  try{ localStorage.setItem(KEY,JSON.stringify({people:state.people,me:state.me,circExtra:state.circExtra||[],tipoExtra:state.tipoExtra||[],agenda:state.agenda||[],v:3,saved:new Date().toISOString()})); }
   catch(e){ if(!save.warned){ save.warned=true;
     alert("Este navegador no permite guardar datos localmente. Usa Sincronizar para no perder lo que escribas."); } }
   try{ if(gdActivo()){ gdProgramar(); } else { programarSync(); } revisarAvisos(); }catch(e){}
@@ -1635,6 +1636,64 @@ function citaRow(x){
 }
 
 /* ---------- agenda ---------- */
+/* ---------- citas y alarmas propias ---------- */
+function agendaList(){ if(!Array.isArray(state.agenda)) state.agenda=[]; return state.agenda; }
+function openCitaNueva(tipo,pid){
+  var esAl=(tipo==="alarma");
+  var gente=state.people.slice().sort(function(a,b){ return (a.nombre||"").localeCompare(b.nombre||""); });
+  var h='<h2>'+(esAl?"Nueva alarma":"Nueva cita")+'</h2>'
+   +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 14px">'
+   +(esAl?"Un aviso para ti. Puedes vincularlo a una persona o dejarlo suelto."
+        :"Una cita tuya. Si es con alguien de tus fichas, vincúlala y quedará en su historia.")+'</p>'
+   +'<div class="fld"><label>'+(esAl?"¿De qué te quieres acordar?":"¿Qué es?")+'</label>'
+   +'<input type="text" id="ag_tit" placeholder="'+(esAl?"Ej.: felicitar a Marta por el ascenso":"Ej.: comer con Javier")+'"></div>'
+   +'<div class="cols">'
+   +'<div class="fld"><label>Fecha</label><input type="date" id="ag_fecha" value="'+todayStr()+'"></div>'
+   +'<div class="fld"><label>Hora (opcional)</label><input type="time" id="ag_hora"></div></div>'
+   +'<div class="fld"><label>Persona (opcional)</label><select id="ag_pid"><option value="">— sin vincular —</option>'
+   + gente.map(function(x){ return '<option value="'+x.id+'"'+(pid===x.id?" selected":"")+'>'+esc(x.nombre||"(sin nombre)")+'</option>'; }).join("")
+   +'</select></div>'
+   +(esAl?'<div class="fld" style="max-width:240px"><label>Avisarme</label><select id="ag_pre">'
+      +'<option value="0">el mismo día</option><option value="1">1 día antes</option>'
+      +'<option value="3">3 días antes</option><option value="7">una semana antes</option></select></div>':'')
+   +'<div class="fld"><label>Nota (opcional)</label><textarea id="ag_nota" placeholder="'+(esAl?"Por qué te importa acordarte":"Dónde, con quién, para qué")+'"></textarea></div>'
+   +'<div class="modal-actions"><button class="btn" onclick="closeModal()">Cancelar</button>'
+   +'<button class="btn primary" id="ag_ok">Guardar</button></div>';
+  showModal(h);
+  document.getElementById("ag_ok").onclick=function(){
+    var t=document.getElementById("ag_tit").value.trim();
+    var f=document.getElementById("ag_fecha").value;
+    if(!t){ alert("Ponle un título, aunque sea corto."); return; }
+    if(!f){ alert("Falta la fecha."); return; }
+    agendaList().push({id:uid(), tipo:(esAl?"alarma":"cita"), titulo:t, fecha:f,
+      hora:document.getElementById("ag_hora").value||"",
+      pid:document.getElementById("ag_pid").value||"",
+      pre:esAl?parseInt(document.getElementById("ag_pre").value,10)||0:0,
+      nota:document.getElementById("ag_nota").value.trim(), hecho:false});
+    save(); closeModal(); state.tab="agenda"; renderAll();
+    toast(esAl?"Alarma guardada":"Cita guardada");
+  };
+}
+function agendaHecho(id){
+  var x=agendaList().filter(function(a){ return a.id===id; })[0]; if(!x) return;
+  x.hecho=!x.hecho; save(); renderAgenda();
+}
+function agendaBorrar(id){
+  if(!confirm("¿Borrar esto de tu agenda?")) return;
+  state.agenda=agendaList().filter(function(a){ return a.id!==id; });
+  save(); renderAgenda();
+}
+window.openCitaNueva=openCitaNueva; window.agendaHecho=agendaHecho; window.agendaBorrar=agendaBorrar;
+/* lo que toca hoy o está por venir, con su aviso previo */
+function agendaActivas(){
+  var now=today();
+  return agendaList().map(function(a){
+    var f=parseDate(a.fecha); if(!f) return null;
+    var d=daysBetween(now,f);
+    return {a:a, f:f, d:d, avisa:(d<=(a.pre||0)||d<=0)};
+  }).filter(Boolean).sort(function(x,y){ return x.d-y.d; });
+}
+
 /* ---------- BRIEFING DE LA MAÑANA ----------
    Lo que antes llegaba por correo, ahora se calcula aquí con lo que hay en la app. */
 function _hoyISO(){ return new Date().toISOString().slice(0,10); }
@@ -1680,6 +1739,16 @@ function briefingDatos(){
   var detalle=conGesto.length?conGesto[_semilla(_hoyISO())%conGesto.length]:null;
   /* fichas sin tocar hace mucho, para no perder a nadie */
   var olvidados=gente.filter(function(p){ return !p.ultimoContacto && (p.notas||[]).length===0; }).length;
+  /* citas y alarmas propias */
+  agendaActivas().forEach(function(x){
+    if(x.a.hecho) return;
+    var p=x.a.pid?state.people.filter(function(q){ return q.id===x.a.pid; })[0]:null;
+    var e={motivo:x.a.titulo, lugar:x.a.nota||"", hora:x.a.hora};
+    var ficticia=p||{id:"", nombre:(x.a.tipo==="alarma"?"⏰ "+x.a.titulo:"📅 "+x.a.titulo), tipo:"amigo"};
+    if(x.d===0) citasHoy.push({p:ficticia, e:e, propia:true});
+    else if(x.d>0 && x.d<=7) citasSem.push({p:ficticia, e:e, d:x.d, propia:true});
+  });
+  citasSem.sort(function(a,b){ return a.d-b.d; });
   return {cumpleHoy:cumpleHoy, cumpleSem:cumpleSem, citasHoy:citasHoy, citasSem:citasSem,
           toca:toca, detalle:detalle, olvidados:olvidados, n:gente.length};
 }
@@ -1688,7 +1757,10 @@ function briefingTexto(){
   L.push("BRIEFING · "+f.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"}));
   L.push("");
   if(b.cumpleHoy.length){ L.push("CUMPLEN HOY"); b.cumpleHoy.forEach(function(p){ L.push("  · "+p.nombre+(_gestoDe(p)?" — "+_frase(_gestoDe(p),90):"")); }); L.push(""); }
-  if(b.citasHoy.length){ L.push("HOY TIENES"); b.citasHoy.forEach(function(x){ L.push("  · "+x.p.nombre+(x.e.motivo?" — "+x.e.motivo:"")+(x.e.lugar?" ("+x.e.lugar+")":"")); }); L.push(""); }
+  if(b.citasHoy.length){ L.push("HOY TIENES"); b.citasHoy.forEach(function(x){
+      var suelta=x.propia&&!x.p.id;
+      L.push("  · "+x.p.nombre+(!suelta&&x.e.motivo?" — "+x.e.motivo:"")+(x.e.hora?" · "+x.e.hora:"")+(x.e.lugar?" ("+x.e.lugar+")":""));
+    }); L.push(""); }
   if(b.toca.length){
     L.push("A QUIÉN LE TOCA");
     b.toca.forEach(function(x){
@@ -1700,7 +1772,8 @@ function briefingTexto(){
   if(b.cumpleSem.length||b.citasSem.length){
     L.push("ESTA SEMANA");
     b.cumpleSem.forEach(function(x){ L.push("  · "+x.p.nombre+" cumple en "+x.d+" día"+(x.d===1?"":"s")); });
-    b.citasSem.forEach(function(x){ L.push("  · "+x.p.nombre+" en "+x.d+" día"+(x.d===1?"":"s")+(x.e.motivo?" — "+x.e.motivo:"")); });
+    b.citasSem.forEach(function(x){ var suelta=x.propia&&!x.p.id;
+      L.push("  · "+x.p.nombre+" en "+x.d+" día"+(x.d===1?"":"s")+(!suelta&&x.e.motivo?" — "+x.e.motivo:"")); });
     L.push("");
   }
   if(b.detalle){ L.push("EL DETALLE DE HOY"); L.push("  "+b.detalle.nombre+": "+_frase(_gestoDe(b.detalle),150)); }
@@ -1709,15 +1782,28 @@ function briefingTexto(){
 function briefingHTML(){
   var b=briefingDatos(), f=new Date();
   var fila=function(p,eti,txt,col){
-    return '<div class="row" style="cursor:pointer" onclick="openEdit(\''+p.id+'\')">'
+    return '<div class="row"'+(p.id?' style="cursor:pointer" onclick="openEdit(\''+p.id+'\')"':'')+'>'
       +'<div class="av" style="background:'+colorOf(p)+'">'+esc(initials(p.nombre))+'</div>'
       +'<div class="grow"><div style="font-weight:600">'+esc(p.nombre)
       +' <span style="font-size:11px;font-weight:700;color:'+col+'">'+esc(eti)+'</span></div>'
       +(txt?'<div style="font-size:12.5px;color:var(--muted)">'+esc(txt)+'</div>':'')+'</div></div>';
   };
   var h='<div id="briefBox" style="background:linear-gradient(180deg,#fbfcfd,#fff);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px">';
+  var hh=f.getHours();
+  var saludo = hh<6?"Aún es de noche" : hh<13?"Buenos días" : hh<20?"Buenas tardes" : "Buenas noches";
+  var PAUSAS=[
+    "Antes de escribir a nadie, respira una vez. Con eso suele bastar.",
+    "Hoy escucha el doble de lo que cuentas.",
+    "No hace falta contestar a todo el mundo hoy. Elige a una persona.",
+    "Lo que te acuerdes de preguntar vale más que lo que tengas preparado para contar.",
+    "Un mensaje corto y a tiempo pesa más que uno largo y tarde.",
+    "Si hoy solo haces una cosa de esta lista, que sea la que te apetezca menos.",
+    "A quien llevas tiempo sin ver probablemente también le pasa contigo.",
+    "No se trata de quedar bien. Se trata de acordarte."
+  ];
+  var pausa=PAUSAS[_semilla(_hoyISO())%PAUSAS.length];
   h+='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:2px">'
-   +'<b style="font-size:15px;color:#1e2a3a">Briefing de hoy</b>'
+   +'<b style="font-size:15px;color:#1e2a3a">'+saludo+'</b>'
    +'<span style="font-size:11.5px;color:var(--muted)">'+esc(f.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"}))+'</span></div>';
 
   var algo=false;
@@ -1727,7 +1813,8 @@ function briefingHTML(){
   }
   if(b.citasHoy.length){ algo=true;
     h+='<div class="sec-title" style="color:#0f8a8a">Hoy tienes</div>';
-    b.citasHoy.forEach(function(x){ h+=fila(x.p,"hoy",[x.e.motivo,x.e.lugar].filter(Boolean).join(" · "),"#0f8a8a"); });
+    b.citasHoy.forEach(function(x){ var suelta=x.propia&&!x.p.id;
+      h+=fila(x.p,"hoy",[suelta?"":x.e.motivo,x.e.hora,x.e.lugar].filter(Boolean).join(" · "),"#0f8a8a"); });
   }
   if(b.toca.length){ algo=true;
     h+='<div class="sec-title" style="color:#d9762b">A quién le toca</div>';
@@ -1738,7 +1825,8 @@ function briefingHTML(){
   if(b.cumpleSem.length||b.citasSem.length){ algo=true;
     h+='<div class="sec-title">Esta semana</div>';
     b.cumpleSem.forEach(function(x){ h+=fila(x.p,"en "+x.d+" d","cumpleaños","#8d97a6"); });
-    b.citasSem.forEach(function(x){ h+=fila(x.p,"en "+x.d+" d",x.e.motivo||"cita","#8d97a6"); });
+    b.citasSem.forEach(function(x){ var suelta=x.propia&&!x.p.id;
+      h+=fila(x.p,"en "+x.d+" d",(suelta?(x.e.lugar||"tu agenda"):(x.e.motivo||"cita")),"#8d97a6"); });
   }
   if(b.detalle){ algo=true;
     h+='<div class="sec-title" style="color:#6a4c93">El detalle de hoy</div>'
@@ -1750,9 +1838,11 @@ function briefingHTML(){
     h+='<p style="color:var(--muted);font-size:12.5px;margin:8px 0 0">Hoy no hay nada urgente. '
      +(b.olvidados?'Tienes <b>'+b.olvidados+'</b> ficha'+(b.olvidados===1?'':'s')+' sin ninguna nota ni fecha de contacto: ese es buen sitio para empezar.':'Todo al día.')+'</p>';
   }
-  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;border-top:1px solid var(--line);padding-top:10px">'
+  h+='<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">'
+   +'<div style="font-size:12.5px;color:#5a6678;font-style:italic;line-height:1.55;margin-bottom:9px">'+esc(pausa)+'</div>'
+   +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
    +'<button class="btn sm" onclick="copiarBriefing()">Copiar briefing</button>'
-   +'<span style="font-size:10.5px;color:var(--muted);align-self:center">Se calcula con tus fichas. Nada sale del dispositivo.</span></div>';
+   +'<span style="font-size:10.5px;color:var(--muted);align-self:center">Se calcula con tus fichas. Nada sale del dispositivo.</span></div></div>';
   return h+'</div>';
 }
 function copiarBriefing(){
@@ -1778,6 +1868,31 @@ function renderAgenda(){
     .sort(function(a,b){return b.passed-a.passed;});
   var sinPlan=filtered().filter(function(p){ return esNegocio(p)&&!p.necesito; });
   var h=briefingHTML();
+  /* --- tu agenda: citas y alarmas propias --- */
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px">'
+   +'<button class="btn sm primary" onclick="openCitaNueva(\'cita\')">+ Cita</button>'
+   +'<button class="btn sm" onclick="openCitaNueva(\'alarma\')">+ Alarma</button></div>';
+  var ag=agendaActivas(), agPend=ag.filter(function(x){ return !x.a.hecho && x.d>=-30; });
+  if(agPend.length){
+    h+='<div class="sec-title">Tu agenda</div>';
+    h+=agPend.slice(0,20).map(function(x){
+      var p=x.a.pid?state.people.filter(function(q){ return q.id===x.a.pid; })[0]:null;
+      var cuando = x.d===0?"hoy":(x.d===1?"mañana":(x.d>0?"en "+x.d+" días":"hace "+(-x.d)+" días"));
+      var col = x.d<0?"#b3455b":(x.d===0?"#0f8a8a":(x.d<=3?"#d9762b":"#8d97a6"));
+      return '<div class="row">'
+        +'<div class="av" style="background:'+(p?colorOf(p):(x.a.tipo==="alarma"?"#d9762b":"#0f8a8a"))+'">'
+        +(p?esc(initials(p.nombre)):(x.a.tipo==="alarma"?"⏰":"📅"))+'</div>'
+        +'<div class="grow"'+(p?' style="cursor:pointer" onclick="openEdit(\''+p.id+'\')"':'')+'>'
+        +'<div style="font-weight:600">'+esc(x.a.titulo)
+        +' <span style="font-size:11px;font-weight:700;color:'+col+'">'+cuando+'</span></div>'
+        +'<div style="font-size:12.5px;color:var(--muted)">'
+        + esc([fmtDate(x.a.fecha)+(x.a.hora?" · "+x.a.hora:""), p?p.nombre:"", x.a.nota].filter(Boolean).join(" · "))
+        +'</div></div>'
+        +'<div style="display:flex;gap:4px;flex:none">'
+        +'<button class="btn sm" onclick="agendaHecho(\''+x.a.id+'\')" title="Marcar como hecho">✓</button>'
+        +'<button class="btn sm" onclick="agendaBorrar(\''+x.a.id+'\')" title="Borrar">✕</button></div></div>';
+    }).join("");
+  }
   h+='<div class="sec-title">Próximas fechas (120 días)</div>';
   h+=prox.length?prox.map(function(f){
       return rowHTML(f.p,f.tipo,f.date.toLocaleDateString("es-ES",{day:"numeric",month:"long"})+" · en "+f.dias+" d");
@@ -2720,8 +2835,11 @@ function openEdit(id){
         +((p.conexiones||[]).indexOf(o.id)>=0?" checked":"")+'>'+esc(o.nombre||"(sin nombre)")+'</label>';
     }).join("")+'</div>':'<p style="color:var(--muted);font-size:12.5px;margin:0">Añade más personas para poder conectarlas.</p>')
     +'</fieldset>';
-  h+='<fieldset style="border-color:#6d7a8c"><legend style="color:#6d7a8c">Notas con fecha</legend><div class="notes" id="notes">'+notesHTML(p)+'</div>'
-    +'<div style="display:flex;gap:6px;margin-top:8px"><input type="text" id="newNote" placeholder="Ej.: su hija empieza el instituto en septiembre">'
+  h+='<fieldset style="border-color:#6d7a8c"><legend style="color:#6d7a8c">Anotar algo de hoy</legend>'
+    +'<p style="color:var(--muted);font-size:12px;margin:0 0 8px">Lo que acabas de saber de '+esc((p.apodo||p.nombre||"esta persona").split(" ")[0])+'. Una línea basta.'
+    +((p.notas||[]).length?' Tienes <b>'+p.notas.length+'</b> nota'+(p.notas.length===1?'':'s')+' guardada'+(p.notas.length===1?'':'s')+' — se leen en <b>Historia</b>.':'')+'</p>'
+    +'<div class="notes" id="notes" style="display:none"></div>'
+    +'<div style="display:flex;gap:6px;margin-top:0"><input type="text" id="newNote" placeholder="Ej.: su hija empieza el instituto en septiembre">'
     +'<button class="btn" type="button" id="addNote">Añadir</button></div>'
     +(iaActiva()?'<label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-top:8px"><input type="checkbox" id="f_iaOff" style="width:auto"'+(p.iaOff?" checked":"")+'> No enviar esta ficha a la IA (mantenerla más privada)</label>':'')
     +'</fieldset>';
@@ -2733,13 +2851,14 @@ function openEdit(id){
     +fld("Qué quieren ellos (lo que persiguen los suyos)","queQuierenLosSuyos",p.queQuierenLosSuyos,"ta")
     +fld("Aficiones y gustos de los suyos","gustosDeLosSuyos",p.gustosDeLosSuyos,"ta")
     +fld("Un gesto que le pueda hacer y me cueste tiempo","gesto",p.gesto,"ta")+'</fieldset>';
-  h+='<div class="modal-actions">'
-    +(isNew?"":'<button class="btn danger" id="del">Eliminar</button>')
+  h+='<div class="modal-actions barra">'
+    +(isNew?"":'<button class="btn" onclick="openPerfil(\''+p.id+'\')">Perfil</button>')
     +(isNew?"":'<button class="btn" onclick="openPlan(\''+p.id+'\')">Plan</button>')
     +(isNew?"":'<button class="btn" onclick="openGuion(\''+p.id+'\')">Guión</button>')
-    +(isNew?"":'<button class="btn" onclick="openPerfil(\''+p.id+'\')">Perfil</button>')
     +(isNew?"":'<button class="btn" onclick="openHistoria(\''+p.id+'\')">Historia</button>')
-    +'<button class="btn" id="cancel">Cerrar</button><button class="btn primary" id="ok">Guardar y cerrar</button></div>';
+    +(isNew?"":'<button class="btn danger" id="del">Eliminar</button>')
+    +'<button class="btn primary" id="ok">Guardar</button>'
+    +'<button class="btn" id="cancel">Cerrar</button></div>';
   showModal(h);
   var ind=function(txt,ok){ var e=document.getElementById("fichaGuardado"); if(e){ e.textContent=txt; e.style.color=ok?"var(--ok)":"var(--muted)"; } };
   var debG;
@@ -2765,6 +2884,9 @@ function openEdit(id){
       programarGuardado();
     };
   });
+  (function(){ var nn=document.getElementById("newNote");
+    if(nn) nn.onkeydown=function(e){ if(e.key==="Enter"){ e.preventDefault(); document.getElementById("addNote").click(); } };
+  })();
   document.getElementById("addNote").onclick=function(){
     var t=document.getElementById("newNote").value.trim(); if(!t) return;
     p.notas.unshift({d:todayStr(),t:t});
@@ -3096,7 +3218,6 @@ function fsLectura(p){
     +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'
     +'<button type="button" class="btn sm primary" onclick="sugerirTodo(\''+p.id+'\')">Sugerir todas</button>'
     +'<button type="button" class="btn sm" onclick="limpiarLectura()">Vaciar</button></div>'
-    + bloquePsico(p)
     + LECTURA.map(function(L){
         return '<div class="fld lecfld"><label>'+esc(L[1])
           +' <button type="button" class="sugbtn" onclick="sugerirUno(\''+p.id+'\',\''+L[0]+'\')">Sugerir</button></label>'
@@ -3775,7 +3896,7 @@ function hoyISO(){ return new Date().toISOString().slice(0,10); }
 function syncMeta(){ try{ return JSON.parse(lsGet("sync")||"{}"); }catch(e){ return {}; } }
 function setSyncMeta(o){ try{ var m=syncMeta(); for(var k in o) m[k]=o[k]; lsSet("sync",JSON.stringify(m)); }catch(e){} }
 function savedLocal(){ try{ return (JSON.parse(localStorage.getItem(KEY)||"{}").saved)||""; }catch(e){ return ""; } }
-function payload(){ return JSON.stringify({people:state.people,me:state.me,circExtra:state.circExtra||[],tipoExtra:state.tipoExtra||[],v:3,saved:new Date().toISOString()},null,2); }
+function payload(){ return JSON.stringify({people:state.people,me:state.me,circExtra:state.circExtra||[],tipoExtra:state.tipoExtra||[],agenda:state.agenda||[],v:3,saved:new Date().toISOString()},null,2); }
 function setSync(t){ var e=document.getElementById("syncSt"); if(e) e.textContent=t||""; FS.msg=t||""; }
 function fsSoportado(){ return typeof window.showDirectoryPicker==="function"; }
 function idb(){ return new Promise(function(res,rej){
@@ -4048,6 +4169,7 @@ function aplicarDatos(d){
   state.people=d.people.map(ensure); if(d.me) state.me=d.me;
   if(Array.isArray(d.circExtra)) state.circExtra=d.circExtra;
   if(Array.isArray(d.tipoExtra)) state.tipoExtra=d.tipoExtra;
+  if(Array.isArray(d.agenda)) state.agenda=d.agenda;
   reconstruyeTipos();
   save(); renderSeg(); renderAll();
 }
