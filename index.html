@@ -27,6 +27,9 @@ button{font:inherit;cursor:pointer}
 input,select,textarea{font:inherit;color:inherit;background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px 9px;width:100%}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
 textarea{resize:vertical;min-height:56px}
+.lecfld textarea{min-height:132px;font-size:14.5px;line-height:1.62;letter-spacing:.005em;background:#fcfcfd;padding:11px 13px;white-space:pre-wrap}
+.lecfld label{font-size:13px;font-weight:650;color:#1e2a3a;line-height:1.4}
+@media(max-width:640px){.lecfld textarea{min-height:180px;font-size:16px;line-height:1.7;padding:12px 13px}.lecfld label{font-size:13.5px}}
 .wrap{max-width:1100px;margin:0 auto;padding:18px 18px 60px}
 header.top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
 .title{display:flex;align-items:baseline;gap:10px}
@@ -120,7 +123,10 @@ header.top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-conte
 .sec-title{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:20px 0 8px}
 .overlay{position:fixed;inset:0;background:rgba(20,28,40,.35);display:none;align-items:flex-start;justify-content:center;padding:24px;overflow:auto;z-index:50}
 .overlay.on{display:flex}
-.modal{background:#fff;border-radius:14px;width:100%;max-width:740px;padding:20px;box-shadow:0 18px 50px rgba(0,0,0,.22)}
+.modal{background:#fff;border-radius:14px;width:100%;max-width:740px;padding:20px;box-shadow:0 18px 50px rgba(0,0,0,.22);position:relative}
+.cerrarX{position:absolute;top:8px;right:8px;z-index:5;border:1px solid var(--line);background:#fff;color:#6b7684;width:34px;height:34px;border-radius:50%;font-size:15px;line-height:1;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.cerrarX:hover{background:#1e2a3a;color:#fff;border-color:#1e2a3a}
+.modal h2{padding-right:40px}
 .fld{margin-bottom:10px}
 .fld label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px;font-weight:550}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -339,7 +345,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.10-44";
+var VERSION="2026.09.11-46";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -450,7 +456,7 @@ function newPerson(){
     aficiones:"", deportes:"", musica:"", comida:"", temas:"", evitar:"",
     exito:"", admirado:"", importante:"", preocupa:"", fascina:"", ayuda:"", logros:"", estilo:"",
     quienesImportan:"", queQuierenLosSuyos:"", gustosDeLosSuyos:"", gesto:"",
-    meAporta:"", necesito:"", buscaDeMi:"", problema:"", presume:"", cebo:"", decisionCuesta:"", vestir:"",
+    meAporta:"", necesito:"", buscaDeMi:"", problema:"", presume:"", cebo:"", decisionCuesta:"", vestir:"", humor:"",
     nosUne:"", nosSepara:"", hitos:"", sies:"",
     pasos:[], discurso:"",
     cumple:"", aniversario:"", ultimoContacto:"", frecuencia:90,
@@ -466,7 +472,7 @@ function ensure(p){
     var base=String(p.tipo).split(/[·,\/]| y /)[0].trim().toLowerCase();
     p.tipo = TIPOS.some(function(t){return t[0]===base;}) ? base : "amigo";
   }
-  ["genero","exito","admirado","importante","preocupa","fascina","ayuda","logros","estilo","sector","meAporta","necesito","buscaDeMi","problema","presume","cebo","decisionCuesta","vestir","discurso","nosUne","nosSepara","hitos","sies","quienesImportan","queQuierenLosSuyos","gustosDeLosSuyos","gesto"]
+  ["genero","exito","admirado","importante","preocupa","fascina","ayuda","logros","estilo","sector","meAporta","necesito","buscaDeMi","problema","presume","cebo","decisionCuesta","vestir","humor","discurso","nosUne","nosSepara","hitos","sies","quienesImportan","queQuierenLosSuyos","gustosDeLosSuyos","gesto"]
     .forEach(function(k){ if(p[k]==null) p[k]=""; });
   ["conexiones","notas","encuentros","pasos"].forEach(function(k){ if(!Array.isArray(p[k])) p[k]=[]; });
   return p;
@@ -1629,6 +1635,133 @@ function citaRow(x){
 }
 
 /* ---------- agenda ---------- */
+/* ---------- BRIEFING DE LA MAÑANA ----------
+   Lo que antes llegaba por correo, ahora se calcula aquí con lo que hay en la app. */
+function _hoyISO(){ return new Date().toISOString().slice(0,10); }
+function _mmdd(s){ var d=parseDate(s); return d?("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2):""; }
+function _semilla(s){ var x=0; for(var i=0;i<s.length;i++) x=(x*31+s.charCodeAt(i))>>>0; return x; }
+function _gestoDe(p){
+  if(_t(p,"gesto")) return _t(p,"gesto");
+  if(_t(p,"ayuda")) return "Puedes ayudarle con: "+_frase(_t(p,"ayuda"),90);
+  var c=ceboDe(p); if(c) return "Lo que le mueve: "+_frase(c,90);
+  if(_t(p,"fascina")) return "Pregúntale por "+_frase(_t(p,"fascina"),70);
+  if(_t(p,"hijos")) return "Pregúntale por "+_frase(_t(p,"hijos"),60);
+  return "";
+}
+function briefingDatos(){
+  var now=today(), hoyMD=_mmdd(_hoyISO()), gente=state.people;
+  var cumpleHoy=[], cumpleSem=[], citasHoy=[], citasSem=[];
+  gente.forEach(function(p){
+    if(p.cumple){
+      var md=_mmdd(p.cumple);
+      if(md&&md===hoyMD) cumpleHoy.push(p);
+      else { var n=nextAnniversary(p.cumple); if(n){ var dd=daysBetween(now,n); if(dd>0&&dd<=7) cumpleSem.push({p:p,d:dd,f:n}); } }
+    }
+    (p.encuentros||[]).forEach(function(e){
+      if(e.hecho||!e.fecha) return;
+      var f=parseDate(e.fecha); if(!f) return;
+      var dd=daysBetween(now,f);
+      if(dd===0) citasHoy.push({p:p,e:e});
+      else if(dd>0&&dd<=7) citasSem.push({p:p,e:e,d:dd});
+    });
+  });
+  cumpleSem.sort(function(a,b){ return a.d-b.d; });
+  citasSem.sort(function(a,b){ return a.d-b.d; });
+  /* a quién le toca: los más vencidos según su frecuencia */
+  var toca=gente.map(function(p){
+    var f=parseInt(p.frecuencia,10)||90;
+    var u=p.ultimoContacto?parseDate(p.ultimoContacto):null;
+    var d=u?daysBetween(u,now):null;
+    return {p:p, dias:d, freq:f, exceso:(d===null?-1:d-f)};
+  }).filter(function(x){ return x.exceso>=0; })
+    .sort(function(a,b){ return b.exceso-a.exceso; }).slice(0,3);
+  /* el detalle del día: alguien con gesto anotado, rotando por fecha */
+  var conGesto=gente.filter(function(p){ return _gestoDe(p); });
+  var detalle=conGesto.length?conGesto[_semilla(_hoyISO())%conGesto.length]:null;
+  /* fichas sin tocar hace mucho, para no perder a nadie */
+  var olvidados=gente.filter(function(p){ return !p.ultimoContacto && (p.notas||[]).length===0; }).length;
+  return {cumpleHoy:cumpleHoy, cumpleSem:cumpleSem, citasHoy:citasHoy, citasSem:citasSem,
+          toca:toca, detalle:detalle, olvidados:olvidados, n:gente.length};
+}
+function briefingTexto(){
+  var b=briefingDatos(), L=[], f=new Date();
+  L.push("BRIEFING · "+f.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"}));
+  L.push("");
+  if(b.cumpleHoy.length){ L.push("CUMPLEN HOY"); b.cumpleHoy.forEach(function(p){ L.push("  · "+p.nombre+(_gestoDe(p)?" — "+_frase(_gestoDe(p),90):"")); }); L.push(""); }
+  if(b.citasHoy.length){ L.push("HOY TIENES"); b.citasHoy.forEach(function(x){ L.push("  · "+x.p.nombre+(x.e.motivo?" — "+x.e.motivo:"")+(x.e.lugar?" ("+x.e.lugar+")":"")); }); L.push(""); }
+  if(b.toca.length){
+    L.push("A QUIÉN LE TOCA");
+    b.toca.forEach(function(x){
+      L.push("  · "+x.p.nombre+" — hace "+x.dias+" días (cada "+x.freq+")");
+      var g=_gestoDe(x.p); if(g) L.push("      "+_frase(g,110));
+    });
+    L.push("");
+  }
+  if(b.cumpleSem.length||b.citasSem.length){
+    L.push("ESTA SEMANA");
+    b.cumpleSem.forEach(function(x){ L.push("  · "+x.p.nombre+" cumple en "+x.d+" día"+(x.d===1?"":"s")); });
+    b.citasSem.forEach(function(x){ L.push("  · "+x.p.nombre+" en "+x.d+" día"+(x.d===1?"":"s")+(x.e.motivo?" — "+x.e.motivo:"")); });
+    L.push("");
+  }
+  if(b.detalle){ L.push("EL DETALLE DE HOY"); L.push("  "+b.detalle.nombre+": "+_frase(_gestoDe(b.detalle),150)); }
+  return L.join("\n");
+}
+function briefingHTML(){
+  var b=briefingDatos(), f=new Date();
+  var fila=function(p,eti,txt,col){
+    return '<div class="row" style="cursor:pointer" onclick="openEdit(\''+p.id+'\')">'
+      +'<div class="av" style="background:'+colorOf(p)+'">'+esc(initials(p.nombre))+'</div>'
+      +'<div class="grow"><div style="font-weight:600">'+esc(p.nombre)
+      +' <span style="font-size:11px;font-weight:700;color:'+col+'">'+esc(eti)+'</span></div>'
+      +(txt?'<div style="font-size:12.5px;color:var(--muted)">'+esc(txt)+'</div>':'')+'</div></div>';
+  };
+  var h='<div id="briefBox" style="background:linear-gradient(180deg,#fbfcfd,#fff);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:2px">'
+   +'<b style="font-size:15px;color:#1e2a3a">Briefing de hoy</b>'
+   +'<span style="font-size:11.5px;color:var(--muted)">'+esc(f.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"}))+'</span></div>';
+
+  var algo=false;
+  if(b.cumpleHoy.length){ algo=true;
+    h+='<div class="sec-title" style="color:#c0468a">Cumplen hoy</div>';
+    b.cumpleHoy.forEach(function(p){ h+=fila(p,"🎂 hoy",_gestoDe(p),"#c0468a"); });
+  }
+  if(b.citasHoy.length){ algo=true;
+    h+='<div class="sec-title" style="color:#0f8a8a">Hoy tienes</div>';
+    b.citasHoy.forEach(function(x){ h+=fila(x.p,"hoy",[x.e.motivo,x.e.lugar].filter(Boolean).join(" · "),"#0f8a8a"); });
+  }
+  if(b.toca.length){ algo=true;
+    h+='<div class="sec-title" style="color:#d9762b">A quién le toca</div>';
+    b.toca.forEach(function(x){
+      h+=fila(x.p,"hace "+x.dias+" d",(_gestoDe(x.p)||"Le tocaba cada "+x.freq+" días"),"#d9762b");
+    });
+  }
+  if(b.cumpleSem.length||b.citasSem.length){ algo=true;
+    h+='<div class="sec-title">Esta semana</div>';
+    b.cumpleSem.forEach(function(x){ h+=fila(x.p,"en "+x.d+" d","cumpleaños","#8d97a6"); });
+    b.citasSem.forEach(function(x){ h+=fila(x.p,"en "+x.d+" d",x.e.motivo||"cita","#8d97a6"); });
+  }
+  if(b.detalle){ algo=true;
+    h+='<div class="sec-title" style="color:#6a4c93">El detalle de hoy</div>'
+     +'<div style="background:#faf7fd;border:1px solid #ece4f5;border-radius:10px;padding:10px 12px;font-size:12.8px;line-height:1.55">'
+     +'<b>'+esc(b.detalle.nombre)+'</b> — '+esc(_frase(_gestoDe(b.detalle),200))
+     +'<div style="margin-top:6px"><button class="btn sm" onclick="openEdit(\''+b.detalle.id+'\')">Abrir ficha</button></div></div>';
+  }
+  if(!algo){
+    h+='<p style="color:var(--muted);font-size:12.5px;margin:8px 0 0">Hoy no hay nada urgente. '
+     +(b.olvidados?'Tienes <b>'+b.olvidados+'</b> ficha'+(b.olvidados===1?'':'s')+' sin ninguna nota ni fecha de contacto: ese es buen sitio para empezar.':'Todo al día.')+'</p>';
+  }
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;border-top:1px solid var(--line);padding-top:10px">'
+   +'<button class="btn sm" onclick="copiarBriefing()">Copiar briefing</button>'
+   +'<span style="font-size:10.5px;color:var(--muted);align-self:center">Se calcula con tus fichas. Nada sale del dispositivo.</span></div>';
+  return h+'</div>';
+}
+function copiarBriefing(){
+  var t=briefingTexto();
+  try{ navigator.clipboard.writeText(t); toast("Briefing copiado"); }
+  catch(e){ alert(t); }
+}
+window.copiarBriefing=copiarBriefing;
+
 function renderAgenda(){
   var el=document.getElementById("agenda"),now=today(),fechas=[];
   filtered().forEach(function(p){
@@ -1644,7 +1777,8 @@ function renderAgenda(){
     .filter(function(x){return x.st.cls==="due"||x.st.cls==="soon";})
     .sort(function(a,b){return b.passed-a.passed;});
   var sinPlan=filtered().filter(function(p){ return esNegocio(p)&&!p.necesito; });
-  var h='<div class="sec-title">Próximas fechas (120 días)</div>';
+  var h=briefingHTML();
+  h+='<div class="sec-title">Próximas fechas (120 días)</div>';
   h+=prox.length?prox.map(function(f){
       return rowHTML(f.p,f.tipo,f.date.toLocaleDateString("es-ES",{day:"numeric",month:"long"})+" · en "+f.dias+" d");
     }).join(""):'<div class="empty">Sin fechas próximas registradas.</div>';
@@ -2552,7 +2686,7 @@ function openEdit(id){
     +fld("Qué le preocupa","preocupa",p.preocupa,"ta")
     +fld("¿Qué decisión le está costando tomar?","decisionCuesta",p.decisionCuesta,"ta")
     +fld("Qué le fascina","fascina",p.fascina,"ta")
-    +fld("Cómo puedo ayudarle a conseguirlo","ayuda",p.ayuda,"ta")
+    +fld("¿En qué puedo ayudarle?","ayuda",p.ayuda,"ta")
     +fld("Logros suyos que puedes reconocer (concretos)","logros",p.logros,"ta")
     +fld("¿De qué presume?","presume",p.presume,"ta")+'</fieldset>';
   h+='<fieldset style="border-color:#d99b2b"><legend style="color:#d99b2b">Gustos e intereses</legend>'
@@ -2560,6 +2694,7 @@ function openEdit(id){
     +'<div class="cols">'+fld("Deporte / equipo","deportes",p.deportes)+fld("Música","musica",p.musica)
     +fld("Comida y bebida","comida",p.comida)+fld("Temas que le encienden","temas",p.temas)+'</div>'
     +fld("Temas a evitar","evitar",p.evitar)
+    +fld("¿Qué le hace gracia? ¿Con qué disfruta riendo?","humor",p.humor,"ta")
     +fld("¿Cómo es su forma de vestir? (qué cuida y qué descuida)","vestir",p.vestir,"ta")
     +fld("Cómo tratarle (su estilo en el trato)","estilo",p.estilo,"ta")+'</fieldset>';
   var citaProx=nextMeeting(p);
@@ -2598,6 +2733,7 @@ function openEdit(id){
     +fld("Qué quieren ellos (lo que persiguen los suyos)","queQuierenLosSuyos",p.queQuierenLosSuyos,"ta")
     +fld("Aficiones y gustos de los suyos","gustosDeLosSuyos",p.gustosDeLosSuyos,"ta")
     +fld("Un gesto que le pueda hacer y me cueste tiempo","gesto",p.gesto,"ta")+'</fieldset>';
+  h+=bloqueMomentos(p);
   h+='<fieldset style="border-color:#b5476b"><legend style="color:#b5476b">Lectura del perfil</legend>'
     +'<p style="color:var(--muted);font-size:12px;margin:0 0 4px">Once preguntas para entenderle mejor. Puedes escribirlas tú, o pulsar <b>Sugerir</b> y la app propone una hipótesis a partir de lo que ya has anotado más arriba.</p>'
     +'<p style="font-size:11.5px;margin:0 0 10px;color:#b5476b"><b>Son hipótesis, no diagnósticos.</b> Sirven para preguntar mejor y comprobar si aciertas, no para etiquetar a nadie. Si no encaja, bórralo.</p>'
@@ -2606,7 +2742,7 @@ function openEdit(id){
     +'<button type="button" class="btn sm" onclick="limpiarLectura()">Vaciar</button></div>'
     + bloquePsico(p)
     + LECTURA.map(function(L){
-        return '<div class="fld"><label>'+esc(L[1])
+        return '<div class="fld lecfld"><label>'+esc(L[1])
           +' <button type="button" class="sugbtn" onclick="sugerirUno(\''+p.id+'\',\''+L[0]+'\')">Sugerir</button></label>'
           +'<textarea id="f_'+L[0]+'">'+esc(p[L[0]]||"")+'</textarea></div>';
       }).join("")
@@ -2707,7 +2843,7 @@ var LEX={
 };
 function _texto(p){
   return ["exito","admirado","importante","preocupa","fascina","ayuda","logros","estilo","vestir","presume",
-          "aficiones","deportes","musica","comida","temas","evitar","empleo","sector","comoConocimos",
+          "aficiones","deportes","musica","comida","temas","evitar","humor","empleo","sector","comoConocimos",
           "quienesImportan","queQuierenLosSuyos","cebo","buscaDeMi","necesito","problema","decisionCuesta"]
     .map(function(k){ return _t(p,k); }).concat((p.notas||[]).map(function(n){ return n.t||""; }))
     .join(" ").toLowerCase();
@@ -2797,6 +2933,129 @@ function radarSVG(titulo,datos,color,sub){
   }
   return s+'</svg>';
 }
+/* ---------- pirámide de Maslow ----------
+   Reparte lo que le mueve en los cinco escalones clásicos de Maslow (1943). */
+function maslowDe(p){
+  function m(k){ return (p.mot&&p.mot[k]&&p.mot[k].n)||0; }
+  var n={
+    "Autorrealización":[m("trascendencia")],
+    "Reconocimiento":  [m("importancia"),m("admiracion")],
+    "Pertenencia":     [m("afecto"),m("hijos")],
+    "Seguridad":       [m("dinero"),m("sustento")],
+    "Fisiológicas":    [m("salud"),m("sustento")]
+  };
+  var out={},hay=false;
+  Object.keys(n).forEach(function(k){
+    var a=n[k],s=0; a.forEach(function(v){ s+=v; });
+    out[k]=Math.round(s/(a.length*3)*100); if(out[k]>0) hay=true;
+  });
+  return {niveles:out, hay:hay};
+}
+function maslowSVG(p){
+  var r=maslowDe(p), ord=["Autorrealización","Reconocimiento","Pertenencia","Seguridad","Fisiológicas"];
+  var W=460,H=300,cx=W/2,top=42,alt=44,base=176;
+  var COL=["#6a4c93","#c0468a","#d9762b","#3f7d9c","#2f9d78"];
+  var s='<svg viewBox="0 0 '+W+' '+H+'" width="100%" style="display:block">';
+  s+='<text x="'+cx+'" y="16" text-anchor="middle" font-size="11" font-weight="700" fill="#1e2a3a" letter-spacing=".06em">PIRÁMIDE DE MASLOW</text>';
+  s+='<text x="'+cx+'" y="30" text-anchor="middle" font-size="9" fill="#8d97a6">'+(r.hay?"dónde está hoy lo que le mueve":"sin puntuar todavía en «Qué le mueve»")+'</text>';
+  var mx=0; ord.forEach(function(k){ if(r.niveles[k]>mx) mx=r.niveles[k]; });
+  ord.forEach(function(k,i){
+    var y=top+i*alt, anchoArr=(base*(i+1))/ord.length, anchoAb=(base*(i+2))/ord.length;
+    var pts=[(cx-anchoArr)+","+y,(cx+anchoArr)+","+y,(cx+anchoAb)+","+(y+alt-4),(cx-anchoAb)+","+(y+alt-4)].join(" ");
+    var v=r.niveles[k], fuerte=(mx>0&&v===mx&&v>0);
+    s+='<polygon points="'+pts+'" fill="'+COL[i]+'" fill-opacity="'+(v>0?(0.18+0.55*v/100).toFixed(2):"0.07")+'" stroke="'+COL[i]+'" stroke-width="'+(fuerte?2.2:1)+'"/>';
+    s+='<text x="'+cx+'" y="'+(y+alt/2+1)+'" text-anchor="middle" font-size="11" font-weight="'+(fuerte?"700":"500")+'" fill="#1e2a3a">'+k+'</text>';
+    s+='<text x="'+(cx+anchoAb+10)+'" y="'+(y+alt/2+1)+'" font-size="10" font-weight="700" fill="'+COL[i]+'">'+v+'</text>';
+    if(fuerte) s+='<text x="'+(cx-anchoAb-10)+'" y="'+(y+alt/2+1)+'" font-size="9.5" font-weight="700" fill="'+COL[i]+'" text-anchor="end">aquí vive</text>';
+  });
+  s+='<text x="14" y="'+(H-16)+'" font-size="9.5" fill="#8d97a6">Maslow (1943): las necesidades de abajo pesan más hasta que están cubiertas;</text>';
+  s+='<text x="14" y="'+(H-5)+'" font-size="9.5" fill="#8d97a6">solo entonces tiran las de arriba. Háblale del escalón donde está, no del de encima.</text>';
+  return s+'</svg>';
+}
+
+/* ---------- momentos compartidos + medidor de relación ---------- */
+function _dias(a,b){ return Math.round((b-a)/86400000); }
+function momentosDe(p){
+  var notas=(p.notas||[]).slice().sort(function(x,y){ return (x.d||"")<(y.d||"")?-1:1; });
+  var enc=(p.encuentros||[]).filter(function(e){ return e.hecho; });
+  var hoy=new Date();
+  var prim=notas.length?parseDate(notas[0].d):null;
+  var ult=notas.length?parseDate(notas[notas.length-1].d):null;
+  var ultCont=p.ultimoContacto?parseDate(p.ultimoContacto):null;
+  var ultimo=[ult,ultCont].filter(Boolean).sort(function(a,b){ return b-a; })[0]||null;
+  var meses=(prim&&ult)?Math.max(1,Math.round(_dias(prim,ult)/30)):0;
+  var ritmo=(notas.length>1&&meses)?(notas.length/meses):0;
+  /* temas recurrentes en las notas */
+  var txt=notas.map(function(n){ return n.t||""; }).join(" ").toLowerCase();
+  var pal={},stop={"para":1,"con":1,"que":1,"los":1,"las":1,"del":1,"por":1,"una":1,"uno":1,"sus":1,"más":1,"como":1,"esta":1,"este":1,"pero":1,"todo":1,"hace":1,"hacer":1,"muy":1,"día":1,"dia":1,"años":1,"año":1,"tiene":1,"está":1,"esta":1};
+  txt.replace(/[^a-záéíóúñü\s]/g," ").split(/\s+/).forEach(function(w){ if(w.length>4&&!stop[w]) pal[w]=(pal[w]||0)+1; });
+  var temas=Object.keys(pal).filter(function(w){ return pal[w]>1; }).sort(function(a,b){ return pal[b]-pal[a]; }).slice(0,6);
+  return {notas:notas, enc:enc, prim:prim, ultimo:ultimo, meses:meses, ritmo:ritmo, temas:temas,
+          diasSin:ultimo?_dias(ultimo,hoy):null};
+}
+/* 0-100: cuánto sabes de esta persona y cuánto la cuidas */
+function medidorRelacion(p){
+  var mm=momentosDe(p), pts=0, det=[];
+  var camposClave=["exito","preocupa","importante","admirado","fascina","quienesImportan","cebo","logros","aficiones","humor","ayuda"];
+  var llenos=camposClave.filter(function(k){ return _t(p,k); }).length;
+  var cCon=Math.round(llenos/camposClave.length*35); pts+=cCon;
+  det.push(["Lo que sabes de "+(esF(p)?"ella":"él"), cCon, 35, llenos+" de "+camposClave.length+" campos clave"]);
+  var cHist=Math.min(25, mm.notas.length*4+mm.enc.length*5); pts+=cHist;
+  det.push(["Historia compartida", cHist, 25, mm.notas.length+" nota"+(mm.notas.length===1?"":"s")+(mm.enc.length?" · "+mm.enc.length+" encuentro"+(mm.enc.length===1?"":"s"):"")]);
+  var cRit=mm.ritmo>=1?20:(mm.ritmo>=0.5?14:(mm.ritmo>0?8:0)); pts+=cRit;
+  det.push(["Constancia", cRit, 20, mm.meses?("~"+(Math.round(mm.ritmo*10)/10)+" apuntes al mes"):"sin recorrido todavía"]);
+  var d=mm.diasSin, freq=parseInt(p.frecuencia,10)||90;
+  var cFres=(d===null)?0:(d<=freq/2?20:(d<=freq?14:(d<=freq*2?7:0))); pts+=cFres;
+  det.push(["Al día", cFres, 20, d===null?"sin fecha de último contacto":("hace "+d+" día"+(d===1?"":"s"))]);
+  var n=Math.max(0,Math.min(100,pts));
+  var etq = n>=75?"Relación fuerte" : n>=55?"Relación sólida" : n>=35?"En construcción" : n>=15?"Aún superficial" : "Casi sin recorrido";
+  var col = n>=75?"#2f9d78" : n>=55?"#3f7d9c" : n>=35?"#d9762b" : "#b3455b";
+  return {n:n, etq:etq, col:col, det:det, mm:mm};
+}
+function bloqueMomentos(p){
+  var r=medidorRelacion(p), mm=r.mm;
+  var h='<fieldset style="border-color:#0f8a8a"><legend style="color:#0f8a8a">Momentos compartidos</legend>';
+  /* medidor */
+  h+='<div style="background:#fbfcfd;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:12px">'
+   +'<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">'
+   +'<b style="font-size:13px;color:#1e2a3a">Medidor de relación</b>'
+   +'<span style="font-size:13px;font-weight:700;color:'+r.col+'">'+r.etq+' · '+r.n+'/100</span></div>'
+   +'<div style="background:#eef1f5;border-radius:99px;height:10px;margin:8px 0 10px;overflow:hidden">'
+   +'<div style="background:'+r.col+';height:10px;width:'+r.n+'%;border-radius:99px"></div></div>';
+  r.det.forEach(function(d){
+    h+='<div style="display:flex;align-items:center;gap:8px;font-size:11.5px;margin-bottom:4px">'
+     +'<span style="width:126px;color:#5a6678">'+d[0]+'</span>'
+     +'<span style="flex:1;background:#eef1f5;border-radius:99px;height:6px;overflow:hidden"><span style="display:block;background:'+r.col+';opacity:.65;height:6px;width:'+Math.round(d[1]/d[2]*100)+'%"></span></span>'
+     +'<span style="width:132px;text-align:right;color:#8d97a6">'+esc(d[3])+'</span></div>';
+  });
+  h+='<p style="font-size:10.5px;color:var(--muted);margin:8px 0 0">No mide el cariño: mide cuánto has cultivado la relación y cuánto sabes. Sube escribiendo notas y rellenando la ficha.</p></div>';
+  /* resumen automático */
+  h+='<div style="font-size:12.5px;line-height:1.6">';
+  if(!mm.notas.length && !mm.enc.length){
+    h+='<p style="color:var(--muted);margin:0">Todavía no hay notas ni encuentros. En cuanto escribas la primera nota, aquí aparecerá el resumen de todo lo que habéis compartido.</p>';
+  } else {
+    h+='<p style="margin:0 0 8px"><b>Resumen:</b> '
+      +(mm.prim?'os venís viendo desde <b>'+fmtDate(mm.notas[0].d)+'</b>':'')
+      +(mm.meses>1?' — unos <b>'+mm.meses+' meses</b> de recorrido':'')
+      +'. Tienes <b>'+mm.notas.length+'</b> nota'+(mm.notas.length===1?'':'s')
+      +(mm.enc.length?' y <b>'+mm.enc.length+'</b> encuentro'+(mm.enc.length===1?'':'s')+' registrado'+(mm.enc.length===1?'':'s'):'')
+      +(mm.diasSin!==null?'. Último contacto hace <b>'+mm.diasSin+'</b> día'+(mm.diasSin===1?'':'s'):'')+'.</p>';
+    if(mm.temas.length) h+='<p style="margin:0 0 8px"><b>Lo que más se repite:</b> '+mm.temas.map(function(t){ return esc(t); }).join(" · ")+'</p>';
+    h+='<div class="sec-title" style="margin-top:6px">La historia, por orden</div>';
+    h+='<div style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff">';
+    mm.notas.slice().reverse().forEach(function(n){
+      h+='<div style="padding:5px 0;border-bottom:1px solid #f2f4f7"><b style="color:#0f8a8a;font-size:11.5px">'+fmtDate(n.d)+'</b><br>'+esc(n.t)+'</div>';
+    });
+    mm.enc.forEach(function(e){
+      h+='<div style="padding:5px 0;border-bottom:1px solid #f2f4f7"><b style="color:#0f8a8a;font-size:11.5px">'+fmtDate(e.fecha)+' · encuentro</b><br>'+esc(e.titulo||e.fb||"")+'</div>';
+    });
+    h+='</div>';
+  }
+  h+='<p style="font-size:10.5px;color:var(--muted);margin:8px 0 0">Se rellena solo con tus notas y encuentros. Para añadir algo, escribe una nota nueva ahí arriba.</p>';
+  h+='</div></fieldset>';
+  return h;
+}
+
 function bloquePsico(p){
   var r=perfilPsico(p);
   if(r.datos<120) return '<div class="card" style="padding:12px 14px;font-size:12.5px;color:var(--muted)">Cuando tengas algo más escrito de esta persona aparecerá aquí su retrato: dos gráficos de araña y tres líneas de resumen.</div>';
@@ -2804,6 +3063,7 @@ function bloquePsico(p){
     +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
     +'<div style="flex:1 1 230px;min-width:210px">'+radarSVG("PERSONALIDAD",r.big,"#6a4c93","cinco grandes · estimado")+'</div>'
     +'<div style="flex:1 1 230px;min-width:210px">'+radarSVG("LO QUE LE MUEVE",r.mot,"#c0468a",r.motPropio?"según tus puntuaciones":"estimado del texto")+'</div>'
+    +'<div style="flex:1 1 250px;min-width:230px">'+maslowSVG(p)+'</div>'
     +'</div>'
     +'<div style="font-size:12.5px;line-height:1.55;border-top:1px solid var(--line);padding-top:10px;margin-top:4px">'
     + r.lineas.map(function(l){ return '<div style="margin-bottom:3px">'+l+'</div>'; }).join("")
@@ -2985,7 +3245,7 @@ function fld(label,key,val,type){
 function leerCampos(p){
   ["nombre","apodo","ciudad","grupo","sector","comoConocimos","pareja","hijos","familia","empleo","empresa",
    "exito","admirado","importante","preocupa","fascina","ayuda","logros","quienesImportan","queQuierenLosSuyos","gustosDeLosSuyos","gesto",
-   "aficiones","deportes","musica","comida","temas","evitar","estilo","vestir","presume","decisionCuesta",
+   "aficiones","deportes","musica","comida","temas","evitar","estilo","vestir","humor","presume","decisionCuesta",
    "cumple","aniversario","ultimoContacto",
    "lecDeduce","lecPatrones","lecDecision","lecRenuncia","lecGana","lecPierde",
    "lecNiega","lecTresSin","lecFreno","lecTresCon","lecMantra"]
@@ -3022,7 +3282,8 @@ function commit(p,isNew){
 }
 function showModal(h){
   var m=document.getElementById("modal");
-  m.innerHTML=h; m.scrollTop=0;
+  m.innerHTML='<button type="button" class="cerrarX" onclick="closeModal()" title="Cerrar" aria-label="Cerrar">✕</button>'+h;
+  m.scrollTop=0;
   var o=document.getElementById("overlay"); o.classList.add("on"); o.scrollTop=0;
   try{ ponerMicros(); }catch(e){}
 }
@@ -4502,7 +4763,8 @@ document.getElementById("reflow").onclick=function(){ G.tx=0;G.ty=0;G.s=1;G.node
 document.getElementById("byGroup").onchange=buildGraph;
 (function(){ var mm=document.getElementById("modoMapa"); if(mm) mm.value=state.modoMapa; })();
 document.getElementById("modoMapa").onchange=function(e){ state.modoMapa=e.target.value; G.nodes=[]; G.tx=0; G.ty=0; G.s=1; mapaRender(); };
-document.getElementById("overlay").onclick=function(e){ if(e.target.id==="overlay") closeModal(); };
+/* pinchar fuera ya NO cierra: se cierra con el aspa, con Cerrar o con Escape */
+document.getElementById("overlay").onclick=function(e){ /* intencionadamente vacío */ };
 document.addEventListener("keydown",function(e){ if(e.key==="Escape") closeModal(); });
 window.addEventListener("resize",function(){ if(state.tab==="mapa"){ G.alpha=0.3; tick(); } });
 initGraphEvents();
