@@ -345,7 +345,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.11-46";
+var VERSION="2026.09.11-47";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -460,7 +460,7 @@ function newPerson(){
     nosUne:"", nosSepara:"", hitos:"", sies:"",
     pasos:[], discurso:"",
     cumple:"", aniversario:"", ultimoContacto:"", frecuencia:90,
-    mot:m, conexiones:[], notas:[], encuentros:[] };
+    mot:m, conexiones:[], notas:[], encuentros:[], maslowSel:[] };
 }
 function ensure(p){
   if(!p.mot) p.mot={};
@@ -474,7 +474,7 @@ function ensure(p){
   }
   ["genero","exito","admirado","importante","preocupa","fascina","ayuda","logros","estilo","sector","meAporta","necesito","buscaDeMi","problema","presume","cebo","decisionCuesta","vestir","humor","discurso","nosUne","nosSepara","hitos","sies","quienesImportan","queQuierenLosSuyos","gustosDeLosSuyos","gesto"]
     .forEach(function(k){ if(p[k]==null) p[k]=""; });
-  ["conexiones","notas","encuentros","pasos"].forEach(function(k){ if(!Array.isArray(p[k])) p[k]=[]; });
+  ["conexiones","notas","encuentros","pasos","maslowSel"].forEach(function(k){ if(!Array.isArray(p[k])) p[k]=[]; });
   return p;
 }
 
@@ -2733,24 +2733,12 @@ function openEdit(id){
     +fld("Qué quieren ellos (lo que persiguen los suyos)","queQuierenLosSuyos",p.queQuierenLosSuyos,"ta")
     +fld("Aficiones y gustos de los suyos","gustosDeLosSuyos",p.gustosDeLosSuyos,"ta")
     +fld("Un gesto que le pueda hacer y me cueste tiempo","gesto",p.gesto,"ta")+'</fieldset>';
-  h+=bloqueMomentos(p);
-  h+='<fieldset style="border-color:#b5476b"><legend style="color:#b5476b">Lectura del perfil</legend>'
-    +'<p style="color:var(--muted);font-size:12px;margin:0 0 4px">Once preguntas para entenderle mejor. Puedes escribirlas tú, o pulsar <b>Sugerir</b> y la app propone una hipótesis a partir de lo que ya has anotado más arriba.</p>'
-    +'<p style="font-size:11.5px;margin:0 0 10px;color:#b5476b"><b>Son hipótesis, no diagnósticos.</b> Sirven para preguntar mejor y comprobar si aciertas, no para etiquetar a nadie. Si no encaja, bórralo.</p>'
-    +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'
-    +'<button type="button" class="btn sm primary" onclick="sugerirTodo(\''+p.id+'\')">Sugerir todas</button>'
-    +'<button type="button" class="btn sm" onclick="limpiarLectura()">Vaciar</button></div>'
-    + bloquePsico(p)
-    + LECTURA.map(function(L){
-        return '<div class="fld lecfld"><label>'+esc(L[1])
-          +' <button type="button" class="sugbtn" onclick="sugerirUno(\''+p.id+'\',\''+L[0]+'\')">Sugerir</button></label>'
-          +'<textarea id="f_'+L[0]+'">'+esc(p[L[0]]||"")+'</textarea></div>';
-      }).join("")
-    +'</fieldset>';
   h+='<div class="modal-actions">'
     +(isNew?"":'<button class="btn danger" id="del">Eliminar</button>')
     +(isNew?"":'<button class="btn" onclick="openPlan(\''+p.id+'\')">Plan</button>')
     +(isNew?"":'<button class="btn" onclick="openGuion(\''+p.id+'\')">Guión</button>')
+    +(isNew?"":'<button class="btn" onclick="openPerfil(\''+p.id+'\')">Perfil</button>')
+    +(isNew?"":'<button class="btn" onclick="openHistoria(\''+p.id+'\')">Historia</button>')
     +'<button class="btn" id="cancel">Cerrar</button><button class="btn primary" id="ok">Guardar y cerrar</button></div>';
   showModal(h);
   var ind=function(txt,ok){ var e=document.getElementById("fichaGuardado"); if(e){ e.textContent=txt; e.style.color=ok?"var(--ok)":"var(--muted)"; } };
@@ -2951,27 +2939,6 @@ function maslowDe(p){
   });
   return {niveles:out, hay:hay};
 }
-function maslowSVG(p){
-  var r=maslowDe(p), ord=["Autorrealización","Reconocimiento","Pertenencia","Seguridad","Fisiológicas"];
-  var W=460,H=300,cx=W/2,top=42,alt=44,base=176;
-  var COL=["#6a4c93","#c0468a","#d9762b","#3f7d9c","#2f9d78"];
-  var s='<svg viewBox="0 0 '+W+' '+H+'" width="100%" style="display:block">';
-  s+='<text x="'+cx+'" y="16" text-anchor="middle" font-size="11" font-weight="700" fill="#1e2a3a" letter-spacing=".06em">PIRÁMIDE DE MASLOW</text>';
-  s+='<text x="'+cx+'" y="30" text-anchor="middle" font-size="9" fill="#8d97a6">'+(r.hay?"dónde está hoy lo que le mueve":"sin puntuar todavía en «Qué le mueve»")+'</text>';
-  var mx=0; ord.forEach(function(k){ if(r.niveles[k]>mx) mx=r.niveles[k]; });
-  ord.forEach(function(k,i){
-    var y=top+i*alt, anchoArr=(base*(i+1))/ord.length, anchoAb=(base*(i+2))/ord.length;
-    var pts=[(cx-anchoArr)+","+y,(cx+anchoArr)+","+y,(cx+anchoAb)+","+(y+alt-4),(cx-anchoAb)+","+(y+alt-4)].join(" ");
-    var v=r.niveles[k], fuerte=(mx>0&&v===mx&&v>0);
-    s+='<polygon points="'+pts+'" fill="'+COL[i]+'" fill-opacity="'+(v>0?(0.18+0.55*v/100).toFixed(2):"0.07")+'" stroke="'+COL[i]+'" stroke-width="'+(fuerte?2.2:1)+'"/>';
-    s+='<text x="'+cx+'" y="'+(y+alt/2+1)+'" text-anchor="middle" font-size="11" font-weight="'+(fuerte?"700":"500")+'" fill="#1e2a3a">'+k+'</text>';
-    s+='<text x="'+(cx+anchoAb+10)+'" y="'+(y+alt/2+1)+'" font-size="10" font-weight="700" fill="'+COL[i]+'">'+v+'</text>';
-    if(fuerte) s+='<text x="'+(cx-anchoAb-10)+'" y="'+(y+alt/2+1)+'" font-size="9.5" font-weight="700" fill="'+COL[i]+'" text-anchor="end">aquí vive</text>';
-  });
-  s+='<text x="14" y="'+(H-16)+'" font-size="9.5" fill="#8d97a6">Maslow (1943): las necesidades de abajo pesan más hasta que están cubiertas;</text>';
-  s+='<text x="14" y="'+(H-5)+'" font-size="9.5" fill="#8d97a6">solo entonces tiran las de arriba. Háblale del escalón donde está, no del de encima.</text>';
-  return s+'</svg>';
-}
 
 /* ---------- momentos compartidos + medidor de relación ---------- */
 function _dias(a,b){ return Math.round((b-a)/86400000); }
@@ -3056,6 +3023,122 @@ function bloqueMomentos(p){
   return h;
 }
 
+var MASLOW=[
+  {id:"autorrealizacion", n:"Autorrealización", c:"#8f7fd4", bg:"#efeafc",
+   d:"moralidad · creatividad · espontaneidad · falta de prejuicios · aceptación de hechos · resolución de problemas",
+   q:"Ya tiene lo demás cubierto: busca sentido, dejar algo hecho, ser coherente consigo mismo.",
+   como:"Háblale de propósito y de legado. Preguntarle por dinero o estatus le sabe a poco."},
+  {id:"reconocimiento", n:"Reconocimiento", c:"#59b06a", bg:"#e9f6ec",
+   d:"autorreconocimiento · confianza · respeto · éxito",
+   q:"Necesita que se vea lo que hace y que se le respete por ello.",
+   como:"Reconócele algo concreto y delante de alguien. El elogio en privado le sabe a la mitad."},
+  {id:"afiliacion", n:"Afiliación", c:"#e3c84e", bg:"#fdf8e2",
+   d:"amistad · afecto · pertenencia · intimidad",
+   q:"Lo que le pesa es con quién está, no cuánto tiene.",
+   como:"Invítale, inclúyele, preséntale a gente. Que sienta que forma parte."},
+  {id:"seguridad", n:"Seguridad", c:"#e2954a", bg:"#fdf1e3",
+   d:"seguridad física · de empleo · de recursos · moral · familiar · de salud · de propiedad",
+   q:"Hay algo sin atar: trabajo, dinero, salud, la casa.",
+   como:"No le vendas oportunidades: quítale incertidumbre. Certezas antes que ilusiones."},
+  {id:"fisiologia", n:"Fisiología", c:"#e0625c", bg:"#fdeceb",
+   d:"respiración · alimentación · descanso · homeostasis",
+   q:"Lo básico no está cubierto: duerme mal, está agotado o enfermo.",
+   como:"Aquí no se habla de proyectos. Se pregunta cómo está y se ofrece ayuda concreta."}
+];
+function maslowSel(p){ if(!Array.isArray(p.maslowSel)) p.maslowSel=[]; return p.maslowSel; }
+function toggleMaslow(id,nivel){
+  var p=state.people.filter(function(x){ return x.id===id; })[0]; if(!p) return;
+  var s=maslowSel(p), i=s.indexOf(nivel);
+  if(i>=0) s.splice(i,1); else s.push(nivel);
+  save();
+  var c=document.getElementById("maslowBox"); if(c) c.innerHTML=maslowHTML(p);
+}
+window.toggleMaslow=toggleMaslow;
+function maslowHTML(p){
+  var est=maslowDe(p), sel=maslowSel(p), hay=sel.length>0;
+  var mapa={autorrealizacion:"Autorrealización",reconocimiento:"Reconocimiento",afiliacion:"Pertenencia",seguridad:"Seguridad",fisiologia:"Fisiológicas"};
+  var mx=0; MASLOW.forEach(function(L){ var v=est.niveles[mapa[L.id]]||0; if(v>mx) mx=v; });
+  var h='<div style="background:#fbfcfd;border:1px solid var(--line);border-radius:12px;padding:12px 14px">'
+   +'<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap">'
+   +'<b style="font-size:13px;color:#1e2a3a">Pirámide de Maslow</b>'
+   +'<span style="font-size:10.5px;color:var(--muted)">'+(hay?"marcado por ti":"estimado · pulsa para marcar dónde está")+'</span></div>'
+   +'<p style="font-size:11.5px;color:var(--muted);margin:5px 0 10px;line-height:1.5">Maslow (1943): las necesidades de abajo pesan más hasta que están cubiertas; solo entonces tiran las de arriba. <b>Pulsa el escalón donde creas que está</b> — puedes marcar más de uno.</p>';
+  MASLOW.forEach(function(L,i){
+    var on=sel.indexOf(L.id)>=0;
+    var v=est.niveles[mapa[L.id]]||0;
+    var sug=(!hay&&mx>0&&v===mx&&v>0);
+    var ancho=58+i*10;   /* forma de pirámide */
+    h+='<div style="display:flex;justify-content:center">'
+     +'<div onclick="toggleMaslow(\''+p.id+'\',\''+L.id+'\')" title="Pulsa para marcar o desmarcar"'
+     +' style="cursor:pointer;width:'+ancho+'%;min-width:270px;margin-bottom:5px;border-radius:8px;padding:8px 10px;'
+     +'background:'+(on?L.bg:"#fff")+';border:'+(on?"2px":"1px")+' solid '+(on?L.c:"#e6eaf0")+';'
+     +(sug?"box-shadow:0 0 0 2px "+L.c+"22;":"")+'">'
+     +'<div style="display:flex;align-items:center;gap:8px">'
+     +'<span style="flex:none;width:18px;height:18px;border-radius:50%;border:2px solid '+L.c+';background:'+(on?L.c:"#fff")+';'
+     +'color:#fff;font-size:11px;line-height:15px;text-align:center;font-weight:700">'+(on?"✓":"")+'</span>'
+     +'<b style="font-size:12.5px;color:'+L.c+'">'+L.n+'</b>'
+     +(v?'<span style="font-size:10px;color:var(--muted);margin-left:auto">estimado '+v+'</span>':'')
+     +(sug?'<span style="font-size:9.5px;font-weight:700;color:'+L.c+';margin-left:6px">sugerido</span>':'')
+     +'</div>'
+     +'<div style="font-size:10.5px;color:#6b7684;margin-top:3px;line-height:1.45">'+L.d+'</div>'
+     +(on?'<div style="font-size:11.5px;color:#33415a;margin-top:6px;border-top:1px solid '+L.c+'33;padding-top:6px">'
+        +'<b>Qué significa:</b> '+L.q+'<br><b>Cómo tratarle:</b> '+L.como+'</div>':'')
+     +'</div></div>';
+  });
+  h+='<p style="font-size:10.5px;color:var(--muted);margin:6px 0 0">El número «estimado» sale de lo que hayas puntuado en «Qué le mueve». Tu marca manda sobre la estimación.</p>';
+  return h+'</div>';
+}
+
+function fsLectura(p){
+  var h='<fieldset style="border-color:#b5476b"><legend style="color:#b5476b">Lectura del perfil</legend>'
+    +'<p style="color:var(--muted);font-size:12px;margin:0 0 4px">Once preguntas para entenderle mejor. Puedes escribirlas tú, o pulsar <b>Sugerir</b> y la app propone una hipótesis a partir de lo que ya has anotado más arriba.</p>'
+    +'<p style="font-size:11.5px;margin:0 0 10px;color:#b5476b"><b>Son hipótesis, no diagnósticos.</b> Sirven para preguntar mejor y comprobar si aciertas, no para etiquetar a nadie. Si no encaja, bórralo.</p>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'
+    +'<button type="button" class="btn sm primary" onclick="sugerirTodo(\''+p.id+'\')">Sugerir todas</button>'
+    +'<button type="button" class="btn sm" onclick="limpiarLectura()">Vaciar</button></div>'
+    + bloquePsico(p)
+    + LECTURA.map(function(L){
+        return '<div class="fld lecfld"><label>'+esc(L[1])
+          +' <button type="button" class="sugbtn" onclick="sugerirUno(\''+p.id+'\',\''+L[0]+'\')">Sugerir</button></label>'
+          +'<textarea id="f_'+L[0]+'">'+esc(p[L[0]]||"")+'</textarea></div>';
+      }).join("")
+    +'</fieldset>';
+  return h;
+}
+
+function openPerfil(id){
+  var p=state.people.filter(function(x){ return x.id===id; })[0]; if(!p) return;
+  var h='<h2>Perfil · '+esc(p.nombre)+'</h2>'
+   +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 14px">Cómo es, qué le mueve y once preguntas para entenderle mejor. <span id="perfilGuardado" style="margin-left:6px"></span></p>'
+   + bloquePsico(p)
+   +'<div id="maslowBox" style="margin-bottom:14px">'+maslowHTML(p)+'</div>'
+   + fsLectura(p)
+   +'<div class="modal-actions">'
+   +'<button class="btn" onclick="openEdit(\''+p.id+'\')">Volver a la ficha</button>'
+   +'<button class="btn primary" id="perfilOk">Guardar y cerrar</button></div>';
+  showModal(h);
+  var ind=function(t){ var e=document.getElementById("perfilGuardado"); if(e){ e.textContent=t; e.style.color="var(--muted)"; } };
+  var deb, leer=function(){
+    LECTURA.forEach(function(L){ var e=document.getElementById("f_"+L[0]); if(e) p[L[0]]=e.value.trim(); });
+    save(); ind("Guardado ✓");
+  };
+  document.getElementById("modal").querySelectorAll("textarea").forEach(function(el){
+    el.addEventListener("input",function(){ ind("Guardando…"); clearTimeout(deb); deb=setTimeout(leer,700); });
+  });
+  document.getElementById("perfilOk").onclick=function(){ leer(); closeModal(); renderAll(); };
+}
+function openHistoria(id){
+  var p=state.people.filter(function(x){ return x.id===id; })[0]; if(!p) return;
+  var h='<h2>Historia · '+esc(p.nombre)+'</h2>'
+   +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 14px">Todo lo que habéis compartido, y cómo de cuidada está la relación.</p>'
+   + bloqueMomentos(p)
+   +'<div class="modal-actions">'
+   +'<button class="btn" onclick="openEdit(\''+p.id+'\')">Volver a la ficha</button>'
+   +'<button class="btn primary" onclick="closeModal()">Cerrar</button></div>';
+  showModal(h);
+}
+window.openPerfil=openPerfil; window.openHistoria=openHistoria;
+
 function bloquePsico(p){
   var r=perfilPsico(p);
   if(r.datos<120) return '<div class="card" style="padding:12px 14px;font-size:12.5px;color:var(--muted)">Cuando tengas algo más escrito de esta persona aparecerá aquí su retrato: dos gráficos de araña y tres líneas de resumen.</div>';
@@ -3063,7 +3146,6 @@ function bloquePsico(p){
     +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
     +'<div style="flex:1 1 230px;min-width:210px">'+radarSVG("PERSONALIDAD",r.big,"#6a4c93","cinco grandes · estimado")+'</div>'
     +'<div style="flex:1 1 230px;min-width:210px">'+radarSVG("LO QUE LE MUEVE",r.mot,"#c0468a",r.motPropio?"según tus puntuaciones":"estimado del texto")+'</div>'
-    +'<div style="flex:1 1 250px;min-width:230px">'+maslowSVG(p)+'</div>'
     +'</div>'
     +'<div style="font-size:12.5px;line-height:1.55;border-top:1px solid var(--line);padding-top:10px;margin-top:4px">'
     + r.lineas.map(function(l){ return '<div style="margin-bottom:3px">'+l+'</div>'; }).join("")
