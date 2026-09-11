@@ -146,6 +146,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 .nx{border:0;background:transparent;color:#b8c2d0;cursor:pointer;font-size:12px;padding:2px 5px;border-radius:6px;line-height:1}
 .nx:hover{background:var(--accent-soft);color:var(--accent)}
 .modal-actions.barra{justify-content:flex-start}
+.pt{flex:none;width:10px;height:10px;border-radius:50%;margin-right:2px;align-self:center}
 .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
 .multi{display:flex;flex-wrap:wrap;gap:6px;border:1px solid var(--line);border-radius:8px;padding:7px;background:#fff;max-height:120px;overflow:auto}
 .multi label{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;background:#eef1f6;border-radius:6px;padding:3px 8px;cursor:pointer}
@@ -346,7 +347,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.11-48";
+var VERSION="2026.09.11-49";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -400,7 +401,9 @@ var state={ people:[], me:null, tab:"fichas", q:"", grupo:"", tipo:"", tipos:[],
 var SEED=null;
 
 /* ---------- persistencia ---------- */
-function newMe(){ return {nombre:"",titular:"",experiencia:"",resuelvo:"",logros:"",sectores:"",pido:""}; }
+function newMe(){ return {nombre:"",titular:"",experiencia:"",resuelvo:"",logros:"",sectores:"",pido:"",patron:"",mantra:""}; }
+var PATRON_INI="Piensas buscando comprensión, no solo respuestas. Buscas la regla que hay detrás de las cosas: si entiendes el mecanismo, sientes que puedes manejar mejor el resultado. Por eso te atraen más las explicaciones que reorganizan el problema que una lista de consejos.\n\nDecides combinando intuición y verificación racional. Muchas veces sabes bastante pronto qué quieres hacer; después buscas argumentos e información para someter esa intuición a presión. El análisis funciona como auditor de una decisión que ya está germinando.\n\nTiendes a optimizar. Ante varias alternativas no te resulta natural pensar «esta es suficientemente buena». Es una ventaja cuando la decisión importa, y fricción cuando la diferencia entre lo óptimo y lo bueno es insignificante.\n\nIntentas reducir la incertidumbre antes de comprometerte. No por indeciso: porque quieres que la decisión tenga fundamentos. Pero algunas decisiones importantes no dan esa certeza por adelantado — solo se sabe después.\n\nY buscas activamente perspectivas que puedan romper tu propio relato. Aunque incluso ahí mantienes el volante: decides qué preguntar, qué marco usar y qué evidencia te parece convincente.\n\nLA HIPÓTESIS INCÓMODA: quizá estás intentando resolver intelectualmente una decisión que ya has tomado emocionalmente. No niegas qué quieres — eso lo sabes. Lo que cuesta aceptar es el precio de elegirlo. Mientras la decisión siga siendo analizable, todas las posibilidades siguen vivas; en cuanto actúas, algunas desaparecen.\n\nEL PATRÓN PRINCIPAL: esperar suficiente certeza antes de comprometerte, para reducir el coste emocional de renunciar a las alternativas.";
+var MANTRA_INI="No necesito más certeza para empezar. Mi capacidad para pensar es una herramienta, no un escondite. Hoy no voy a intentar mantener abiertas todas las posibilidades: voy a elegir cuál merece convertirse en realidad y aceptaré el precio de renunciar a las demás. Puedo equivocarme y corregir; lo que no puedo recuperar es el tiempo que gasto esperando sentirme completamente preparado. No necesito tomar la decisión perfecta, sino una suficientemente buena y darle tiempo, trabajo y compromiso para convertirla en una gran decisión. Cuando aparezca la duda, no la interpretaré automáticamente como una señal para detenerme. Haré lo que sé que toca, especialmente cuando todavía no me sienta preparado. Mi ventaja no estará en pensar más que ayer, sino en conseguir que lo que ya sé se traduzca en acción. Hoy elijo, ejecuto y construyo.";
 function lsGet(k){ try{ var v=localStorage.getItem("friendsMap."+k); if(v===null) v=localStorage.getItem("mapaAmigos."+k); return v; }catch(e){ return null; } }
 function lsSet(k,v){ try{ localStorage.setItem("friendsMap."+k,v); }catch(e){} }
 function lsDel(k){ try{ localStorage.removeItem("friendsMap."+k); localStorage.removeItem("mapaAmigos."+k); }catch(e){} }
@@ -1551,6 +1554,11 @@ function openMe(){
     +ta("Experiencia relevante","me_experiencia",m.experiencia)
     +'<div class="fld"><label>Sectores o mercados</label><input type="text" id="me_sectores" value="'+esc(m.sectores)+'"></div>'
     +ta("Qué busco ahora mismo","me_pido",m.pido)
+    +'<fieldset style="border-color:#6a4c93"><legend style="color:#6a4c93">Tu patrón</legend>'
+    +'<p style="color:var(--muted);font-size:12px;margin:0 0 8px">Cómo decides y qué te frena. Aparece plegado en el briefing de cada mañana.</p>'
+    +ta("Cómo piensas y cómo decides","me_patron",m.patron||PATRON_INI)
+    +ta("Lo que te dices cada mañana","me_mantra",m.mantra||MANTRA_INI)
+    +'</fieldset>'
     +'<fieldset style="border-color:#20b6a6"><legend style="color:#20b6a6">Afinidad por objetivos</legend>'
     +'<p style="color:var(--muted);font-size:12px;margin:0 0 8px">Según lo que buscas, estas son las personas de tu red con más afinidad para ayudarte a conseguirlo. El mapa completo está en <b>Mapa → Afinidad por objetivos</b>. (Guarda para actualizar.)</p>'
     +afinidadResumenHTML(m)+'</fieldset>'
@@ -1561,7 +1569,7 @@ function openMe(){
   showModal(h);
   document.getElementById("cancel").onclick=closeModal;
   document.getElementById("ok").onclick=function(){
-    ["nombre","titular","resuelvo","logros","experiencia","sectores","pido"].forEach(function(k){
+    ["nombre","titular","resuelvo","logros","experiencia","sectores","pido","patron","mantra"].forEach(function(k){
       var e=document.getElementById("me_"+k); if(e) m[k]=e.value.trim();
     });
     var pv=document.getElementById("me_pin"); if(pv) setPin(pv.value.trim());
@@ -1783,7 +1791,7 @@ function briefingHTML(){
   var b=briefingDatos(), f=new Date();
   var fila=function(p,eti,txt,col){
     return '<div class="row"'+(p.id?' style="cursor:pointer" onclick="openEdit(\''+p.id+'\')"':'')+'>'
-      +'<div class="av" style="background:'+colorOf(p)+'">'+esc(initials(p.nombre))+'</div>'
+      +'<span class="pt" style="background:'+colorOf(p)+'"></span>'
       +'<div class="grow"><div style="font-weight:600">'+esc(p.nombre)
       +' <span style="font-size:11px;font-weight:700;color:'+col+'">'+esc(eti)+'</span></div>'
       +(txt?'<div style="font-size:12.5px;color:var(--muted)">'+esc(txt)+'</div>':'')+'</div></div>';
@@ -1799,7 +1807,19 @@ function briefingHTML(){
     "Un mensaje corto y a tiempo pesa más que uno largo y tarde.",
     "Si hoy solo haces una cosa de esta lista, que sea la que te apetezca menos.",
     "A quien llevas tiempo sin ver probablemente también le pasa contigo.",
-    "No se trata de quedar bien. Se trata de acordarte."
+    "No se trata de quedar bien. Se trata de acordarte.",
+    /* lo que has descubierto sobre cómo decides · en tus palabras */
+    "No necesito más certeza para empezar. Pensar es una herramienta, no un escondite.",
+    "Hoy no mantengo abiertas todas las posibilidades: elijo una y acepto el precio de las demás.",
+    "Puedo equivocarme y corregir. Lo que no recupero es el tiempo esperando a sentirme preparado.",
+    "No busco la decisión perfecta. Busco una suficientemente buena y le doy trabajo hasta hacerla grande.",
+    "Cuando aparezca la duda, no la leo automáticamente como una señal para parar.",
+    "Hoy haré lo que sé que toca, sobre todo si todavía no me siento preparado.",
+    "Mi ventaja no está en pensar más que ayer, sino en que lo que ya sé se convierta en acción.",
+    "Si llevo días analizando algo, probablemente ya sé lo que quiero. Lo que me falta es aceptar lo que cuesta.",
+    "Analizar de más mantiene vivas todas las opciones. Elegir mata algunas. Por eso cuesta.",
+    "Entender el mecanismo está muy bien. Pero hoy toca mover algo.",
+    "Hoy elijo, ejecuto y construyo."
   ];
   var pausa=PAUSAS[_semilla(_hoyISO())%PAUSAS.length];
   h+='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:2px">'
@@ -1840,11 +1860,26 @@ function briefingHTML(){
   }
   h+='<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">'
    +'<div style="font-size:12.5px;color:#5a6678;font-style:italic;line-height:1.55;margin-bottom:9px">'+esc(pausa)+'</div>'
+   + patronHTML()
    +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
    +'<button class="btn sm" onclick="copiarBriefing()">Copiar briefing</button>'
    +'<span style="font-size:10.5px;color:var(--muted);align-self:center">Se calcula con tus fichas. Nada sale del dispositivo.</span></div></div>';
   return h+'</div>';
 }
+function miPatron(){ var m=state.me||{}; return (m.patron||"").trim()||PATRON_INI; }
+function miMantra(){ var m=state.me||{}; return (m.mantra||"").trim()||MANTRA_INI; }
+function patronHTML(){
+  return '<details style="margin-bottom:9px">'
+   +'<summary style="cursor:pointer;font-size:12px;font-weight:650;color:#6a4c93;list-style:none">Tu patrón · lo que sabes de ti</summary>'
+   +'<div style="background:#faf7fd;border:1px solid #ece4f5;border-radius:10px;padding:11px 13px;margin-top:7px">'
+   +'<div style="font-size:12.5px;line-height:1.65;color:#33415a;white-space:pre-wrap">'+esc(miPatron())+'</div>'
+   +'<div style="margin-top:10px;padding-top:9px;border-top:1px solid #ece4f5">'
+   +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.06em;color:#6a4c93;margin-bottom:4px">LO QUE TE DICES CADA MAÑANA</div>'
+   +'<div style="font-size:13px;line-height:1.65;color:#1e2a3a;white-space:pre-wrap">'+esc(miMantra())+'</div></div>'
+   +'<p style="font-size:10.5px;color:var(--muted);margin:9px 0 0">Se edita en <b>Mi perfil</b>. Lo escribiste tú; aquí solo vuelve a aparecer cuando abres el día.</p>'
+   +'</div></details>';
+}
+
 function copiarBriefing(){
   var t=briefingTexto();
   try{ navigator.clipboard.writeText(t); toast("Briefing copiado"); }
@@ -1867,11 +1902,11 @@ function renderAgenda(){
     .filter(function(x){return x.st.cls==="due"||x.st.cls==="soon";})
     .sort(function(a,b){return b.passed-a.passed;});
   var sinPlan=filtered().filter(function(p){ return esNegocio(p)&&!p.necesito; });
-  var h=briefingHTML();
-  /* --- tu agenda: citas y alarmas propias --- */
-  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px">'
-   +'<button class="btn sm primary" onclick="openCitaNueva(\'cita\')">+ Cita</button>'
-   +'<button class="btn sm" onclick="openCitaNueva(\'alarma\')">+ Alarma</button></div>';
+  /* 1º los botones, 2º el briefing, 3º todo lo demás */
+  var h='<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px">'
+   +'<button class="btn primary" onclick="openCitaNueva(\'cita\')">+ Cita</button>'
+   +'<button class="btn" onclick="openCitaNueva(\'alarma\')">+ Alarma</button></div>';
+  h+=briefingHTML();
   var ag=agendaActivas(), agPend=ag.filter(function(x){ return !x.a.hecho && x.d>=-30; });
   if(agPend.length){
     h+='<div class="sec-title">Tu agenda</div>';
@@ -1880,8 +1915,7 @@ function renderAgenda(){
       var cuando = x.d===0?"hoy":(x.d===1?"mañana":(x.d>0?"en "+x.d+" días":"hace "+(-x.d)+" días"));
       var col = x.d<0?"#b3455b":(x.d===0?"#0f8a8a":(x.d<=3?"#d9762b":"#8d97a6"));
       return '<div class="row">'
-        +'<div class="av" style="background:'+(p?colorOf(p):(x.a.tipo==="alarma"?"#d9762b":"#0f8a8a"))+'">'
-        +(p?esc(initials(p.nombre)):(x.a.tipo==="alarma"?"⏰":"📅"))+'</div>'
+        +'<span class="pt" style="background:'+(p?colorOf(p):(x.a.tipo==="alarma"?"#d9762b":"#0f8a8a"))+'"></span>'
         +'<div class="grow"'+(p?' style="cursor:pointer" onclick="openEdit(\''+p.id+'\')"':'')+'>'
         +'<div style="font-weight:600">'+esc(x.a.titulo)
         +' <span style="font-size:11px;font-weight:700;color:'+col+'">'+cuando+'</span></div>'
@@ -1911,7 +1945,7 @@ function renderAgenda(){
   if(conv.length){
     h+='<div class="sec-title">Últimas conversaciones</div>';
     h+=conv.slice(0,15).map(function(x){
-      return '<div class="row"><div class="av" style="background:'+colorOf(x.p)+'">'+esc(initials(x.p.nombre))+'</div>'
+      return '<div class="row"><span class="pt" style="background:'+colorOf(x.p)+'"></span>'
         +'<div class="grow" onclick="openNota(\''+x.p.id+'\')"><div style="font-weight:600">'+esc(x.p.nombre)+'</div>'
         +'<div style="font-size:12.5px;color:var(--muted)">'+esc(x.n.t.length>150?x.n.t.slice(0,150)+"\u2026":x.n.t)+'</div></div>'
         +'<div class="when">'+esc(fmtDate(x.n.d))+'</div></div>';
@@ -1920,7 +1954,7 @@ function renderAgenda(){
   el.innerHTML=h;
 }
 function rowHTML(p,tipo,when){
-  return '<div class="row"><div class="av" style="background:'+colorOf(p)+'">'+esc(initials(p.nombre))+'</div>'
+  return '<div class="row"><span class="pt" style="background:'+colorOf(p)+'"></span>'
     +'<div class="grow" onclick="openEdit(\''+p.id+'\')"><div style="font-weight:600">'+esc(p.nombre||"(sin nombre)")+'</div>'
     +'<div style="font-size:12.5px;color:var(--muted)">'+esc(tipo)+'</div></div>'
     +'<div class="when">'+esc(when)+'</div>'
