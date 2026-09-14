@@ -273,7 +273,6 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
       <p class="lema"><span class="ver" id="verEt" title="Versión de la app">—</span> Todo el mundo quiere percibir que es <b>importante</b>, que <b>tiene éxito</b> y que recuerdan <b>su nombre</b>.</p></div>
     <div class="tabs">
       <button data-tab="fichas" class="on">Fichas</button>
-      <button data-tab="citas">Citas</button>
       <button data-tab="mapa">Network Map</button>
       <button data-tab="agenda">Agenda</button>
       <button data-tab="negocio">Negocio</button>
@@ -290,6 +289,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
     <button class="btn" id="meBtn">Mi perfil</button>
     <button class="btn" id="syncBtn">Sincronizar</button>
     <button class="btn" id="syncOpt" title="Opciones de sincronización">⋯</button>
+    <button class="btn" id="comentBtn" title="Cuéntanos qué falta o qué falla">💬 Comentarios</button>
     <button class="btn primary" id="instalar" style="display:none">Instalar</button>
     <span class="syncst" id="syncSt"></span>
     <input type="file" id="file" accept="application/json" style="display:none">
@@ -298,7 +298,6 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
   <div id="qAviso" style="display:none"></div>
   <div id="aviso"></div>
   <div id="view-fichas"><div class="grid" id="cards"></div></div>
-  <div id="view-citas" style="display:none"><div id="citas"></div></div>
   <div id="view-mapa" style="display:none">
     <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
       <select id="modoMapa" style="width:auto;padding:6px 10px;font-size:13px">
@@ -347,7 +346,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.11-51";
+var VERSION="2026.09.14-53";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -402,7 +401,8 @@ var SEED=null;
 
 /* ---------- persistencia ---------- */
 function newMe(){ return {nombre:"",titular:"",experiencia:"",resuelvo:"",logros:"",sectores:"",pido:"",patron:"",mantra:"",frases:""}; }
-var FRASES_SEED="Decidir es conducir la vida, y disfruta moviendo el timón y consiguiendo tu vida aunque toda decisión tenga un coste. El mayor coste es siempre no decidir y permanecer pensando.\nMantenerse ocupado no es lo mismo que hacer lo que de verdad importa. Mira si el día de hoy va donde tú quieres ir.\nLa experiencia y el rigor ya están ahí. Buscar validación fuera no los aumenta: solo los retrasa. Se falla mucho menos de lo que se teme.\nVale más actuar y corregir que no actuar. El error se arregla; el tiempo parado no se recupera.\nLa seguridad no llega antes de decidir: llega de decidir. Apóyate en lo que ya has construido eligiendo.\nNo hace falta más certeza para empezar. Pensar es una herramienta, no un escondite.\nMantener abiertas todas las posibilidades es no elegir ninguna. Elige una y acepta el precio de las demás.\nUno puede equivocarse y corregir. Lo que no se recupera es el tiempo esperando a sentirse preparado.\nNo existe la decisión perfecta. Existe una suficientemente buena a la que se le da trabajo hasta hacerla grande.\nLa duda no es una señal para parar. Casi siempre es solo la señal de que algo importa.\nHoy toca hacer lo que se sabe que toca, sobre todo cuando todavía no se siente uno preparado.\nLa ventaja no está en pensar más que ayer, sino en que lo que ya se sabe se convierta en acción.\nSi algo lleva días analizándose, ya se sabe lo que se quiere. Lo que falta es aceptar lo que cuesta.\nAnalizar de más mantiene vivas todas las opciones. Elegir mata algunas: por eso cuesta, y por eso hay que hacerlo.\nEntender el mecanismo está muy bien. Pero hoy toca mover algo.\nElegir, ejecutar y construir. En ese orden, y hoy.";
+var FRASES_SEED="Decidir es conducir la vida, y disfruta moviendo el timón y consiguiendo tu vida aunque toda decisión tenga un coste. El mayor coste es siempre no decidir y permanecer pensando.\nMantenerse ocupado no es lo mismo que hacer lo que de verdad importa. Mira si el día de hoy va donde tú quieres ir.\nLa experiencia y el rigor ya están ahí. Buscar validación fuera no los aumenta: solo los retrasa. Se falla mucho menos de lo que se teme.\nVale más actuar y corregir que no actuar. El error se arregla; el tiempo parado no se recupera.\nLa seguridad no llega antes de decidir: llega de decidir. Apóyate en lo que ya has construido eligiendo.\nNo hace falta más certeza para empezar. Pensar es una herramienta, no un escondite.\nMantener abiertas todas las posibilidades es no elegir ninguna. Elige una y acepta el precio de las demás.\nUno puede equivocarse y corregir. Lo que no se recupera es el tiempo esperando a sentirse preparado.\nNo existe la decisión perfecta. Existe una suficientemente buena a la que se le da trabajo hasta hacerla grande.\nLa duda no es una señal para parar. Casi siempre es solo la señal de que algo importa.\nHoy toca hacer lo que se sabe que toca, sobre todo cuando todavía no se siente uno preparado.\nLa ventaja no está en pensar más que ayer, sino en que lo que ya se sabe se convierta en acción.\nSi algo lleva días analizándose, ya se sabe lo que se quiere. Lo que falta es aceptar lo que cuesta.\nAnalizar de más mantiene vivas todas las opciones. Elegir mata algunas: por eso cuesta, y por eso hay que hacerlo.\nEntender el mecanismo está muy bien. Pero hoy toca mover algo.\nElegir, ejecutar y construir. En ese orden, y hoy.\nLa certeza siempre llega tarde.";
+var FRASES_LOTE=3;   /* sube 1 cada vez que se anadan frases nuevas */
 var FRASES_VIEJAS=["Decidir es conducir mi vida, y disfruto haciéndolo aunque tenga un coste.", "Me mantengo ocupado, pero no estoy haciendo lo que de verdad quiero hacer.", "No estoy convencido de mi experiencia y mi rigor. Busco validación fuera, y no me equivoco tanto.", "Me vale más actuar y equivocarme para luego corregir que no actuar.", "Más seguridad en mí mismo: apoyarme en lo que he construido decidiendo."];
 /* Semilla: solo se copia a tus datos si la instalación ya existía. */
 var PATRON_SEED="Piensas buscando comprensión, no solo respuestas. Buscas la regla que hay detrás de las cosas: si entiendes el mecanismo, sientes que puedes manejar mejor el resultado. Por eso te atraen más las explicaciones que reorganizan el problema que una lista de consejos.\n\nDecides combinando intuición y verificación racional. Muchas veces sabes bastante pronto qué quieres hacer; después buscas argumentos e información para someter esa intuición a presión. El análisis funciona como auditor de una decisión que ya está germinando.\n\nTiendes a optimizar. Ante varias alternativas no te resulta natural pensar «esta es suficientemente buena». Es una ventaja cuando la decisión importa, y fricción cuando la diferencia entre lo óptimo y lo bueno es insignificante.\n\nIntentas reducir la incertidumbre antes de comprometerte. No por indeciso: porque quieres que la decisión tenga fundamentos. Pero algunas decisiones importantes no dan esa certeza por adelantado — solo se sabe después.\n\nY buscas activamente perspectivas que puedan romper tu propio relato. Aunque incluso ahí mantienes el volante: decides qué preguntar, qué marco usar y qué evidencia te parece convincente.\n\nLA HIPÓTESIS INCÓMODA: quizá estás intentando resolver intelectualmente una decisión que ya has tomado emocionalmente. No niegas qué quieres — eso lo sabes. Lo que cuesta aceptar es el precio de elegirlo. Mientras la decisión siga siendo analizable, todas las posibilidades siguen vivas; en cuanto actúas, algunas desaparecen.\n\nEL PATRÓN PRINCIPAL: esperar suficiente certeza antes de comprometerte, para reducir el coste emocional de renunciar a las alternativas.";
@@ -412,6 +412,7 @@ function lsSet(k,v){ try{ localStorage.setItem("friendsMap."+k,v); }catch(e){} }
 function lsDel(k){ try{ localStorage.removeItem("friendsMap."+k); localStorage.removeItem("mapaAmigos."+k); }catch(e){} }
 var HABIA_DATOS=false;
 function load(){
+  if(state.tab==="citas") state.tab="agenda";
   try{
     var raw=localStorage.getItem(KEY);
     if(!raw){ for(var vi=0;vi<KEY_VIEJAS.length&&!raw;vi++) raw=localStorage.getItem(KEY_VIEJAS[vi]); }
@@ -444,13 +445,15 @@ function sembrarMisTextos(){
     }
     /* v51: las frases pasan a estar en impersonal y vuelven las once. Se respeta
        cualquier frase que hayas escrito tú; solo se sustituyen las que puse yo. */
-    if(!state.me.sembrado2){
+    if((state.me.lote||(state.me.sembrado2?2:1))<FRASES_LOTE){
       if(HABIA_DATOS && state.people.length){
+        var base=FRASES_SEED.split("\n");
+        /* lo que hayas escrito tú se queda; solo se retiran las que puse yo y ya no van */
         var tuyas=String(state.me.frases||"").split("\n").map(function(s){ return s.trim(); })
-          .filter(function(s){ return s && FRASES_VIEJAS.indexOf(s)<0 && FRASES_SEED.indexOf(s)<0; });
-        state.me.frases=FRASES_SEED+(tuyas.length?"\n"+tuyas.join("\n"):"");
+          .filter(function(s){ return s && FRASES_VIEJAS.indexOf(s)<0 && base.indexOf(s)<0; });
+        state.me.frases=base.concat(tuyas).join("\n");
       }
-      state.me.sembrado2=1;
+      state.me.lote=FRASES_LOTE;
     }
     save();
   }catch(e){}
@@ -488,7 +491,7 @@ function nextAnniversary(s){
 function lower1(s){ s=String(s||"").trim(); return s?s.charAt(0).toLowerCase()+s.slice(1):""; }
 function newPerson(){
   var m={}; MOTS.forEach(function(x){ m[x[0]]={n:0,t:""}; });
-  return { id:uid(), tipo:"amigo", genero:"", nombre:"", apodo:"", ciudad:"", grupo:"", comoConocimos:"",
+  return { id:uid(), tipo:"amigo", genero:"", nombre:"", apodo:"", ciudad:"", grupo:"", comoConocimos:"", politica:"",
     pareja:"", hijos:"", familia:"", empleo:"", empresa:"", sector:"",
     aficiones:"", deportes:"", musica:"", comida:"", temas:"", evitar:"",
     exito:"", admirado:"", importante:"", preocupa:"", fascina:"", ayuda:"", logros:"", estilo:"",
@@ -509,7 +512,7 @@ function ensure(p){
     var base=String(p.tipo).split(/[·,\/]| y /)[0].trim().toLowerCase();
     p.tipo = TIPOS.some(function(t){return t[0]===base;}) ? base : "amigo";
   }
-  ["genero","exito","admirado","importante","preocupa","fascina","ayuda","logros","estilo","sector","meAporta","necesito","buscaDeMi","problema","presume","cebo","decisionCuesta","vestir","humor","discurso","nosUne","nosSepara","hitos","sies","quienesImportan","queQuierenLosSuyos","gustosDeLosSuyos","gesto"]
+  ["politica","genero","exito","admirado","importante","preocupa","fascina","ayuda","logros","estilo","sector","meAporta","necesito","buscaDeMi","problema","presume","cebo","decisionCuesta","vestir","humor","discurso","nosUne","nosSepara","hitos","sies","quienesImportan","queQuierenLosSuyos","gustosDeLosSuyos","gesto"]
     .forEach(function(k){ if(p[k]==null) p[k]=""; });
   ["conexiones","notas","encuentros","pasos","maslowSel"].forEach(function(k){ if(!Array.isArray(p[k])) p[k]=[]; });
   return p;
@@ -1647,7 +1650,8 @@ function openNota(id,ev){
 
 /* ---------- citas ---------- */
 function renderCitas(){
-  var el=document.getElementById("citas"),t=today(),items=[];
+  var el=document.getElementById("citas"); if(!el) return;
+  var t=today(),items=[];
   filtered().forEach(function(p){
     (p.encuentros||[]).forEach(function(e){
       var d=parseDate(e.fecha); if(!d) return;
@@ -1942,6 +1946,108 @@ function verATodos(){ state.tipos=[]; state.grupo=""; state.q="";
   try{ renderSeg(); }catch(e){} renderAll(); }
 window.verATodos=verATodos;
 
+/* ---------- agenda unificada: citas de las fichas (encuentros) + citas y alarmas propias ---------- */
+function citasUnificadas(){
+  var now=today(), out=[];
+  agendaActivas().forEach(function(x){
+    if(x.a.hecho) return;
+    out.push({ref:"A:"+x.a.id, origen:"propia", tipo:x.a.tipo||"cita", titulo:x.a.titulo,
+      fecha:x.a.fecha, hora:x.a.hora||"", nota:x.a.nota||"", pid:x.a.pid||"", d:x.d});
+  });
+  state.people.forEach(function(p){
+    (p.encuentros||[]).forEach(function(e){
+      if(e.hecho||!e.fecha) return;
+      var f=parseDate(e.fecha); if(!f) return;
+      out.push({ref:"E:"+p.id+":"+e.id, origen:"ficha", tipo:"cita",
+        titulo:(e.motivo||"Encuentro")+" — "+p.nombre, fecha:e.fecha, hora:"",
+        nota:e.lugar||"", pid:p.id, d:daysBetween(now,f)});
+    });
+  });
+  return out.sort(function(a,b){ return a.d-b.d; });
+}
+function refCita(ref){
+  var q=String(ref||"").split(":");
+  if(q[0]==="A") return {tipo:"A", a:agendaList().filter(function(x){ return x.id===q[1]; })[0]};
+  if(q[0]==="E"){
+    var p=byId(q[1]); if(!p) return null;
+    return {tipo:"E", p:p, e:(p.encuentros||[]).filter(function(x){ return x.id===q[2]; })[0]};
+  }
+  return null;
+}
+function citaModificar(ref){
+  var r=refCita(ref); if(!r) return;
+  if(r.tipo==="A"){ openCitaEditar(r.a.id); return; }
+  openEncuentro(r.p.id, r.e.id);
+}
+function citaFeedback(ref){
+  var r=refCita(ref); if(!r) return;
+  if(r.tipo==="E"){ openFeedback(r.p.id, r.e.id); return; }
+  if(r.a.pid && byId(r.a.pid)){ r.a.hecho=true; save(); openFeedback(r.a.pid,null); return; }
+  r.a.hecho=true; save(); renderAgenda(); toast("Marcada como hecha");
+}
+function citaAnular(ref){
+  var r=refCita(ref); if(!r) return;
+  if(!confirm("¿Anular esto? No se borra ninguna ficha ni ninguna nota.")) return;
+  if(r.tipo==="A") state.agenda=agendaList().filter(function(x){ return x.id!==r.a.id; });
+  else r.p.encuentros=r.p.encuentros.filter(function(x){ return x.id!==r.e.id; });
+  save(); renderAll(); toast("Anulada");
+}
+function citaMover(ref,dias,fechaFija){
+  var r=refCita(ref); if(!r) return;
+  var obj=(r.tipo==="A")?r.a:r.e;
+  var f=fechaFija||null;
+  if(!f){ var d=parseDate(obj.fecha)||today(); d.setDate(d.getDate()+dias); f=isoDe(d); }
+  obj.fecha=f; save(); closeModal(); renderAll();
+  toast("Aplazada al "+fmtDate(f));
+}
+function isoDe(d){
+  var m=String(d.getMonth()+1), dd=String(d.getDate());
+  return d.getFullYear()+"-"+(m.length<2?"0"+m:m)+"-"+(dd.length<2?"0"+dd:dd);
+}
+function citaAplazar(ref){
+  var r=refCita(ref); if(!r) return;
+  var obj=(r.tipo==="A")?r.a:r.e;
+  var h='<h2>Aplazar</h2>'
+   +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 14px">Ahora está el <b>'+esc(fmtDate(obj.fecha))+'</b>. Aplazar no es fallar: fallar es que desaparezca.</p>'
+   +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">'
+   +'<button class="btn" onclick="citaMover(\''+ref+'\',1)">Mañana</button>'
+   +'<button class="btn" onclick="citaMover(\''+ref+'\',3)">En 3 días</button>'
+   +'<button class="btn" onclick="citaMover(\''+ref+'\',7)">En una semana</button>'
+   +'<button class="btn" onclick="citaMover(\''+ref+'\',30)">En un mes</button></div>'
+   +'<div class="cols"><div class="fld"><label>O elige la fecha</label>'
+   +'<input type="date" id="ap_f" value="'+esc(obj.fecha||todayStr())+'"></div></div>'
+   +'<div class="modal-actions"><button class="btn" onclick="closeModal()">Cancelar</button>'
+   +'<button class="btn primary" onclick="citaMover(\''+ref+'\',0,document.getElementById(\'ap_f\').value)">Aplazar</button></div>';
+  showModal(h);
+}
+function contactoHoy(pid){
+  var p=ensure(byId(pid)); if(!p) return;
+  p.ultimoContacto=todayStr(); save(); renderAll();
+  toast("Contador reiniciado · "+p.nombre+" al día");
+}
+function openEncuentro(pid,eid){
+  var p=ensure(byId(pid)); if(!p) return;
+  var e=(p.encuentros||[]).filter(function(x){ return x.id===eid; })[0]; if(!e) return;
+  var h='<h2>Modificar cita — '+esc(p.nombre)+'</h2>'
+    +'<div class="cols"><div class="fld"><label>Fecha</label><input type="date" id="c_fecha" value="'+esc(e.fecha||todayStr())+'"></div>'
+    +'<div class="fld"><label>Lugar</label><input type="text" id="c_lugar" value="'+esc(e.lugar||"")+'"></div></div>'
+    +'<div class="fld"><label>Motivo</label><input type="text" id="c_motivo" value="'+esc(e.motivo||"")+'"></div>'
+    +'<div class="modal-actions">'
+    +'<button class="btn" style="color:#b3455b;border-color:#e8bcc6" onclick="citaAnular(\'E:'+p.id+':'+e.id+'\')">Anular</button>'
+    +'<button class="btn" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn primary" id="ok">Guardar</button></div>';
+  showModal(h);
+  document.getElementById("ok").onclick=function(){
+    e.fecha=document.getElementById("c_fecha").value;
+    e.lugar=document.getElementById("c_lugar").value.trim();
+    e.motivo=document.getElementById("c_motivo").value.trim();
+    save(); closeModal(); renderAll(); toast("Cita actualizada");
+  };
+}
+window.citaModificar=citaModificar; window.citaFeedback=citaFeedback; window.citaAnular=citaAnular;
+window.citaAplazar=citaAplazar; window.citaMover=citaMover; window.contactoHoy=contactoHoy;
+window.openEncuentro=openEncuentro;
+
 function renderAgenda(){
   var el=document.getElementById("agenda"),now=today(),fechas=[];
   filtered().forEach(function(p){
@@ -1977,8 +2083,12 @@ function renderAgenda(){
     if(x.a.hecho || x.d< -30) return false;
     return x.a.pid ? !!vis[x.a.pid] : !filtroActivo();
   });
-  var agCitas=agPend.filter(function(x){ return x.a.tipo!=="alarma"; });
-  var agAlarm=agPend.filter(function(x){ return x.a.tipo==="alarma"; });
+  var uni=citasUnificadas().filter(function(x){
+    if(x.d< -60) return false;
+    return x.pid ? !!vis[x.pid] : !filtroActivo();
+  });
+  var agCitas=uni.filter(function(x){ return x.tipo!=="alarma"; });
+  var agAlarm=uni.filter(function(x){ return x.tipo==="alarma"; });
   function cajaAgenda(titulo,icono,col,bg,lista,vacio,tipo){
     var c='<div style="flex:1 1 170px;min-width:0;background:'+bg+';border:1px solid '+col+'33;'
      +'border-top:3px solid '+col+';border-radius:12px;padding:10px 11px">'
@@ -1988,22 +2098,23 @@ function renderAgenda(){
      +'<span style="margin-left:auto;font-size:11px;font-weight:700;color:'+col+';background:#fff;'
      +'border:1px solid '+col+'44;border-radius:20px;padding:1px 7px">'+lista.length+'</span></div>';
     if(!lista.length) c+='<div style="font-size:11.5px;color:var(--muted);line-height:1.5;padding:2px 0 4px">'+vacio+'</div>';
-    c+=lista.slice(0,12).map(function(x){
-      var p=x.a.pid?state.people.filter(function(q){ return q.id===x.a.pid; })[0]:null;
+    c+=lista.slice(0,15).map(function(x){
+      var p=x.pid?byId(x.pid):null;
       var cuando = x.d===0?"hoy":(x.d===1?"mañana":(x.d>0?"en "+x.d+" d":"hace "+(-x.d)+" d"));
       var cc = x.d<0?"#b3455b":(x.d===0?"#0f8a8a":(x.d<=3?"#d9762b":"#8d97a6"));
-      return '<div style="background:#fff;border:1px solid var(--line);border-radius:9px;padding:7px 9px;margin-bottom:6px">'
-        +'<div style="cursor:pointer" onclick="openCitaEditar(\''+x.a.id+'\')" title="Pulsa para modificar">'
+      return '<div style="background:#fff;border:1px solid '+(x.d<0?"#efc9d1":"var(--line)")+';border-radius:9px;padding:7px 9px;margin-bottom:6px">'
+        +'<div style="cursor:pointer" onclick="citaModificar(\''+x.ref+'\')" title="Pulsa para modificar">'
         +'<div style="display:flex;gap:6px;align-items:baseline">'
-        +'<span style="font-weight:600;font-size:12.5px;line-height:1.35;word-break:break-word">'+esc(x.a.titulo)+'</span>'
+        +'<span style="font-weight:600;font-size:12.5px;line-height:1.35;word-break:break-word">'+esc(x.titulo)+'</span>'
         +'<span style="margin-left:auto;flex:none;font-size:10.5px;font-weight:700;color:'+cc+'">'+cuando+'</span></div>'
         +'<div style="font-size:11px;color:var(--muted);line-height:1.45;margin-top:2px">'
-        + esc([fmtDate(x.a.fecha)+(x.a.hora?" · "+x.a.hora:""), p?p.nombre:"", x.a.nota].filter(Boolean).join(" · "))
+        + esc([fmtDate(x.fecha)+(x.hora?" · "+x.hora:""), (p&&x.origen==="propia")?p.nombre:"", x.nota].filter(Boolean).join(" · "))
         +'</div></div>'
-        +'<div style="display:flex;gap:4px;margin-top:6px">'
-        +'<button class="btn sm" onclick="openCitaEditar(\''+x.a.id+'\')" title="Modificar">✎</button>'
-        +'<button class="btn sm" onclick="agendaHecho(\''+x.a.id+'\')" title="Marcar como hecho">✓</button>'
-        +'<button class="btn sm" onclick="agendaBorrar(\''+x.a.id+'\')" title="Borrar">✕</button>'
+        +'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">'
+        +'<button class="btn sm" onclick="citaModificar(\''+x.ref+'\')" title="Modificar">✎</button>'
+        +'<button class="btn sm" onclick="citaAplazar(\''+x.ref+'\')" title="Aplazar">⏱</button>'
+        +'<button class="btn sm" onclick="citaFeedback(\''+x.ref+'\')" title="'+(x.tipo==="alarma"?"Marcar como hecha":"Ya ha pasado: contar cómo fue")+'">'+(x.tipo==="alarma"?"✓":"✓ ¿Cómo fue?")+'</button>'
+        +'<button class="btn sm" onclick="citaAnular(\''+x.ref+'\')" title="Anular">✕</button>'
         +(p?'<button class="btn sm" style="margin-left:auto" onclick="openEdit(\''+p.id+'\')" title="Abrir su ficha">Ficha</button>':'')
         +'</div></div>';
     }).join("");
@@ -2011,7 +2122,7 @@ function renderAgenda(){
     return c+'</div>';
   }
   h+='<div class="sec-title">Tu agenda</div>'
-   +'<p style="font-size:11.5px;color:var(--muted);margin:-4px 0 8px">Una <b>cita</b> es algo que ocurre contigo dentro. Una <b>alarma</b> es un aviso para que no se te pase. Pulsa cualquiera para modificarla.</p>'
+   +'<p style="font-size:11.5px;color:var(--muted);margin:-4px 0 8px">Aquí están todas las citas: las que pusiste desde una ficha y las que creaste aquí. Una <b>cita</b> ocurre contigo dentro; una <b>alarma</b> es un aviso para que no se te pase. Pulsa cualquiera para modificarla, aplazarla, anularla o contar cómo fue.</p>'
    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">'
    + cajaAgenda("Citas","📅","#0f8a8a","#f0fafa",agCitas,"Nada en el calendario. Una comida acordada vale más que diez mensajes.","cita")
    + cajaAgenda("Alarmas","⏰","#d9762b","#fdf6ef",agAlarm,"Ningún aviso pendiente. Úsalas para lo que sabes que se te olvida.","alarma")
@@ -2021,8 +2132,17 @@ function renderAgenda(){
       return rowHTML(f.p,f.tipo,f.date.toLocaleDateString("es-ES",{day:"numeric",month:"long"})+" · en "+f.dias+" d");
     }).join(""):'<div class="empty">Sin fechas próximas registradas.</div>';
   h+='<div class="sec-title">Toca dar señales de vida</div>';
+  h+='<p style="font-size:11.5px;color:var(--muted);margin:-4px 0 8px">Si ya has hablado con alguien, márcalo y el contador vuelve a cero.</p>';
   h+=pend.length?pend.map(function(x){
-      return rowHTML(x.p,x.st.cls==="due"?"Pendiente":"Casi","último contacto hace "+x.passed+" días");
+      return '<div class="row"><span class="pt" style="background:'+colorOf(x.p)+'"></span>'
+       +'<div class="grow" style="cursor:pointer" onclick="openEdit(\''+x.p.id+'\')">'
+       +'<div style="font-weight:600">'+esc(x.p.nombre)
+       +' <span style="font-size:11px;font-weight:700;color:'+(x.st.cls==="due"?"#b3455b":"#d9762b")+'">'+(x.st.cls==="due"?"Pendiente":"Casi")+'</span></div>'
+       +'<div style="font-size:12.5px;color:var(--muted)">último contacto hace '+x.passed+' días</div></div>'
+       +'<div style="display:flex;gap:4px;flex:none">'
+       +'<button class="btn sm" onclick="openNota(\''+x.p.id+'\',event)" title="Anotar qué hablasteis">Anotar</button>'
+       +'<button class="btn sm primary" onclick="contactoHoy(\''+x.p.id+'\')" title="Hoy he dado señales de vida">Contactado</button>'
+       +'</div></div>';
     }).join(""):'<div class="empty">Todo al día (o falta rellenar el último contacto).</div>';
   if(sinPlan.length){
     h+='<div class="sec-title">Sin plan definido</div>';
@@ -2919,7 +3039,10 @@ function openEdit(id){
     +fld("Círculo (equipo, barrio, familia…)","grupo",p.grupo)
     +fld("Ciudad","ciudad",p.ciudad)+fld("Sector / ámbito","sector",p.sector)
     +fld("Empleo / puesto","empleo",p.empleo)+fld("Empresa","empresa",p.empresa)+'</div>'
-    +fld("Cómo os conocisteis","comoConocimos",p.comoConocimos,"ta")+'</fieldset>';
+    +fld("Cómo os conocisteis","comoConocimos",p.comoConocimos,"ta")
+    +fld("Política y temas sensibles","politica",p.politica,"ta")
+    +'<p style="color:var(--muted);font-size:11.5px;margin:-6px 0 0">Para saber por dónde no pisar, no para clasificar a nadie. Vive solo en tu dispositivo.</p>'
+    +'</fieldset>';
   h+='<fieldset style="border-color:#20b6a6"><legend style="color:#20b6a6">Lo que persigue</legend>'
     +fld("Qué le preocupa","preocupa",p.preocupa,"ta")
     +fld("¿Qué decisión le está costando tomar?","decisionCuesta",p.decisionCuesta,"ta")
@@ -3350,10 +3473,49 @@ function fsLectura(p){
   return h;
 }
 
+function fsConocemos(p){
+  var n=(p.notas||[]).length;
+  return '<fieldset style="border-color:#4a6fa5"><legend style="color:#4a6fa5">¿De qué nos conocemos?</legend>'
+   +'<p style="color:var(--muted);font-size:12px;margin:0 0 8px">Lo primero de todo. Si esto no está claro, lo de abajo no sirve de mucho.</p>'
+   +'<div class="fld"><textarea id="f_comoConocimos" style="min-height:70px" '
+   +'placeholder="Dónde, cuándo y por quién. Y qué os unió la primera vez.">'+esc(p.comoConocimos||"")+'</textarea></div>'
+   +'<div style="margin:-4px 0 4px">'+btnVoz("f_comoConocimos")+'</div>'
+   +'</fieldset>'
+   +'<fieldset style="border-color:#0f8a8a"><legend style="color:#0f8a8a">¿De qué habéis hablado?</legend>'
+   +'<p style="color:var(--muted);font-size:12px;margin:0 0 8px">Escribe o dicta lo último que te contó. Dos líneas valen más que una memoria buena.</p>'
+   +'<div class="cols"><div class="fld"><label>Fecha</label><input type="date" id="pf_fecha" value="'+todayStr()+'"></div>'
+   +'<div class="fld"><label>Marcar como último contacto</label><select id="pf_uc">'
+   +'<option value="si">Sí — reinicia el contador</option><option value="no">No</option></select></div></div>'
+   +'<div class="fld"><textarea id="pf_txt" style="min-height:80px" '
+   +'placeholder="Ej.: me contó que su hija empieza el instituto y que está agobiado con la mudanza"></textarea></div>'
+   +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin:-2px 0 8px">'
+   + btnVoz("pf_txt")
+   +'<button type="button" class="btn sm primary" onclick="guardarNotaPerfil(\''+p.id+'\')">Añadir a su historia</button>'
+   +'<span style="align-self:center;font-size:11px;color:var(--muted)" id="pf_ind">'
+   +(n?n+" conversación"+(n===1?"":"es")+" guardada"+(n===1?"":"s"):"Ninguna conversación guardada todavía")+'</span></div>'
+   +'</fieldset>';
+}
+function guardarNotaPerfil(id){
+  var p=ensure(byId(id)); if(!p) return;
+  var t=(document.getElementById("pf_txt")||{}).value||"";
+  t=t.trim(); if(!t){ toast("Escribe o dicta algo primero"); return; }
+  var f=(document.getElementById("pf_fecha")||{}).value||todayStr();
+  p.notas.unshift({d:f,t:t});
+  if(((document.getElementById("pf_uc")||{}).value||"si")==="si") p.ultimoContacto=f;
+  save();
+  document.getElementById("pf_txt").value="";
+  var ind=document.getElementById("pf_ind");
+  if(ind) ind.textContent="Guardada ✓ · "+p.notas.length+" en total";
+  try{ procesarNota(p,t); }catch(e){}
+  toast("Conversación anotada");
+}
+window.guardarNotaPerfil=guardarNotaPerfil;
+
 function openPerfil(id){
   var p=state.people.filter(function(x){ return x.id===id; })[0]; if(!p) return;
   var h='<h2>Perfil · '+esc(p.nombre)+'</h2>'
-   +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 14px">Cómo es, qué le mueve y once preguntas para entenderle mejor. <span id="perfilGuardado" style="margin-left:6px"></span></p>'
+   +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 14px">De qué os conocéis, qué habéis hablado y cómo es. <span id="perfilGuardado" style="margin-left:6px"></span></p>'
+   + fsConocemos(p)
    + bloquePsico(p)
    +'<div id="maslowBox" style="margin-bottom:14px">'+maslowHTML(p)+'</div>'
    + fsLectura(p)
@@ -3364,6 +3526,7 @@ function openPerfil(id){
   var ind=function(t){ var e=document.getElementById("perfilGuardado"); if(e){ e.textContent=t; e.style.color="var(--muted)"; } };
   var deb, leer=function(){
     LECTURA.forEach(function(L){ var e=document.getElementById("f_"+L[0]); if(e) p[L[0]]=e.value.trim(); });
+    var cc=document.getElementById("f_comoConocimos"); if(cc) p.comoConocimos=cc.value.trim();
     save(); ind("Guardado ✓");
   };
   document.getElementById("modal").querySelectorAll("textarea").forEach(function(el){
@@ -3569,7 +3732,7 @@ function fld(label,key,val,type){
   return '<div class="fld"><label>'+label+'</label><input type="'+(type==="date"?"date":"text")+'" id="f_'+key+'" value="'+esc(val)+'"></div>';
 }
 function leerCampos(p){
-  ["nombre","apodo","ciudad","grupo","sector","comoConocimos","pareja","hijos","familia","empleo","empresa",
+  ["nombre","apodo","ciudad","grupo","sector","comoConocimos","politica","pareja","hijos","familia","empleo","empresa",
    "exito","admirado","importante","preocupa","fascina","ayuda","logros","quienesImportan","queQuierenLosSuyos","gustosDeLosSuyos","gesto",
    "aficiones","deportes","musica","comida","temas","evitar","estilo","vestir","humor","presume","decisionCuesta",
    "cumple","aniversario","ultimoContacto",
@@ -3606,6 +3769,70 @@ function commit(p,isNew){
   sincronizarConexiones(p);
   save(); closeModal(); renderAll();
 }
+/* ---------- dictado por voz (Chrome / Android; si no existe, el botón no se pinta) ---------- */
+function hayVoz(){ return !!(window.SpeechRecognition||window.webkitSpeechRecognition); }
+function btnVoz(targetId){
+  if(!hayVoz()) return "";
+  return '<button type="button" class="btn sm" id="voz_'+targetId+'" onclick="dictar(\''+targetId+'\')" '
+   +'title="Dictar en voz alta">🎤 Dictar</button>';
+}
+var _rec=null;
+function dictar(targetId){
+  var el=document.getElementById(targetId), b=document.getElementById("voz_"+targetId);
+  if(!el) return;
+  if(_rec){ try{ _rec.stop(); }catch(e){} _rec=null; if(b){ b.textContent="🎤 Dictar"; b.classList.remove("primary"); } return; }
+  var R=window.SpeechRecognition||window.webkitSpeechRecognition;
+  _rec=new R(); _rec.lang="es-ES"; _rec.continuous=true; _rec.interimResults=false;
+  var base=el.value;
+  _rec.onresult=function(ev){
+    var t="";
+    for(var i=ev.resultIndex;i<ev.results.length;i++) if(ev.results[i].isFinal) t+=ev.results[i][0].transcript;
+    if(t){ el.value=(base?base.replace(/\s*$/,"")+" ":"")+t.trim(); base=el.value;
+           el.dispatchEvent(new Event("input",{bubbles:true})); }
+  };
+  _rec.onerror=function(){ if(b){ b.textContent="🎤 Dictar"; b.classList.remove("primary"); } _rec=null; };
+  _rec.onend=function(){ if(b){ b.textContent="🎤 Dictar"; b.classList.remove("primary"); } _rec=null; };
+  try{ _rec.start(); if(b){ b.textContent="⏹ Parar"; b.classList.add("primary"); } }
+  catch(e){ _rec=null; toast("No se ha podido activar el micrófono"); }
+}
+window.dictar=dictar;
+
+var BUZON="geselectiberica@gmail.com";
+function openComentarios(){
+  var h='<h2>Envíanos tus comentarios</h2>'
+   +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 14px">Qué te falta, qué te sobra y qué no se entiende. Lo que cuentes aquí es lo que decide la próxima versión.</p>'
+   +'<div class="fld"><label>¿De qué va?</label><select id="cm_tipo">'
+   +['Algo no funciona','Echo en falta algo','No entiendo una parte','Va lento o incómodo','Una idea','Otra cosa']
+     .map(function(o){ return '<option>'+o+'</option>'; }).join("")
+   +'</select></div>'
+   +'<div class="fld"><label>Cuéntanoslo</label><textarea id="cm_txt" style="min-height:110px" '
+   +'placeholder="Con detalle: qué estabas haciendo, qué esperabas y qué pasó."></textarea></div>'
+   +'<div style="margin:-2px 0 10px">'+btnVoz("cm_txt")+'</div>'
+   +'<p style="color:var(--muted);font-size:11.5px;margin:0 0 4px">Se envía la versión de la app y tu texto. <b>No se envía ninguna ficha</b> ni ningún dato de tus contactos.</p>'
+   +'<div class="modal-actions"><button class="btn" onclick="closeModal()">Cancelar</button>'
+   +'<button class="btn" id="cm_copy">Copiar</button>'
+   +'<button class="btn primary" id="cm_ok">Enviar por correo</button></div>';
+  showModal(h);
+  var cuerpo=function(){
+    var t=(document.getElementById("cm_txt")||{}).value||"";
+    var k=(document.getElementById("cm_tipo")||{}).value||"";
+    return "["+k+"]\n\n"+t.trim()+"\n\n---\nFriends Map "+VERSION+"\n"+(navigator.userAgent||"");
+  };
+  document.getElementById("cm_copy").onclick=function(){
+    var t=cuerpo();
+    try{ navigator.clipboard.writeText(t); toast("Copiado — pégalo donde quieras"); }
+    catch(e){ prompt("Copia esto:",t); }
+  };
+  document.getElementById("cm_ok").onclick=function(){
+    var t=(document.getElementById("cm_txt")||{}).value||"";
+    if(!t.trim()){ toast("Escribe algo primero"); return; }
+    var url="mailto:"+BUZON+"?subject="+encodeURIComponent("Friends Map "+VERSION+" · comentarios")
+      +"&body="+encodeURIComponent(cuerpo());
+    location.href=url; closeModal();
+  };
+}
+window.openComentarios=openComentarios;
+
 function showModal(h){
   var m=document.getElementById("modal");
   m.innerHTML='<button type="button" class="cerrarX" onclick="closeModal()" title="Cerrar" aria-label="Cerrar">✕</button>'+h;
@@ -4958,8 +5185,8 @@ function renderNegocio(){
 function setTab(t){
   state.tab=t;
   document.querySelectorAll(".tabs button").forEach(function(b){ b.classList.toggle("on",b.dataset.tab===t); });
-  ["fichas","citas","mapa","agenda","negocio","informe"].forEach(function(k){
-    document.getElementById("view-"+k).style.display=(k===t?"":"none");
+  ["fichas","mapa","agenda","negocio","informe"].forEach(function(k){
+    var v=document.getElementById("view-"+k); if(v) v.style.display=(k===t?"":"none");
   });
   if(t==="mapa") mapaRender();
   if(t==="negocio") renderNegocio();
@@ -5081,6 +5308,7 @@ document.getElementById("add").onclick=function(){ openEdit(null); };
 document.getElementById("meBtn").onclick=openMe;
 document.getElementById("syncBtn").onclick=sincronizarYa;
 document.getElementById("syncOpt").onclick=openSync;
+var _cb=document.getElementById("comentBtn"); if(_cb) _cb.onclick=openComentarios;
 document.getElementById("instalar").onclick=instalarApp;
 try{ if(window.matchMedia && window.matchMedia("(display-mode: standalone)").matches){ document.getElementById("instalar").style.display="none"; } }catch(e){}
 document.getElementById("file").onchange=function(e){ if(e.target.files[0]) importJSON(e.target.files[0]); e.target.value=""; };
