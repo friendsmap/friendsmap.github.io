@@ -272,10 +272,10 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
     <div class="titlewrap"><div class="title"><h1>Friends Map</h1><small id="count"></small></div>
       <p class="lema"><span class="ver" id="verEt" title="Versión de la app">—</span> Todo el mundo quiere percibir que es <b>importante</b>, que <b>tiene éxito</b> y que recuerdan <b>su nombre</b>.</p></div>
     <div class="tabs">
-      <button data-tab="fichas" class="on">Fichas</button>
-      <button data-tab="mapa">Network Map</button>
-      <button data-tab="agenda">Agenda</button>
-      <button data-tab="negocio">Negocio</button>
+      <button data-tab="agenda" class="on">Agenda</button>
+      <button data-tab="fichas">Fichas</button>
+      <button data-tab="mapa">Mapa</button>
+      <button data-tab="negocio">Mi perfil</button>
       <button data-tab="informe">Informe</button>
     </div>
   </header>
@@ -297,7 +297,8 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
   <div id="qAviso" style="display:none"></div>
   <div id="aviso"></div>
-  <div id="view-fichas"><div class="grid" id="cards"></div></div>
+  <div id="view-agenda"><div id="agenda"></div></div>
+  <div id="view-fichas" style="display:none"><div class="grid" id="cards"></div></div>
   <div id="view-mapa" style="display:none">
     <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
       <select id="modoMapa" style="width:auto;padding:6px 10px;font-size:13px">
@@ -322,15 +323,10 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
     <div id="sinergiasBox" style="display:none"></div>
     <p id="mapaHint" style="color:var(--muted);font-size:12.5px">Arrastra los nodos, rueda para acercar, clic en una persona para abrir su ficha. El color indica la categoría.</p>
   </div>
-  <div id="view-agenda" style="display:none"><div id="agenda"></div></div>
   <div id="view-negocio" style="display:none"><div id="negocio" class="inf-doc"></div></div>
   <div id="view-informe" style="display:none">
     <div class="inf-op">
-      <strong style="font-size:13px">Incluir:</strong>
-      <label><input type="checkbox" id="ip_plan" checked> plan y discurso</label>
-      <label><input type="checkbox" id="ip_guion" checked> guión</label>
-      <label><input type="checkbox" id="ip_gente" checked> su gente</label>
-      <label><input type="checkbox" id="ip_notas"> notas</label>
+      <strong style="font-size:13px">Cuánta gente tienes, y de qué tipo</strong>
       <span style="flex:1"></span>
       <button class="btn primary" id="pdfBtn">Guardar en PDF</button>
     </div>
@@ -346,7 +342,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.14-53";
+var VERSION="2026.09.15-60 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -364,6 +360,12 @@ var CEBOS={
   importancia:"que su acierto se vea, y que se vea que fue suyo",
   admiracion:"que alguien reconozca de verdad lo que hace, y que se diga delante de quien le importa"
 };
+/* Los dos ámbitos. Se declaran aquí arriba, junto a TIPOS, para que existan
+   antes de que nada los use: así el arranque no depende del orden del archivo. */
+var AMBITOS=[
+  {id:"personal",  nombre:"Personal",     tipos:["personal","amigo","conocido","familiar"]},
+  {id:"profesional",nombre:"Profesional", tipos:["profesional","fabricante","proveedor","cliente"]}
+];
 var TIPOS_BASE=[
   ["personal","Personal","#5aa8a0"],
   ["amigo","Amigo","#2f9d78"],
@@ -396,7 +398,7 @@ function esF(p){ return p&&p.genero==="f"; }
 function EL(p){ return esF(p)?"ella":"él"; }
 function SU(p){ return esF(p)?"suya":"suyo"; }
 
-var state={ people:[], me:null, tab:"fichas", q:"", grupo:"", tipo:"", tipos:[], modoMapa:"personas", circExtra:[], tipoExtra:[], agenda:[] };
+var state={ people:[], me:null, tab:"agenda", q:"", grupo:"", tipo:"", tipos:[], modoMapa:"personas", circExtra:[], tipoExtra:[], agenda:[] };
 var SEED=null;
 
 /* ---------- persistencia ---------- */
@@ -1842,6 +1844,20 @@ function briefingTexto(){
   if(b.detalle){ L.push("EL DETALLE DE HOY"); L.push("  "+b.detalle.nombre+": "+_frase(_gestoDe(b.detalle),150)); }
   return L.join("\n");
 }
+/* La lista entera genera culpa; una sola acción genera acción. */
+function unaCosaHoy(b){
+  if(b.cumpleHoy.length) return {p:b.cumpleHoy[0], q:"Hoy cumple años", g:_gestoDe(b.cumpleHoy[0]),
+    acc:'openNota(\''+b.cumpleHoy[0].id+'\',event)', txt:"Felicitar y anotarlo"};
+  if(b.citasHoy.length){ var c=b.citasHoy[0];
+    return {p:c.p, q:"Hoy tienes esto", g:[c.e.motivo,c.e.hora,c.e.lugar].filter(Boolean).join(" · "),
+      acc:(c.p.id?'openEdit(\''+c.p.id+'\')':'setTab(\'agenda\')'), txt:"Prepararlo"}; }
+  if(b.toca.length){ var t=b.toca[0];
+    return {p:t.p, q:"Hace "+t.dias+" días que no hablas", g:(_gestoDe(t.p)||"Le tocaba cada "+t.freq+" días"),
+      acc:'openNota(\''+t.p.id+'\',event)', txt:"Escribirle y anotarlo"}; }
+  if(b.detalle) return {p:b.detalle, q:"El detalle de hoy", g:_gestoDe(b.detalle),
+    acc:'openEdit(\''+b.detalle.id+'\')', txt:"Abrir su ficha"};
+  return null;
+}
 function briefingHTML(){
   var b=briefingDatos(), f=new Date();
   var fila=function(p,eti,txt,col){
@@ -1871,6 +1887,21 @@ function briefingHTML(){
    +'<b style="font-size:15px;color:#1e2a3a">'+saludo+'</b>'
    +'<span style="font-size:11.5px;color:var(--muted)">'+esc(f.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"}))+'</span></div>';
 
+  /* ---- LA cosa de hoy, arriba y sola ---- */
+  var U=unaCosaHoy(b);
+  if(U){
+    h+='<div style="background:#fff;border:1px solid var(--line);border-left:4px solid #d9762b;border-radius:12px;'
+     +'padding:12px 14px;margin:10px 0 12px">'
+     +'<div style="font-size:10px;font-weight:700;letter-spacing:.1em;color:#d9762b;margin-bottom:5px">SI HOY SOLO HACES UNA COSA</div>'
+     +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+     +'<span class="pt" style="background:'+colorOf(U.p)+'"></span>'
+     +'<b style="font-size:15px;color:#1e2a3a">'+esc(U.p.nombre||"")+'</b>'
+     +'<span style="font-size:12px;color:var(--muted)">'+esc(U.q)+'</span></div>'
+     +(U.g?'<div style="font-size:12.5px;color:#33415a;line-height:1.55;margin-top:5px">'+esc(_frase(U.g,170))+'</div>':'')
+     +(U.p.id?'<div style="margin-top:9px"><button class="btn sm primary" onclick="'+U.acc+'">'+esc(U.txt)+'</button></div>':'')
+     +'</div>';
+  }
+  h+='<details style="margin-bottom:2px"><summary style="cursor:pointer;font-size:12px;font-weight:650;color:#4a6fa5;list-style:none;padding:4px 0">Ver todo lo del día</summary><div style="padding-top:4px">';
   var algo=false;
   if(b.cumpleHoy.length){ algo=true;
     h+='<div class="sec-title" style="color:#c0468a">Cumplen hoy</div>';
@@ -1903,6 +1934,7 @@ function briefingHTML(){
     h+='<p style="color:var(--muted);font-size:12.5px;margin:8px 0 0">Hoy no hay nada urgente. '
      +(b.olvidados?'Tienes <b>'+b.olvidados+'</b> ficha'+(b.olvidados===1?'':'s')+' sin ninguna nota ni fecha de contacto: ese es buen sitio para empezar.':'Todo al día.')+'</p>';
   }
+  h+='</div></details>';
   h+='<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">'
    +'<div style="background:#eef7f1;border:1px solid #cfe6d8;border-left:3px solid #2e7d5b;border-radius:10px;'
      +'padding:10px 12px;margin-bottom:10px;display:flex;gap:10px;align-items:flex-start">'
@@ -2048,6 +2080,81 @@ window.citaModificar=citaModificar; window.citaFeedback=citaFeedback; window.cit
 window.citaAplazar=citaAplazar; window.citaMover=citaMover; window.contactoHoy=contactoHoy;
 window.openEncuentro=openEncuentro;
 
+/* ---------- MODO NOCHE · tres campos, treinta segundos ----------
+   La app completa es para cuando hay diez minutos. Esto es para la cama. */
+function nocheCandidatos(){
+  var now=today(), out=[];
+  (state.people||[]).forEach(function(p){
+    var f=parseInt(p.frecuencia,10)||90;
+    var u=p.ultimoContacto?parseDate(p.ultimoContacto):null;
+    var d=u?daysBetween(u,now):null;
+    var exceso=(d===null)?-1:d-f;
+    var sinNada=(!p.ultimoContacto && !(p.notas||[]).length);
+    out.push({p:p, exceso:exceso, dias:d, sinNada:sinNada});
+  });
+  /* primero quien más se ha pasado de su frecuencia; luego las fichas vacías */
+  var venc=out.filter(function(x){ return x.exceso>=0; }).sort(function(a,b){ return b.exceso-a.exceso; });
+  var vacias=out.filter(function(x){ return x.sinNada; });
+  return venc.concat(vacias);
+}
+function nocheIdx(){ var n=parseInt(lsGet("nocheIdx"),10); return isNaN(n)?0:n; }
+function openNoche(salto){
+  var lista=nocheCandidatos();
+  if(!lista.length){
+    showModal('<h2>Modo noche</h2>'
+      +'<p style="font-size:13.5px;line-height:1.6;color:#33415a;margin:10px 0 16px">Hoy no hay nadie a quien le toque. '
+      +'Todo al día — que también es un resultado.</p>'
+      +'<div class="modal-actions"><button class="btn primary" onclick="closeModal()">Buenas noches</button></div>');
+    return;
+  }
+  var i=((salto?nocheIdx()+1:nocheIdx())%lista.length+lista.length)%lista.length;
+  lsSet("nocheIdx",String(i));
+  var x=lista[i], p=x.p;
+  var motivo = x.exceso>=0
+      ? ('Hace <b>'+x.dias+' días</b> que no hablas con '+esc(EL(p))+', y te habías puesto cada '+(parseInt(p.frecuencia,10)||90)+'.')
+      : 'Esta ficha está vacía. Una línea ya la pone en marcha.';
+  var pregunta=_gestoDe(p);
+  var hh='<div style="text-align:center;margin-bottom:4px">'
+   +'<span style="font-size:10.5px;font-weight:700;letter-spacing:.11em;color:#6a4c93">MODO NOCHE · 30 SEGUNDOS</span></div>'
+   +'<h2 style="text-align:center;margin:2px 0 6px">'+esc(p.nombre||"(sin nombre)")+'</h2>'
+   +'<p style="text-align:center;color:var(--muted);font-size:12.5px;margin:0 0 14px">'+motivo+'</p>';
+  if(pregunta){
+    hh+='<div style="background:#faf7fd;border:1px solid #ece4f5;border-radius:10px;padding:10px 13px;margin-bottom:14px;'
+      +'font-size:12.5px;line-height:1.55;color:#33415a"><b>Por si sirve:</b> '+esc(_frase(pregunta,160))+'</div>';
+  }
+  hh+='<div class="fld"><label>1 · ¿Habéis hablado? ¿De qué?</label>'
+   +'<textarea id="nc_txt" style="min-height:92px" placeholder="Dos líneas bastan. O déjalo en blanco si hoy no ha habido nada."></textarea></div>'
+   +'<div style="margin:-4px 0 12px">'+btnVoz("nc_txt")+'</div>'
+   +'<div class="cols">'
+   +'<div class="fld"><label>2 · ¿Cuándo fue?</label><input type="date" id="nc_fecha" value="'+todayStr()+'"></div>'
+   +'<div class="fld"><label>3 · ¿Cada cuánto quieres verle?</label>'
+   +'<input type="number" min="1" id="nc_freq" value="'+(parseInt(p.frecuencia,10)||90)+'"></div></div>'
+   +'<div class="modal-actions">'
+   +'<button class="btn" onclick="openNoche(1)">Otra persona →</button>'
+   +'<button class="btn" onclick="openEdit(\''+p.id+'\')">Abrir su ficha</button>'
+   +'<button class="btn" onclick="closeModal()">Cerrar</button>'
+   +'<button class="btn primary" id="nc_ok">Guardar y siguiente</button></div>'
+   +'<p style="text-align:center;font-size:11px;color:var(--muted);margin:10px 0 0">'
+   +(i+1)+' de '+lista.length+' · mañana empieza por otra</p>';
+  showModal(hh);
+  document.getElementById("nc_ok").onclick=function(){
+    var t=(document.getElementById("nc_txt")||{}).value||"";
+    var f=(document.getElementById("nc_fecha")||{}).value||todayStr();
+    var q=parseInt((document.getElementById("nc_freq")||{}).value,10);
+    if(q>0) p.frecuencia=q;
+    if(t.trim()){
+      p.notas.unshift({d:f,t:t.trim()});
+      p.ultimoContacto=f;
+      try{ procesarNota(p,t.trim()); }catch(e){}
+    }
+    save(); renderAll();
+    toast(t.trim()?"Anotado · "+p.nombre:"Guardado");
+    openNoche(1);
+  };
+  try{ tel("action",{a:"noche"}); }catch(e){}
+}
+window.openNoche=openNoche;
+
 function renderAgenda(){
   var el=document.getElementById("agenda"),now=today(),fechas=[];
   filtered().forEach(function(p){
@@ -2064,7 +2171,17 @@ function renderAgenda(){
     .sort(function(a,b){return b.passed-a.passed;});
   var sinPlan=filtered().filter(function(p){ return esNegocio(p)&&!p.necesito; });
   /* 1º los botones, 2º el briefing, 3º todo lo demás */
-  var h='<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px">'
+  var _hh=new Date().getHours(), _noche=(_hh>=20||_hh<6);
+  var h='<button onclick="openNoche(0)" style="width:100%;border:0;cursor:pointer;text-align:left;'
+   +'background:'+(_noche?'linear-gradient(120deg,#2d2a4a,#463f6b)':'linear-gradient(120deg,#f4f1fb,#efeafc)')+';'
+   +'border-radius:14px;padding:13px 16px;margin:0 0 12px;display:flex;align-items:center;gap:12px">'
+   +'<span style="font-size:22px;line-height:1">'+(_noche?'🌙':'✨')+'</span>'
+   +'<span style="flex:1">'
+   +'<span style="display:block;font-size:14px;font-weight:700;color:'+(_noche?'#fff':'#3b2f63')+'">Modo noche</span>'
+   +'<span style="display:block;font-size:11.5px;margin-top:2px;color:'+(_noche?'#c3bce0':'#6a5e93')+'">'
+   +'Una persona, tres campos, treinta segundos.</span></span>'
+   +'<span style="font-size:18px;color:'+(_noche?'#c3bce0':'#8a7bbd')+'">›</span></button>';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px">'
    +'<button class="btn primary" onclick="openCitaNueva(\'cita\')">📅 + Cita</button>'
    +'<button class="btn" onclick="openCitaNueva(\'alarma\')">⏰ + Alarma</button></div>';
   if(filtroActivo()){
@@ -3017,7 +3134,73 @@ function openEdit(id){
     .sort(function(a,b){return (a.nombre||"").localeCompare(b.nombre||"");});
   var h='<div style="display:flex;gap:6px;align-items:center;margin:0 0 10px"><button class="btn sm" id="toFichas">← Todas las fichas</button><button class="btn sm" id="toMapa">Ver el mapa</button><span id="fichaGuardado" style="font-size:12px;color:var(--muted);margin-left:auto"></span></div>'
     +'<h2>'+(isNew?"Nueva persona":esc(p.nombre||"Ficha"))+'</h2>'
-    +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 14px">Rellena solo lo que sepas. Vuelve cuando descubras algo nuevo.</p>';
+    +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 14px">'
+    +(isNew?'Con el nombre y la categoría ya se guarda. Lo demás, cuando lo vayas sabiendo.'
+           :'Empieza por lo que acabáis de hablar. El resto está debajo y puede esperar.')+'</p>';
+  /* ---- la ficha se abre por lo que acaba de pasar; una ficha nueva, por el nombre ---- */
+  if(!isNew){
+    h+='<fieldset style="border-color:#6d7a8c"><legend style="color:#6d7a8c">Anotar algo de hoy</legend>'
+    +'<p style="color:var(--muted);font-size:12px;margin:0 0 8px">Lo que acabas de saber de '+esc((p.apodo||p.nombre||"esta persona").split(" ")[0])+'. Una línea basta.'
+    +((p.notas||[]).length?' Tienes <b>'+p.notas.length+'</b> nota'+(p.notas.length===1?'':'s')+' guardada'+(p.notas.length===1?'':'s')+' — se leen en <b>Historia</b>.':'')+'</p>'
+    +'<div class="notes" id="notes" style="display:none"></div>'
+    +'<div style="display:flex;gap:6px;margin-top:0"><input type="text" id="newNote" placeholder="Ej.: su hija empieza el instituto en septiembre">'
+    +'<button class="btn" type="button" id="addNote">Añadir</button></div>'
+    +(iaActiva()?'<label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-top:8px"><input type="checkbox" id="f_iaOff" style="width:auto"'+(p.iaOff?" checked":"")+'> No enviar esta ficha a la IA (mantenerla más privada)</label>':'')
+    +'</fieldset>';
+  }
+  h+='<div style="display:flex;align-items:baseline;gap:10px;margin:22px 0 10px">'
+    +'<span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#4a6fa5">Lo básico</span>'
+    +'<span style="flex:1;height:1px;background:var(--line)"></span>'
+    +'<span style="font-size:11px;color:var(--muted)">quién es y cuándo le viste</span></div>';
+  h+='<fieldset style="border-color:#4a6fa5"><legend style="color:#4a6fa5">Básico</legend><div class="cols">'
+    +'<div class="fld"><label>Categoría</label><select id="f_tipo">'
+    +TIPOS.map(function(t){return '<option value="'+t[0]+'"'+(p.tipo===t[0]?" selected":"")+'>'+t[1]+'</option>';}).join("")
+    +'</select></div>'
+    +'<div class="fld"><label>Trato (para los pronombres del guión)</label><select id="f_genero">'
+    +'<option value=""'+(!p.genero?" selected":"")+'>Sin marcar</option>'
+    +'<option value="m"'+(p.genero==="m"?" selected":"")+'>Él</option>'
+    +'<option value="f"'+(p.genero==="f"?" selected":"")+'>Ella</option></select></div>'
+    +fld("Círculo (equipo, barrio, familia…)","grupo",p.grupo)+'</div>'
+    +fld("Cómo os conocisteis","comoConocimos",p.comoConocimos,"ta")
+    +'</fieldset>';
+  if(isNew){
+    h+='<fieldset style="border-color:#6d7a8c"><legend style="color:#6d7a8c">Anotar algo de hoy</legend>'
+    +'<p style="color:var(--muted);font-size:12px;margin:0 0 8px">Lo que acabas de saber de '+esc((p.apodo||p.nombre||"esta persona").split(" ")[0])+'. Una línea basta.'
+    +((p.notas||[]).length?' Tienes <b>'+p.notas.length+'</b> nota'+(p.notas.length===1?'':'s')+' guardada'+(p.notas.length===1?'':'s')+' — se leen en <b>Historia</b>.':'')+'</p>'
+    +'<div class="notes" id="notes" style="display:none"></div>'
+    +'<div style="display:flex;gap:6px;margin-top:0"><input type="text" id="newNote" placeholder="Ej.: su hija empieza el instituto en septiembre">'
+    +'<button class="btn" type="button" id="addNote">Añadir</button></div>'
+    +(iaActiva()?'<label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-top:8px"><input type="checkbox" id="f_iaOff" style="width:auto"'+(p.iaOff?" checked":"")+'> No enviar esta ficha a la IA (mantenerla más privada)</label>':'')
+    +'</fieldset>';
+  }
+  h+='<fieldset style="border-color:#2f9d78"><legend style="color:#2f9d78">Fechas</legend><div class="cols3">'
+    +fld("Cumpleaños","cumple",p.cumple,"date")
+    +fld("Último contacto","ultimoContacto",p.ultimoContacto,"date")
+    +'<div class="fld"><label>Próxima cita</label><input type="date" id="f_proximaCita" value="'+esc(citaProx?citaProx.fecha:"")+'"></div>'
+    +'</div>'
+    +'<p style="color:var(--muted);font-size:11.5px;margin:-2px 0 8px">La próxima cita alimenta el aviso de las mañanas: el día antes te preparo el guión y busco noticias.</p>'
+    +'<div class="fld" style="max-width:260px"><label>Recordar cada (días)</label>'
+    +'<input type="number" min="1" id="f_frecuencia" value="'+(p.frecuencia||90)+'"></div></fieldset>';
+  h+='<fieldset style="border-color:#6d7a8c"><legend style="color:#6d7a8c">Dónde vive y a qué se dedica</legend>'
+    +'<div class="cols">'
+    +fld("Ciudad","ciudad",p.ciudad)+fld("Sector / ámbito","sector",p.sector)
+    +fld("Empleo / puesto","empleo",p.empleo)+fld("Empresa","empresa",p.empresa)+'</div>'
+    +fld("Política y temas sensibles","politica",p.politica,"ta")
+    +'<p style="color:var(--muted);font-size:11.5px;margin:-6px 0 0">Para saber por dónde no pisar, no para clasificar a nadie. Vive solo en tu dispositivo.</p>'
+    +'</fieldset>';
+  h+='<fieldset style="border-color:#7a5bd0"><legend style="color:#7a5bd0">Su gente</legend>'
+    +'<p style="color:var(--muted);font-size:12px;margin:0 0 10px">Nadie se abre tanto hablando de sí mismo como hablando de los suyos. Y casi nadie le pregunta por ellos.</p>'
+    +'<div class="cols">'+fld("Pareja","pareja",p.pareja)+fld("Hijos (nombres y edades)","hijos",p.hijos)+'</div>'
+    +fld("Otros de su familia (padres, hermanos…)","familia",p.familia,"ta")
+    +fld("A quién quiere más (nombres y qué son suyos)","quienesImportan",p.quienesImportan,"ta")
+    +fld("Qué quieren ellos (lo que persiguen los suyos)","queQuierenLosSuyos",p.queQuierenLosSuyos,"ta")
+    +fld("Aficiones y gustos de los suyos","gustosDeLosSuyos",p.gustosDeLosSuyos,"ta")
+    +fld("Un gesto que le pueda hacer y me cueste tiempo","gesto",p.gesto,"ta")+'</fieldset>';
+
+  h+='<div style="display:flex;align-items:baseline;gap:10px;margin:22px 0 10px">'
+    +'<span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#c0468a">Ir más a fondo</span>'
+    +'<span style="flex:1;height:1px;background:var(--line)"></span>'
+    +'<span style="font-size:11px;color:var(--muted)">rellena solo lo que vayas sabiendo</span></div>';
   h+='<fieldset style="border-color:var(--accent)"><legend style="color:var(--accent)">LO ESENCIAL — con esto ya sirve</legend>'
     +'<p style="color:var(--muted);font-size:12px;margin:0 0 10px">Todo el mundo quiere sentirse <b>importante</b>, <b>tener éxito</b>, sentirse <b>admirado</b> y que <b>recuerden su nombre</b>. Mientras habla, preg\u00fantate esto y anota lo que saques. Lo dem\u00e1s puede esperar.</p>'
     +'<div class="cols">'+fld("Nombre","nombre",p.nombre)+fld("C\u00f3mo le gusta que le llamen","apodo",p.apodo)+'</div>'
@@ -3028,28 +3211,13 @@ function openEdit(id){
     +(isNew?'':'<button class="btn" type="button" onclick="verEscena(\''+p.id+'\')">Generar imagen</button>')
     +'<p style="color:var(--muted);font-size:11.5px;margin:8px 0 0">Lo que proponga son conjeturas para confirmar preguntando, nunca datos. Si te las crees sin comprobarlas, te construyes una persona que no existe.</p>'
     +'</fieldset>';
-  h+='<fieldset style="border-color:#4a6fa5"><legend style="color:#4a6fa5">Básico</legend><div class="cols">'
-    +'<div class="fld"><label>Categoría</label><select id="f_tipo">'
-    +TIPOS.map(function(t){return '<option value="'+t[0]+'"'+(p.tipo===t[0]?" selected":"")+'>'+t[1]+'</option>';}).join("")
-    +'</select></div>'
-    +'<div class="fld"><label>Trato (para los pronombres del guión)</label><select id="f_genero">'
-    +'<option value=""'+(!p.genero?" selected":"")+'>Sin marcar</option>'
-    +'<option value="m"'+(p.genero==="m"?" selected":"")+'>Él</option>'
-    +'<option value="f"'+(p.genero==="f"?" selected":"")+'>Ella</option></select></div>'
-    +fld("Círculo (equipo, barrio, familia…)","grupo",p.grupo)
-    +fld("Ciudad","ciudad",p.ciudad)+fld("Sector / ámbito","sector",p.sector)
-    +fld("Empleo / puesto","empleo",p.empleo)+fld("Empresa","empresa",p.empresa)+'</div>'
-    +fld("Cómo os conocisteis","comoConocimos",p.comoConocimos,"ta")
-    +fld("Política y temas sensibles","politica",p.politica,"ta")
-    +'<p style="color:var(--muted);font-size:11.5px;margin:-6px 0 0">Para saber por dónde no pisar, no para clasificar a nadie. Vive solo en tu dispositivo.</p>'
-    +'</fieldset>';
   h+='<fieldset style="border-color:#20b6a6"><legend style="color:#20b6a6">Lo que persigue</legend>'
     +fld("Qué le preocupa","preocupa",p.preocupa,"ta")
     +fld("¿Qué decisión le está costando tomar?","decisionCuesta",p.decisionCuesta,"ta")
     +fld("Qué le fascina","fascina",p.fascina,"ta")
     +fld("¿En qué puedo ayudarle?","ayuda",p.ayuda,"ta")
     +fld("Logros suyos que puedes reconocer (concretos)","logros",p.logros,"ta")
-    +fld("¿De qué presume?","presume",p.presume,"ta")+'</fieldset>';
+    +fld("¿De qué presume?","presume",p.presume,"ta")+fld("Cómo tratarle (su estilo en el trato)","estilo",p.estilo,"ta")+'</fieldset>';
   h+='<fieldset style="border-color:#d99b2b"><legend style="color:#d99b2b">Gustos e intereses</legend>'
     +fld("Aficiones (separadas por comas)","aficiones",p.aficiones)
     +'<div class="cols">'+fld("Deporte / equipo","deportes",p.deportes)+fld("Música","musica",p.musica)
@@ -3057,16 +3225,8 @@ function openEdit(id){
     +fld("Temas a evitar","evitar",p.evitar)
     +fld("¿Qué le hace gracia? ¿Con qué disfruta riendo?","humor",p.humor,"ta")
     +fld("¿Cómo es su forma de vestir? (qué cuida y qué descuida)","vestir",p.vestir,"ta")
-    +fld("Cómo tratarle (su estilo en el trato)","estilo",p.estilo,"ta")+'</fieldset>';
+    +'</fieldset>';
   var citaProx=nextMeeting(p);
-  h+='<fieldset style="border-color:#2f9d78"><legend style="color:#2f9d78">Fechas</legend><div class="cols3">'
-    +fld("Cumpleaños","cumple",p.cumple,"date")
-    +fld("Último contacto","ultimoContacto",p.ultimoContacto,"date")
-    +'<div class="fld"><label>Próxima cita</label><input type="date" id="f_proximaCita" value="'+esc(citaProx?citaProx.fecha:"")+'"></div>'
-    +'</div>'
-    +'<p style="color:var(--muted);font-size:11.5px;margin:-2px 0 8px">La próxima cita alimenta el aviso de las mañanas: el día antes te preparo el guión y busco noticias.</p>'
-    +'<div class="fld" style="max-width:260px"><label>Recordar cada (días)</label>'
-    +'<input type="number" min="1" id="f_frecuencia" value="'+(p.frecuencia||90)+'"></div></fieldset>';
   h+='<fieldset style="border-color:#c0468a"><legend style="color:#c0468a">Qué le mueve</legend>'
     +'<p style="color:var(--muted);font-size:12px;margin:0 0 10px">Importancia de 0 a 3 y el detalle concreto: no es lo mismo «dinero» que «ahorra para la entrada de un piso».</p>'
     +MOTS.map(function(m){
@@ -3081,22 +3241,6 @@ function openEdit(id){
         +((p.conexiones||[]).indexOf(o.id)>=0?" checked":"")+'>'+esc(o.nombre||"(sin nombre)")+'</label>';
     }).join("")+'</div>':'<p style="color:var(--muted);font-size:12.5px;margin:0">Añade más personas para poder conectarlas.</p>')
     +'</fieldset>';
-  h+='<fieldset style="border-color:#6d7a8c"><legend style="color:#6d7a8c">Anotar algo de hoy</legend>'
-    +'<p style="color:var(--muted);font-size:12px;margin:0 0 8px">Lo que acabas de saber de '+esc((p.apodo||p.nombre||"esta persona").split(" ")[0])+'. Una línea basta.'
-    +((p.notas||[]).length?' Tienes <b>'+p.notas.length+'</b> nota'+(p.notas.length===1?'':'s')+' guardada'+(p.notas.length===1?'':'s')+' — se leen en <b>Historia</b>.':'')+'</p>'
-    +'<div class="notes" id="notes" style="display:none"></div>'
-    +'<div style="display:flex;gap:6px;margin-top:0"><input type="text" id="newNote" placeholder="Ej.: su hija empieza el instituto en septiembre">'
-    +'<button class="btn" type="button" id="addNote">Añadir</button></div>'
-    +(iaActiva()?'<label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-top:8px"><input type="checkbox" id="f_iaOff" style="width:auto"'+(p.iaOff?" checked":"")+'> No enviar esta ficha a la IA (mantenerla más privada)</label>':'')
-    +'</fieldset>';
-  h+='<fieldset style="border-color:#7a5bd0"><legend style="color:#7a5bd0">Su gente</legend>'
-    +'<p style="color:var(--muted);font-size:12px;margin:0 0 10px">Nadie se abre tanto hablando de sí mismo como hablando de los suyos. Y casi nadie le pregunta por ellos.</p>'
-    +'<div class="cols">'+fld("Pareja","pareja",p.pareja)+fld("Hijos (nombres y edades)","hijos",p.hijos)+'</div>'
-    +fld("Otros de su familia (padres, hermanos…)","familia",p.familia,"ta")
-    +fld("A quién quiere más (nombres y qué son suyos)","quienesImportan",p.quienesImportan,"ta")
-    +fld("Qué quieren ellos (lo que persiguen los suyos)","queQuierenLosSuyos",p.queQuierenLosSuyos,"ta")
-    +fld("Aficiones y gustos de los suyos","gustosDeLosSuyos",p.gustosDeLosSuyos,"ta")
-    +fld("Un gesto que le pueda hacer y me cueste tiempo","gesto",p.gesto,"ta")+'</fieldset>';
   h+='<div class="modal-actions barra">'
     +(isNew?"":'<button class="btn" onclick="openPerfil(\''+p.id+'\')">Perfil</button>')
     +(isNew?"":'<button class="btn" onclick="openPlan(\''+p.id+'\')">Plan</button>')
@@ -4929,97 +5073,70 @@ function infLista(t,arr){
 }
 function renderInforme(){
   var el=document.getElementById("informe"); if(!el) return;
-  var opt={
-    plan:document.getElementById("ip_plan").checked,
-    guion:document.getElementById("ip_guion").checked,
-    gente:document.getElementById("ip_gente").checked,
-    notas:document.getElementById("ip_notas").checked
-  };
-  var list=filtered().slice().sort(function(a,b){return (a.nombre||"").localeCompare(b.nombre||"");});
+  var list=filtered();
   var hoy=new Date().toLocaleDateString("es-ES",{day:"numeric",month:"long",year:"numeric"});
-  var alcance=tiposActivos().length?tiposActivos().map(function(t){return tipoLabel(t).toLowerCase()+"s";}).join(", "):"todas las categorías";
-  if(state.q) alcance+=' · búsqueda "'+state.q+'"';
-  var h='<div class="inf-h1">Friends Map</div>'
-    +'<div class="inf-meta">'+esc(hoy)+' · '+list.length+' de '+state.people.length+' personas · '+esc(alcance)+'</div>'
-    +'<p class="lema" style="margin:-10px 0 18px">Todo el mundo quiere percibir que es <b>importante</b>, que <b>tiene éxito</b> y que recuerdan <b>su nombre</b>.</p>';
-  if(!list.length){ el.innerHTML=h+'<p style="color:var(--muted)">No hay nadie que cumpla el filtro actual.</p>'; return; }
-  var t=today(), citas=0, tocaEscribir=0, cumples=0, pasosPend=0;
+
+  /* recuento por ámbito (Personal / Profesional) y, dentro, por categoría */
+  var porTipo={}, porCirculo={}, sinCirculo=0;
   list.forEach(function(p){
-    (p.encuentros||[]).forEach(function(e){ var d=parseDate(e.fecha); if(!e.hecho&&d&&d>=t) citas++; });
-    if(contactStatus(p).cls==="due") tocaEscribir++;
-    var n=nextAnniversary(p.cumple); if(n&&daysBetween(t,n)<=30) cumples++;
-    pasosPend+=(p.pasos||[]).filter(function(s){return !s.hecho;}).length;
+    var t=p.tipo||"amigo";
+    porTipo[t]=(porTipo[t]||0)+1;
+    var g=(p.grupo||"").trim();
+    if(g) porCirculo[g]=(porCirculo[g]||0)+1; else sinCirculo++;
   });
-  h+='<div class="inf-kpis">'
-    +'<div class="inf-kpi"><b>'+citas+'</b>citas por delante</div>'
-    +'<div class="inf-kpi"><b>'+cumples+'</b>cumpleaños en 30 días</div>'
-    +'<div class="inf-kpi"><b>'+tocaEscribir+'</b>a quien toca escribir</div>'
-    +'<div class="inf-kpi"><b>'+pasosPend+'</b>pasos pendientes</div>'
-    +'</div>';
-  list.forEach(function(p){
-    var g=opt.guion?buildGuion(p):null, terr=terreno(p);
-    h+='<div class="inf-persona">'
-      +'<div class="inf-nom">'+esc(p.nombre||"(sin nombre)")+'</div>'
-      +'<div class="inf-sub">'+esc([tipoLabel(p.tipo),p.empleo,p.empresa,p.ciudad,p.grupo].filter(Boolean).join(" · "))+'</div>';
-    h+=infSec("En qué quiere tener éxito",p.exito);
-    h+=infSec("Por qué querría sentirse admirado",p.admirado);
-    h+=infSec("Qué le hace sentir importante",p.importante);
-    h+=infSec("Qué le preocupa",p.preocupa);
-    h+=infSec("Qué le fascina",p.fascina);
-    var mots=topMots(p).map(function(m){ return m.lb+" ("+m.n+")"+(m.t?": "+m.t:""); });
-    h+=infLista("Qué le mueve",mots);
-    if(opt.gente){
-      var gente=[];
-      if(p.quienesImportan) gente.push("A quien más quiere: "+p.quienesImportan);
-      if(p.pareja) gente.push("Pareja: "+p.pareja);
-      if(p.hijos) gente.push("Hijos: "+p.hijos);
-      if(p.queQuierenLosSuyos) gente.push("Lo que ellos persiguen: "+p.queQuierenLosSuyos);
-      if(p.gustosDeLosSuyos) gente.push("Sus gustos: "+p.gustosDeLosSuyos);
-      h+=infLista("Su gente",gente);
-      h+=infSec("Gesto pendiente",p.gesto);
-    }
-    var gustos=[p.aficiones,p.deportes,p.musica,p.comida,p.temas].filter(Boolean).join(" · ");
-    h+=infSec("Gustos e intereses",gustos);
-    h+=infSec("Fechas",[p.cumple?"cumple "+fmtDate(p.cumple):"",p.aniversario?"aniversario "+fmtDate(p.aniversario):"",p.ultimoContacto?"último contacto "+fmtDate(p.ultimoContacto):""].filter(Boolean).join(" · "));
-    if(opt.plan){
-      var inter=[];
-      if(p.meAporta) inter.push("Me aporta: "+p.meAporta);
-      if(p.necesito) inter.push("Necesito de "+EL(p)+": "+p.necesito);
-      if(p.buscaDeMi) inter.push("Busca de mí: "+p.buscaDeMi);
-      if(p.problema) inter.push("Problema suyo que resuelvo: "+p.problema);
-      if(p.presume) inter.push("Presumirá de: "+p.presume);
-      var c=ceboDe(p); if(c) inter.push("Su cebo: "+c);
-      h+=infLista("El intercambio",inter);
-      var pend=(p.pasos||[]).map(function(s){ return (s.hecho?"[hecho] ":"[ ] ")+s.t; });
-      h+=infLista("Preparar el terreno ("+terr.pct+"%)",pend);
-      if(p.discurso) h+='<div class="inf-sec"><b>Discurso</b><div class="inf-speech">'+esc(p.discurso)+'</div></div>';
-    }
-    if(opt.guion&&g){
-      h+=infLista("Por dónde empezar",g.abrir);
-      h+=infLista("Preguntas para que hable "+EL(p),g.preguntas);
-      h+=infLista("Los tres síes antes de pedir",g.sies);
-      h+=infLista("Que le apetezca hacerlo",g.feliz);
-      h+=infLista("Si duda o se niega",g.esc);
-      h+=infLista("Si necesitas que corrija algo",g.defectos);
-      h+=infLista("Cuando hable de lo suyo",g.reaccion);
-      h+=infLista("Cómo ayudarle",g.ayuda);
-      h+=infLista("Si algo sale mal",g.mal);
-      h+=infLista("Al despedirte",g.despedida);
-      h+=infLista("Qué evitar",g.evitar);
-    }
-    if(opt.notas&&(p.notas||[]).length){
-      h+=infLista("Notas",p.notas.slice(0,12).map(function(n){ return fmtDate(n.d)+" — "+n.t; }));
-    }
+
+  var h='<div class="inf-h1">Friends Map · Informe</div>'
+   +'<div class="inf-meta">'+esc(hoy)+' · '+list.length+' de '+state.people.length+' personas</div>';
+
+  /* --- por ámbito y categoría --- */
+  h+='<div class="sec-title">Por categoría</div>';
+  AMBITOS.forEach(function(A){
+    var tot=0; A.tipos.forEach(function(t){ tot+=porTipo[t]||0; });
+    h+='<div style="border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px">'
+     +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">'
+     +'<b style="font-size:14px;color:#1e2a3a">'+esc(A.nombre)+'</b>'
+     +'<span style="font-size:13px;font-weight:700;color:var(--muted)">'+tot+'</span></div>';
+    var filas=A.tipos.filter(function(t){ return porTipo[t]; })
+      .sort(function(a,b){ return porTipo[b]-porTipo[a]; });
+    if(!filas.length) h+='<div style="font-size:12px;color:var(--muted)">Nadie en este ámbito.</div>';
+    filas.forEach(function(t){
+      var n=porTipo[t], pct=tot?Math.round(n/tot*100):0;
+      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'
+       +'<span class="pt" style="background:'+tipoColor(t)+'"></span>'
+       +'<span style="width:118px;font-size:12.5px">'+esc(tipoLabel(t))+'</span>'
+       +'<span style="flex:1;background:#eef1f5;border-radius:99px;height:7px;overflow:hidden">'
+       +'<span style="display:block;background:'+tipoColor(t)+';height:7px;width:'+pct+'%"></span></span>'
+       +'<span style="width:62px;text-align:right;font-size:12px;color:var(--muted)"><b style="color:#1e2a3a">'+n+'</b> · '+pct+'%</span></div>';
+    });
     h+='</div>';
   });
+
+  /* --- por círculo --- */
+  var circs=Object.keys(porCirculo).sort(function(a,b){ return porCirculo[b]-porCirculo[a]; });
+  h+='<div class="sec-title">Por círculo</div>';
+  if(!circs.length && !sinCirculo){
+    h+='<div class="empty">Nadie todavía.</div>';
+  }else{
+    h+='<div style="border:1px solid var(--line);border-radius:12px;padding:12px 14px">';
+    circs.forEach(function(g){
+      var n=porCirculo[g], pct=list.length?Math.round(n/list.length*100):0;
+      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'
+       +'<span style="flex:1;font-size:12.5px">'+esc(g)+'</span>'
+       +'<span style="width:120px;background:#eef1f5;border-radius:99px;height:7px;overflow:hidden">'
+       +'<span style="display:block;background:#4a6fa5;height:7px;width:'+pct+'%"></span></span>'
+       +'<span style="width:34px;text-align:right;font-size:12.5px;font-weight:700">'+n+'</span></div>';
+    });
+    if(sinCirculo) h+='<div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);'
+       +'border-top:1px solid var(--line);margin-top:7px;padding-top:7px">'
+       +'<span>Sin círculo asignado</span><b>'+sinCirculo+'</b></div>';
+    h+='</div>';
+  }
+
+  h+='<p style="font-size:11.5px;color:var(--muted);margin:12px 0 0">El recuento respeta los filtros de arriba. '
+   +'Para imprimirlo o guardarlo en PDF, usa la opción de imprimir del navegador.</p>';
   el.innerHTML=h;
 }
 
-/* ---------- render global ---------- */
-var AMBITOS=[
-  {id:"personal",  nombre:"Personal",     tipos:["personal","amigo","conocido","familiar"]},
-  {id:"profesional",nombre:"Profesional", tipos:["profesional","fabricante","proveedor","cliente"]}
-];
 function ambitoDe(t){ for(var i=0;i<AMBITOS.length;i++) if(AMBITOS[i].tipos.indexOf(t)>=0) return AMBITOS[i].id; return "personal"; }
 function tiposDeAmbito(a){ for(var i=0;i<AMBITOS.length;i++) if(AMBITOS[i].id===a) return AMBITOS[i].tipos; return []; }
 function ambitoActivo(){ return null; } // ya no filtra: los dos ámbitos conviven en el mapa
@@ -5125,71 +5242,111 @@ function renderAll(){
   if(state.tab==="informe") renderInforme();
 }
 function renderNegocio(){
-  var m=state.me||(state.me=newMe());
-  var nota=function(k,ph){
-    return '<textarea class="negNota" data-k="'+k+'" placeholder="'+esc(ph)+'" '
-      +'style="width:100%;min-height:70px;margin-top:8px">'+esc(m[k]||"")+'</textarea>';
-  };
-  var bloque=function(tit,cuerpo,campo,ph){
-    return '<div style="border:1px solid var(--line,#e6e1d8);border-radius:12px;padding:14px 16px;margin:0 0 16px;background:#fff">'
-      +'<h3 style="margin:0 0 8px;font-size:16px">'+tit+'</h3>'+cuerpo+nota(campo,ph)+'</div>';
-  };
-  var li=function(a){ return '<ul style="margin:6px 0 0;padding-left:18px;line-height:1.5">'+a.map(function(x){return '<li style="margin:4px 0">'+x+'</li>';}).join("")+'</ul>'; };
-
-  var h='<h2 style="margin:0 0 4px">Desarrollo de negocio y prescripción</h2>'
-    +'<p style="color:var(--muted);font-size:13px;margin:0 0 18px">La misma idea de siempre: que conseguir lo suyo pase por ti. Aquí, aplicada a vender y a que otros te prescriban. Lo que escribas se guarda y se sincroniza con tu perfil.</p>';
-
-  h+=bloque("1 · El sí fácil: la cuota de prueba",
-    '<p style="margin:0">Nadie cambia de proveedor por ti a la primera. Pero casi todos <b>prueban algo pequeño si no pierden nada</b>.</p>'
-    +li([
-      "<b>El movimiento:</b> ofrécele mejorarle el precio de lo que <b>ya le compra a sus proveedores actuales</b>. A cambio, que te compre una <b>cuota de prueba pequeña</b> de tu producto.",
-      "<b>Por qué funciona:</b> le das un sí sin riesgo (ahorra en lo que ya usa) y le pides otro sí pequeño (probar lo tuyo). Dos síes fáciles antes del sí grande.",
-      "<b>El cierre:</b> «No te pido que cambies nada. Te consigo mejor precio en lo que ya compras y pruebas una cuota pequeña de lo mío. Si no te convence, no has perdido nada.»",
-      "Cuando decida, reconócele la decisión como suya, no como tu insistencia."
-    ]),
-    "negPrueba","Con quién puedo usar esto ya, y qué proveedor suyo puedo mejorarle…");
-
-  h+=bloque("2 · Cuando conozcas a un proveedor",
-    '<p style="margin:0">Cada proveedor es también una ventana a clientes que aún no son tuyos.</p>'
-    +li([
-      "Averigua <b>con qué otros clientes similares a los míos trabaja</b>.",
-      "Pregúntate: <b>¿por qué esos clientes no me están comprando a mí?</b> — precio, gama, servicio, costumbre, exclusividad.",
-      "Objetivo: encontrar <b>el hueco por el que entrar</b> y qué argumento me falta para ganarlos."
-    ]),
-    "negProvNuevos","Proveedor, sus clientes parecidos a los míos, y por qué no me compran…");
-
-  h+=bloque("3 · Estudiar mis proveedores actuales",
-    '<p style="margin:0">Lo que ya vendo bien esconde tu próxima lista de clientes.</p>'
-    +li([
-      "<b>¿A quién más suministran?</b> Esos ya confían en el producto: son clientes potenciales calientes.",
-      "<b>¿Cuál es mi ventaja competitiva</b> frente a otros que venden lo mismo? — precio, cercanía, servicio, plazo, financiación, prescripción.",
-      "Usa esa ventaja como <b>cebo</b> en la prescripción: habla de lo que a ellos les importa, no de lo que a ti te conviene."
-    ]),
-    "negMisProv","A quién más suministran mis proveedores y cuál es mi ventaja real…");
-
-  h+=bloque("4 · Estudiar la competencia de mis proveedores",
-    '<p style="margin:0">Conocer las alternativas te da precio, gama y margen de maniobra.</p>'
-    +li([
-      "<b>¿Quién más fabrica o distribuye</b> lo que yo vendo?",
-      "<b>¿En qué son mejores o peores?</b> — precio, gama, disponibilidad, condiciones, plazos.",
-      "Para <b>no quedar atrapado</b> con un solo proveedor y para <b>negociar mejor</b> las condiciones."
-    ]),
-    "negCompetencia","Competencia de mis proveedores, sus precios y condiciones…");
-
   var box=document.getElementById("negocio"); if(!box) return;
+  var m=state.me||(state.me=newMe());
+  var campo=function(lab,k,ph,alto){
+    return '<div class="fld"><label>'+lab+'</label>'
+      +'<textarea class="meCampo" data-k="'+k+'" placeholder="'+esc(ph||"")+'" '
+      +'style="min-height:'+(alto||64)+'px">'+esc(m[k]||"")+'</textarea>'
+      +(hayVoz()?'<div style="margin-top:4px">'+btnVoz("me_ta_"+k)+'</div>':'')+'</div>';
+  };
+  var linea=function(lab,k,ph){
+    return '<div class="fld"><label>'+lab+'</label>'
+      +'<input type="text" class="meCampo" data-k="'+k+'" placeholder="'+esc(ph||"")+'" value="'+esc(m[k]||"")+'"></div>';
+  };
+
+  var h='<h2 style="margin:0 0 4px">Mi perfil</h2>'
+   +'<p style="color:var(--muted);font-size:13px;margin:0 0 16px">Quién eres y qué persigues. No es relleno: de aquí salen tus discursos, '
+   +'y sobre todo de aquí nace la <b>afinidad por objetivos</b> — a quién de tu red conviene acudir para conseguir lo que buscas. '
+   +'Se guarda solo, en tu dispositivo.</p>';
+
+  /* --- objetivo, lo primero --- */
+  h+='<div style="background:#eefaf7;border:1px solid #bfe6dd;border-left:4px solid #20b6a6;border-radius:12px;padding:14px 16px;margin-bottom:16px">'
+   +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.09em;color:#12857a;margin-bottom:6px">TU OBJETIVO AHORA MISMO</div>'
+   +campo("¿Qué buscas? Cuanto más concreto, mejores sugerencias","pido",
+          "Ej.: un puesto de dirección de proyectos en movilidad eléctrica, en Barcelona, con decisión en España",72)
+   +linea("Sectores o mercados donde te mueves","sectores","material eléctrico, movilidad eléctrica, renovables")
+   +'<div style="margin-top:10px;padding-top:10px;border-top:1px solid #bfe6dd">'
+   +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.09em;color:#12857a;margin-bottom:6px">QUIÉN DE TU RED TE ACERCA A ESO</div>'
+   +'<div data-afin>'+afinidadResumenHTML(m)+'</div>'
+   +'<p style="font-size:11px;color:var(--muted);margin:8px 0 0">Se recalcula al escribir. El mapa completo está en <b>Mapa → Afinidad por objetivos</b>.</p>'
+   +'</div></div>';
+
+  /* --- quién eres --- */
+  h+='<fieldset style="border-color:#4a6fa5"><legend style="color:#4a6fa5">Quién eres</legend>'
+   +linea("Nombre","nombre","")
+   +linea("En una frase: qué haces","titular","")
+   +campo("Qué problema resuelves (en sus términos, no en los tuyos)","resuelvo","")
+   +campo("Logros medibles: cifra, plazo, cliente","logros","")
+   +campo("Experiencia relevante","experiencia","")
+   +'</fieldset>';
+
+  /* --- tu patrón --- */
+  h+='<fieldset style="border-color:#6a4c93"><legend style="color:#6a4c93">Tu patrón</legend>'
+   +'<p style="color:var(--muted);font-size:12px;margin:0 0 8px">Cómo decides y qué te frena. Aparece plegado en el briefing de cada mañana.</p>'
+   +campo("Cómo piensas y cómo decides","patron","",80)
+   +campo("Lo que te dices cada mañana","mantra","",80)
+   +campo("Tus frases para el briefing · una por línea","frases","",80)
+   +'<p style="color:var(--muted);font-size:11.5px;margin:-4px 0 2px">Rotan cada día junto a las generales. Son tuyas y viven en tus datos, no en la app.</p>'
+   +'</fieldset>';
+
+  /* --- lo de Negocio, plegado: no se pierde nada de lo que ya escribiste --- */
+  var negK=["negPrueba","negProvNuevos","negMisProv","negCompetencia"];
+  var hayNeg=negK.some(function(k){ return String(m[k]||"").trim(); });
+  h+='<details'+(hayNeg?" open":"")+' style="margin-bottom:16px">'
+   +'<summary style="cursor:pointer;font-size:13px;font-weight:650;color:#4a6fa5;padding:6px 0">Método comercial · notas antiguas'
+   +(hayNeg?' <span style="font-weight:400;color:var(--muted);font-size:12px">(tienes cosas escritas aquí)</span>':'')+'</summary>'
+   +'<p style="color:var(--muted);font-size:12px;margin:6px 0 10px">Esto era la pestaña Negocio. Se queda aquí plegado para no perder lo que escribiste.</p>'
+   +campo("La cuota de prueba: con quién puedo usarla ya","negPrueba","")
+   +campo("Proveedores nuevos: sus clientes parecidos a los míos","negProvNuevos","")
+   +campo("Mis proveedores: a quién más suministran y cuál es mi ventaja","negMisProv","")
+   +campo("Competencia de mis proveedores","negCompetencia","")
+   +'</details>';
+
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+   +'<button class="btn" onclick="openSync()">Sincronizar y copias</button>'
+   +'<button class="btn" onclick="openComentarios()">💬 Comentarios</button>'
+   +'<span id="meGuardado" style="font-size:12px;color:var(--muted)"></span></div>';
+
   box.innerHTML=h;
-  box.querySelectorAll(".negNota").forEach(function(t){
-    t.oninput=function(){ state.me[t.getAttribute("data-k")]=t.value; save(); };
+  var deb;
+  var guarda=function(){
+    box.querySelectorAll(".meCampo").forEach(function(e){ state.me[e.getAttribute("data-k")]=e.value.trim(); });
+    save();
+    var g=document.getElementById("meGuardado"); if(g) g.textContent="Guardado ✓";
+  };
+  box.querySelectorAll(".meCampo").forEach(function(e){
+    if(e.tagName==="TEXTAREA") e.id="me_ta_"+e.getAttribute("data-k");
+    e.addEventListener("input",function(){
+      var g=document.getElementById("meGuardado"); if(g) g.textContent="Guardando…";
+      clearTimeout(deb); deb=setTimeout(function(){ guarda(); pintaAfinidadPerfil(); },700);
+    });
   });
 }
+function pintaAfinidadPerfil(){
+  try{
+    var box=document.getElementById("negocio"); if(!box || state.tab!=="negocio") return;
+    var res=afinidadResumenHTML(state.me||{});
+    var cont=box.querySelector("[data-afin]");
+    if(cont) cont.innerHTML=res;
+  }catch(e){}
+}
+window.pintaAfinidadPerfil=pintaAfinidadPerfil;
+
 function setTab(t){
   state.tab=t;
   document.querySelectorAll(".tabs button").forEach(function(b){ b.classList.toggle("on",b.dataset.tab===t); });
-  ["fichas","mapa","agenda","negocio","informe"].forEach(function(k){
+  /* el buscador y los filtros solo pintan donde sirven */
+  var conFiltro=(t==="fichas"||t==="mapa"||t==="informe");
+  var seg=document.getElementById("seg"), tb=document.querySelector(".toolbar");
+  if(seg) seg.style.display=conFiltro?"":"none";
+  if(tb) tb.style.display=(t==="negocio")?"none":"";
+  ["agenda","fichas","mapa","negocio","informe"].forEach(function(k){
     var v=document.getElementById("view-"+k); if(v) v.style.display=(k===t?"":"none");
   });
   if(t==="mapa") mapaRender();
   if(t==="negocio") renderNegocio();
+  if(t==="agenda") renderAgenda();
   if(t==="informe") renderInforme();
   try{ tel("screen",{tab:t}); }catch(e){}
 }
@@ -5305,15 +5462,14 @@ window.limpiarBusqueda=limpiarBusqueda;
 document.getElementById("qclear").onclick=function(){ var q=document.getElementById("q"); limpiarBusqueda(); q.focus(); };
 document.getElementById("fGrupo").onchange=function(e){ state.grupo=e.target.value; renderAll(); };
 document.getElementById("add").onclick=function(){ openEdit(null); };
-document.getElementById("meBtn").onclick=openMe;
+document.getElementById("meBtn").onclick=function(){ setTab("negocio"); };
 document.getElementById("syncBtn").onclick=sincronizarYa;
 document.getElementById("syncOpt").onclick=openSync;
 var _cb=document.getElementById("comentBtn"); if(_cb) _cb.onclick=openComentarios;
 document.getElementById("instalar").onclick=instalarApp;
 try{ if(window.matchMedia && window.matchMedia("(display-mode: standalone)").matches){ document.getElementById("instalar").style.display="none"; } }catch(e){}
 document.getElementById("file").onchange=function(e){ if(e.target.files[0]) importJSON(e.target.files[0]); e.target.value=""; };
-["ip_plan","ip_guion","ip_gente","ip_notas"].forEach(function(k){ document.getElementById(k).onchange=renderInforme; });
-document.getElementById("pdfBtn").onclick=function(){ renderInforme(); setTimeout(function(){ window.print(); },150); };
+var _pdf=document.getElementById("pdfBtn"); if(_pdf) _pdf.onclick=function(){ renderInforme(); setTimeout(function(){ window.print(); },150); };
 document.getElementById("reflow").onclick=function(){ G.tx=0;G.ty=0;G.s=1;G.nodes=[]; buildGraph(); };
 document.getElementById("byGroup").onchange=buildGraph;
 (function(){ var mm=document.getElementById("modoMapa"); if(mm) mm.value=state.modoMapa; })();
@@ -5323,8 +5479,7 @@ document.getElementById("overlay").onclick=function(e){ /* intencionadamente vac
 document.addEventListener("keydown",function(e){ if(e.key==="Escape") closeModal(); });
 window.addEventListener("resize",function(){ if(state.tab==="mapa"){ G.alpha=0.3; tick(); } });
 initGraphEvents();
-/* AMBITOS se declara más abajo que load(), así que las categorías propias
-   se registran aquí, cuando ya existe todo. */
+/* Las categorías propias se registran aquí, con todo ya cargado. */
 try{ reconstruyeTipos(); renderSeg(); }catch(e){}
 try{ sembrarMisTextos(); }catch(e){}
 try{ limpiarBusqueda(false); }catch(e){}
