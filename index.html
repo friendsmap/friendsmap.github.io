@@ -342,7 +342,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.15-60 · depurada";
+var VERSION="2026.09.17-61 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -3148,11 +3148,10 @@ function openEdit(id){
     +(iaActiva()?'<label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-top:8px"><input type="checkbox" id="f_iaOff" style="width:auto"'+(p.iaOff?" checked":"")+'> No enviar esta ficha a la IA (mantenerla más privada)</label>':'')
     +'</fieldset>';
   }
-  h+='<div style="display:flex;align-items:baseline;gap:10px;margin:22px 0 10px">'
-    +'<span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#4a6fa5">Lo básico</span>'
-    +'<span style="flex:1;height:1px;background:var(--line)"></span>'
-    +'<span style="font-size:11px;color:var(--muted)">quién es y cuándo le viste</span></div>';
-  h+='<fieldset style="border-color:#4a6fa5"><legend style="color:#4a6fa5">Básico</legend><div class="cols">'
+  var citaProx=nextMeeting(p);
+  h+='<fieldset style="border-color:#4a6fa5"><legend style="color:#4a6fa5">Básico</legend>'
+    +'<div class="cols">'+fld("Nombre","nombre",p.nombre)+fld("C\u00f3mo le gusta que le llamen","apodo",p.apodo)+'</div>'
+    +'<div class="cols">'
     +'<div class="fld"><label>Categoría</label><select id="f_tipo">'
     +TIPOS.map(function(t){return '<option value="'+t[0]+'"'+(p.tipo===t[0]?" selected":"")+'>'+t[1]+'</option>';}).join("")
     +'</select></div>'
@@ -3162,6 +3161,15 @@ function openEdit(id){
     +'<option value="f"'+(p.genero==="f"?" selected":"")+'>Ella</option></select></div>'
     +fld("Círculo (equipo, barrio, familia…)","grupo",p.grupo)+'</div>'
     +fld("Cómo os conocisteis","comoConocimos",p.comoConocimos,"ta")
+    +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2;margin:18px 0 7px;padding-top:11px;border-top:1px solid var(--line)">Fechas y ritmo</div>'
+    +'<div class="cols3">'
+    +fld("Cumpleaños","cumple",p.cumple,"date")
+    +fld("Último contacto","ultimoContacto",p.ultimoContacto,"date")
+    +'<div class="fld"><label>Próxima cita</label><input type="date" id="f_proximaCita" value="'+esc(citaProx?citaProx.fecha:"")+'"></div>'
+    +'</div>'
+    +'<p style="color:var(--muted);font-size:11.5px;margin:-2px 0 8px">La próxima cita alimenta el aviso de las mañanas: el día antes te preparo el guión y busco noticias.</p>'
+    +'<div class="fld" style="max-width:260px"><label>Recordar cada (días)</label>'
+    +'<input type="number" min="1" id="f_frecuencia" value="'+(p.frecuencia||90)+'"></div>'
     +'</fieldset>';
   if(isNew){
     h+='<fieldset style="border-color:#6d7a8c"><legend style="color:#6d7a8c">Anotar algo de hoy</legend>'
@@ -3173,14 +3181,7 @@ function openEdit(id){
     +(iaActiva()?'<label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-top:8px"><input type="checkbox" id="f_iaOff" style="width:auto"'+(p.iaOff?" checked":"")+'> No enviar esta ficha a la IA (mantenerla más privada)</label>':'')
     +'</fieldset>';
   }
-  h+='<fieldset style="border-color:#2f9d78"><legend style="color:#2f9d78">Fechas</legend><div class="cols3">'
-    +fld("Cumpleaños","cumple",p.cumple,"date")
-    +fld("Último contacto","ultimoContacto",p.ultimoContacto,"date")
-    +'<div class="fld"><label>Próxima cita</label><input type="date" id="f_proximaCita" value="'+esc(citaProx?citaProx.fecha:"")+'"></div>'
-    +'</div>'
-    +'<p style="color:var(--muted);font-size:11.5px;margin:-2px 0 8px">La próxima cita alimenta el aviso de las mañanas: el día antes te preparo el guión y busco noticias.</p>'
-    +'<div class="fld" style="max-width:260px"><label>Recordar cada (días)</label>'
-    +'<input type="number" min="1" id="f_frecuencia" value="'+(p.frecuencia||90)+'"></div></fieldset>';
+
   h+='<fieldset style="border-color:#6d7a8c"><legend style="color:#6d7a8c">Dónde vive y a qué se dedica</legend>'
     +'<div class="cols">'
     +fld("Ciudad","ciudad",p.ciudad)+fld("Sector / ámbito","sector",p.sector)
@@ -3196,51 +3197,51 @@ function openEdit(id){
     +fld("Qué quieren ellos (lo que persiguen los suyos)","queQuierenLosSuyos",p.queQuierenLosSuyos,"ta")
     +fld("Aficiones y gustos de los suyos","gustosDeLosSuyos",p.gustosDeLosSuyos,"ta")
     +fld("Un gesto que le pueda hacer y me cueste tiempo","gesto",p.gesto,"ta")+'</fieldset>';
-
-  h+='<div style="display:flex;align-items:baseline;gap:10px;margin:22px 0 10px">'
-    +'<span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#c0468a">Ir más a fondo</span>'
-    +'<span style="flex:1;height:1px;background:var(--line)"></span>'
-    +'<span style="font-size:11px;color:var(--muted)">rellena solo lo que vayas sabiendo</span></div>';
-  h+='<fieldset style="border-color:var(--accent)"><legend style="color:var(--accent)">LO ESENCIAL — con esto ya sirve</legend>'
+  h+='<fieldset style="border-color:#20b6a6"><legend style="color:#20b6a6">Lo que persigue</legend>'
+    +'<p style="color:var(--muted);font-size:12px;margin:0 0 4px">Todo lo que te ayuda a entenderle. Rellena solo lo que vayas sabiendo; no hace falta acabarlo hoy.</p>'
+    +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2;margin:4px 0 7px;">Lo esencial · con esto ya sirve</div>'
     +'<p style="color:var(--muted);font-size:12px;margin:0 0 10px">Todo el mundo quiere sentirse <b>importante</b>, <b>tener éxito</b>, sentirse <b>admirado</b> y que <b>recuerden su nombre</b>. Mientras habla, preg\u00fantate esto y anota lo que saques. Lo dem\u00e1s puede esperar.</p>'
-    +'<div class="cols">'+fld("Nombre","nombre",p.nombre)+fld("C\u00f3mo le gusta que le llamen","apodo",p.apodo)+'</div>'
     +fld("¿En qué quiere tener éxito?","exito",p.exito,"ta")
     +fld("¿Por qué le gustaría sentirse admirado, y por quién?","admirado",p.admirado,"ta")
     +fld("¿Qué le hace sentir importante?","importante",p.importante,"ta")
     +'<button class="btn" type="button" id="proponer">Proponer hipótesis según su perfil</button> '
     +(isNew?'':'<button class="btn" type="button" onclick="verEscena(\''+p.id+'\')">Generar imagen</button>')
     +'<p style="color:var(--muted);font-size:11.5px;margin:8px 0 0">Lo que proponga son conjeturas para confirmar preguntando, nunca datos. Si te las crees sin comprobarlas, te construyes una persona que no existe.</p>'
-    +'</fieldset>';
-  h+='<fieldset style="border-color:#20b6a6"><legend style="color:#20b6a6">Lo que persigue</legend>'
+    +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2;margin:18px 0 7px;padding-top:11px;border-top:1px solid var(--line)">Qué le preocupa y qué persigue</div>'
     +fld("Qué le preocupa","preocupa",p.preocupa,"ta")
     +fld("¿Qué decisión le está costando tomar?","decisionCuesta",p.decisionCuesta,"ta")
     +fld("Qué le fascina","fascina",p.fascina,"ta")
     +fld("¿En qué puedo ayudarle?","ayuda",p.ayuda,"ta")
     +fld("Logros suyos que puedes reconocer (concretos)","logros",p.logros,"ta")
-    +fld("¿De qué presume?","presume",p.presume,"ta")+fld("Cómo tratarle (su estilo en el trato)","estilo",p.estilo,"ta")+'</fieldset>';
-  h+='<fieldset style="border-color:#d99b2b"><legend style="color:#d99b2b">Gustos e intereses</legend>'
+    +fld("¿De qué presume?","presume",p.presume,"ta")+fld("Cómo tratarle (su estilo en el trato)","estilo",p.estilo,"ta")
+    +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2;margin:18px 0 7px;padding-top:11px;border-top:1px solid var(--line)">Gustos e intereses</div>'
     +fld("Aficiones (separadas por comas)","aficiones",p.aficiones)
     +'<div class="cols">'+fld("Deporte / equipo","deportes",p.deportes)+fld("Música","musica",p.musica)
     +fld("Comida y bebida","comida",p.comida)+fld("Temas que le encienden","temas",p.temas)+'</div>'
     +fld("Temas a evitar","evitar",p.evitar)
     +fld("¿Qué le hace gracia? ¿Con qué disfruta riendo?","humor",p.humor,"ta")
     +fld("¿Cómo es su forma de vestir? (qué cuida y qué descuida)","vestir",p.vestir,"ta")
-    +'</fieldset>';
-  var citaProx=nextMeeting(p);
-  h+='<fieldset style="border-color:#c0468a"><legend style="color:#c0468a">Qué le mueve</legend>'
+    +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2;margin:18px 0 7px;padding-top:11px;border-top:1px solid var(--line)">Qué le mueve</div>'
     +'<p style="color:var(--muted);font-size:12px;margin:0 0 10px">Importancia de 0 a 3 y el detalle concreto: no es lo mismo «dinero» que «ahorra para la entrada de un piso».</p>'
     +MOTS.map(function(m){
       var v=p.mot[m[0]];
       return '<div class="mot"><span class="lb">'+m[1]+'</span><span class="lvl" data-k="'+m[0]+'">'
         +[0,1,2,3].map(function(i){return '<button type="button" data-n="'+i+'" class="'+(v.n===i?"on":"")+'">'+i+'</button>';}).join("")
         +'</span><input type="text" id="m_'+m[0]+'" value="'+esc(v.t)+'" placeholder="detalle concreto"></div>';
-    }).join("")+'</fieldset>';
-  h+='<fieldset style="border-color:#0f8a8a"><legend style="color:#0f8a8a">Conexiones</legend>'
+    }).join("")
+    +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2;margin:18px 0 7px;padding-top:11px;border-top:1px solid var(--line)">Conexiones con tu red</div>'
     +(others.length?'<div class="multi">'+others.map(function(o){
       return '<label><input type="checkbox" class="cx" value="'+o.id+'"'
         +((p.conexiones||[]).indexOf(o.id)>=0?" checked":"")+'>'+esc(o.nombre||"(sin nombre)")+'</label>';
     }).join("")+'</div>':'<p style="color:var(--muted);font-size:12.5px;margin:0">Añade más personas para poder conectarlas.</p>')
     +'</fieldset>';
+
+
+
+
+  var citaProx=nextMeeting(p);
+
+
   h+='<div class="modal-actions barra">'
     +(isNew?"":'<button class="btn" onclick="openPerfil(\''+p.id+'\')">Perfil</button>')
     +(isNew?"":'<button class="btn" onclick="openPlan(\''+p.id+'\')">Plan</button>')
