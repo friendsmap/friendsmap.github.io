@@ -342,7 +342,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.17-61 · depurada";
+var VERSION="2026.09.18-62 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -2080,8 +2080,8 @@ window.citaModificar=citaModificar; window.citaFeedback=citaFeedback; window.cit
 window.citaAplazar=citaAplazar; window.citaMover=citaMover; window.contactoHoy=contactoHoy;
 window.openEncuentro=openEncuentro;
 
-/* ---------- MODO NOCHE · tres campos, treinta segundos ----------
-   La app completa es para cuando hay diez minutos. Esto es para la cama. */
+/* ---------- PONER AL DÍA · tres campos, treinta segundos ----------
+   La app completa es para cuando hay diez minutos. Esto es para los ratos muertos. */
 function nocheCandidatos(){
   var now=today(), out=[];
   (state.people||[]).forEach(function(p){
@@ -2101,10 +2101,10 @@ function nocheIdx(){ var n=parseInt(lsGet("nocheIdx"),10); return isNaN(n)?0:n; 
 function openNoche(salto){
   var lista=nocheCandidatos();
   if(!lista.length){
-    showModal('<h2>Modo noche</h2>'
+    showModal('<h2>Poner al día</h2>'
       +'<p style="font-size:13.5px;line-height:1.6;color:#33415a;margin:10px 0 16px">Hoy no hay nadie a quien le toque. '
       +'Todo al día — que también es un resultado.</p>'
-      +'<div class="modal-actions"><button class="btn primary" onclick="closeModal()">Buenas noches</button></div>');
+      +'<div class="modal-actions"><button class="btn primary" onclick="closeModal()">Perfecto</button></div>');
     return;
   }
   var i=((salto?nocheIdx()+1:nocheIdx())%lista.length+lista.length)%lista.length;
@@ -2115,7 +2115,7 @@ function openNoche(salto){
       : 'Esta ficha está vacía. Una línea ya la pone en marcha.';
   var pregunta=_gestoDe(p);
   var hh='<div style="text-align:center;margin-bottom:4px">'
-   +'<span style="font-size:10.5px;font-weight:700;letter-spacing:.11em;color:#6a4c93">MODO NOCHE · 30 SEGUNDOS</span></div>'
+   +'<span style="font-size:10.5px;font-weight:700;letter-spacing:.11em;color:#6a4c93">PONER AL DÍA · 30 SEGUNDOS</span></div>'
    +'<h2 style="text-align:center;margin:2px 0 6px">'+esc(p.nombre||"(sin nombre)")+'</h2>'
    +'<p style="text-align:center;color:var(--muted);font-size:12.5px;margin:0 0 14px">'+motivo+'</p>';
   if(pregunta){
@@ -2124,7 +2124,6 @@ function openNoche(salto){
   }
   hh+='<div class="fld"><label>1 · ¿Habéis hablado? ¿De qué?</label>'
    +'<textarea id="nc_txt" style="min-height:92px" placeholder="Dos líneas bastan. O déjalo en blanco si hoy no ha habido nada."></textarea></div>'
-   +'<div style="margin:-4px 0 12px">'+btnVoz("nc_txt")+'</div>'
    +'<div class="cols">'
    +'<div class="fld"><label>2 · ¿Cuándo fue?</label><input type="date" id="nc_fecha" value="'+todayStr()+'"></div>'
    +'<div class="fld"><label>3 · ¿Cada cuánto quieres verle?</label>'
@@ -2171,16 +2170,17 @@ function renderAgenda(){
     .sort(function(a,b){return b.passed-a.passed;});
   var sinPlan=filtered().filter(function(p){ return esNegocio(p)&&!p.necesito; });
   /* 1º los botones, 2º el briefing, 3º todo lo demás */
-  var _hh=new Date().getHours(), _noche=(_hh>=20||_hh<6);
+  var _pend=(function(){ try{ return nocheCandidatos().length; }catch(e){ return 0; } })();
   var h='<button onclick="openNoche(0)" style="width:100%;border:0;cursor:pointer;text-align:left;'
-   +'background:'+(_noche?'linear-gradient(120deg,#2d2a4a,#463f6b)':'linear-gradient(120deg,#f4f1fb,#efeafc)')+';'
+   +'background:linear-gradient(120deg,#f2f0fc,#eae5fa);'
    +'border-radius:14px;padding:13px 16px;margin:0 0 12px;display:flex;align-items:center;gap:12px">'
-   +'<span style="font-size:22px;line-height:1">'+(_noche?'🌙':'✨')+'</span>'
+   +'<span style="font-size:22px;line-height:1">🔄</span>'
    +'<span style="flex:1">'
-   +'<span style="display:block;font-size:14px;font-weight:700;color:'+(_noche?'#fff':'#3b2f63')+'">Modo noche</span>'
-   +'<span style="display:block;font-size:11.5px;margin-top:2px;color:'+(_noche?'#c3bce0':'#6a5e93')+'">'
-   +'Una persona, tres campos, treinta segundos.</span></span>'
-   +'<span style="font-size:18px;color:'+(_noche?'#c3bce0':'#8a7bbd')+'">›</span></button>';
+   +'<span style="display:block;font-size:14px;font-weight:700;color:#3b2f63">Poner al día</span>'
+   +'<span style="display:block;font-size:11.5px;margin-top:2px;color:#6a5e93">'
+   +(_pend?'<b>'+_pend+'</b> ficha'+(_pend===1?'':'s')+' esperando. Una persona, tres campos, treinta segundos.'
+          :'Repasa una ficha en treinta segundos.')+'</span></span>'
+   +'<span style="font-size:18px;color:#8a7bbd">›</span></button>';
   h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px">'
    +'<button class="btn primary" onclick="openCitaNueva(\'cita\')">📅 + Cita</button>'
    +'<button class="btn" onclick="openCitaNueva(\'alarma\')">⏰ + Alarma</button></div>';
@@ -3147,6 +3147,14 @@ function openEdit(id){
     +'<button class="btn" type="button" id="addNote">Añadir</button></div>'
     +(iaActiva()?'<label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-top:8px"><input type="checkbox" id="f_iaOff" style="width:auto"'+(p.iaOff?" checked":"")+'> No enviar esta ficha a la IA (mantenerla más privada)</label>':'')
     +'</fieldset>';
+  h+='<fieldset style="border-color:#d99b2b"><legend style="color:#d99b2b">Gustos e intereses</legend>'
+    +fld("Aficiones (separadas por comas)","aficiones",p.aficiones)
+    +'<div class="cols">'+fld("Deporte / equipo","deportes",p.deportes)+fld("Música","musica",p.musica)
+    +fld("Comida y bebida","comida",p.comida)+fld("Temas que le encienden","temas",p.temas)+'</div>'
+    +fld("Temas a evitar","evitar",p.evitar)
+    +fld("¿Qué le hace gracia? ¿Con qué disfruta riendo?","humor",p.humor,"ta")
+    +fld("¿Cómo es su forma de vestir? (qué cuida y qué descuida)","vestir",p.vestir,"ta")
+    +'</fieldset>';
   }
   var citaProx=nextMeeting(p);
   h+='<fieldset style="border-color:#4a6fa5"><legend style="color:#4a6fa5">Básico</legend>'
@@ -3180,6 +3188,14 @@ function openEdit(id){
     +'<button class="btn" type="button" id="addNote">Añadir</button></div>'
     +(iaActiva()?'<label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-top:8px"><input type="checkbox" id="f_iaOff" style="width:auto"'+(p.iaOff?" checked":"")+'> No enviar esta ficha a la IA (mantenerla más privada)</label>':'')
     +'</fieldset>';
+  h+='<fieldset style="border-color:#d99b2b"><legend style="color:#d99b2b">Gustos e intereses</legend>'
+    +fld("Aficiones (separadas por comas)","aficiones",p.aficiones)
+    +'<div class="cols">'+fld("Deporte / equipo","deportes",p.deportes)+fld("Música","musica",p.musica)
+    +fld("Comida y bebida","comida",p.comida)+fld("Temas que le encienden","temas",p.temas)+'</div>'
+    +fld("Temas a evitar","evitar",p.evitar)
+    +fld("¿Qué le hace gracia? ¿Con qué disfruta riendo?","humor",p.humor,"ta")
+    +fld("¿Cómo es su forma de vestir? (qué cuida y qué descuida)","vestir",p.vestir,"ta")
+    +'</fieldset>';
   }
 
   h+='<fieldset style="border-color:#6d7a8c"><legend style="color:#6d7a8c">Dónde vive y a qué se dedica</legend>'
@@ -3197,9 +3213,22 @@ function openEdit(id){
     +fld("Qué quieren ellos (lo que persiguen los suyos)","queQuierenLosSuyos",p.queQuierenLosSuyos,"ta")
     +fld("Aficiones y gustos de los suyos","gustosDeLosSuyos",p.gustosDeLosSuyos,"ta")
     +fld("Un gesto que le pueda hacer y me cueste tiempo","gesto",p.gesto,"ta")+'</fieldset>';
-  h+='<fieldset style="border-color:#20b6a6"><legend style="color:#20b6a6">Lo que persigue</legend>'
-    +'<p style="color:var(--muted);font-size:12px;margin:0 0 4px">Todo lo que te ayuda a entenderle. Rellena solo lo que vayas sabiendo; no hace falta acabarlo hoy.</p>'
-    +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2;margin:4px 0 7px;">Lo esencial · con esto ya sirve</div>'
+  h+='<fieldset style="border-color:#0f8a8a"><legend style="color:#0f8a8a">Conexiones con tu red</legend>'
+    +(others.length?'<div class="multi">'+others.map(function(o){
+      return '<label><input type="checkbox" class="cx" value="'+o.id+'"'
+        +((p.conexiones||[]).indexOf(o.id)>=0?" checked":"")+'>'+esc(o.nombre||"(sin nombre)")+'</label>';
+    }).join("")+'</div>':'<p style="color:var(--muted);font-size:12.5px;margin:0">Añade más personas para poder conectarlas.</p>')
+    +'</fieldset>';
+  h+='<fieldset style="border-color:#20b6a6"><legend style="color:#20b6a6">Qué persigue</legend>'
+    +'<p style="color:var(--muted);font-size:12px;margin:0 0 10px">Lo que le mueve por dentro. Rellena solo lo que vayas sabiendo; no hace falta acabarlo hoy.</p>'
+    +fld("Qué le fascina","fascina",p.fascina,"ta")
+    +fld("¿De qué presume?","presume",p.presume,"ta")
+    +fld("Logros suyos que puedes reconocer (concretos)","logros",p.logros,"ta")
+    +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2;margin:18px 0 7px;padding-top:11px;border-top:1px solid var(--line)">Qué le preocupa</div>'
+    +fld("Qué le preocupa","preocupa",p.preocupa,"ta")
+    +fld("¿Qué decisión le está costando tomar?","decisionCuesta",p.decisionCuesta,"ta")
+    +fld("¿En qué puedo ayudarle?","ayuda",p.ayuda,"ta")
+    +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2;margin:18px 0 7px;padding-top:11px;border-top:1px solid var(--line)">Lo esencial · con esto ya sirve</div>'
     +'<p style="color:var(--muted);font-size:12px;margin:0 0 10px">Todo el mundo quiere sentirse <b>importante</b>, <b>tener éxito</b>, sentirse <b>admirado</b> y que <b>recuerden su nombre</b>. Mientras habla, preg\u00fantate esto y anota lo que saques. Lo dem\u00e1s puede esperar.</p>'
     +fld("¿En qué quiere tener éxito?","exito",p.exito,"ta")
     +fld("¿Por qué le gustaría sentirse admirado, y por quién?","admirado",p.admirado,"ta")
@@ -3207,20 +3236,6 @@ function openEdit(id){
     +'<button class="btn" type="button" id="proponer">Proponer hipótesis según su perfil</button> '
     +(isNew?'':'<button class="btn" type="button" onclick="verEscena(\''+p.id+'\')">Generar imagen</button>')
     +'<p style="color:var(--muted);font-size:11.5px;margin:8px 0 0">Lo que proponga son conjeturas para confirmar preguntando, nunca datos. Si te las crees sin comprobarlas, te construyes una persona que no existe.</p>'
-    +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2;margin:18px 0 7px;padding-top:11px;border-top:1px solid var(--line)">Qué le preocupa y qué persigue</div>'
-    +fld("Qué le preocupa","preocupa",p.preocupa,"ta")
-    +fld("¿Qué decisión le está costando tomar?","decisionCuesta",p.decisionCuesta,"ta")
-    +fld("Qué le fascina","fascina",p.fascina,"ta")
-    +fld("¿En qué puedo ayudarle?","ayuda",p.ayuda,"ta")
-    +fld("Logros suyos que puedes reconocer (concretos)","logros",p.logros,"ta")
-    +fld("¿De qué presume?","presume",p.presume,"ta")+fld("Cómo tratarle (su estilo en el trato)","estilo",p.estilo,"ta")
-    +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2;margin:18px 0 7px;padding-top:11px;border-top:1px solid var(--line)">Gustos e intereses</div>'
-    +fld("Aficiones (separadas por comas)","aficiones",p.aficiones)
-    +'<div class="cols">'+fld("Deporte / equipo","deportes",p.deportes)+fld("Música","musica",p.musica)
-    +fld("Comida y bebida","comida",p.comida)+fld("Temas que le encienden","temas",p.temas)+'</div>'
-    +fld("Temas a evitar","evitar",p.evitar)
-    +fld("¿Qué le hace gracia? ¿Con qué disfruta riendo?","humor",p.humor,"ta")
-    +fld("¿Cómo es su forma de vestir? (qué cuida y qué descuida)","vestir",p.vestir,"ta")
     +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2;margin:18px 0 7px;padding-top:11px;border-top:1px solid var(--line)">Qué le mueve</div>'
     +'<p style="color:var(--muted);font-size:12px;margin:0 0 10px">Importancia de 0 a 3 y el detalle concreto: no es lo mismo «dinero» que «ahorra para la entrada de un piso».</p>'
     +MOTS.map(function(m){
@@ -3229,11 +3244,6 @@ function openEdit(id){
         +[0,1,2,3].map(function(i){return '<button type="button" data-n="'+i+'" class="'+(v.n===i?"on":"")+'">'+i+'</button>';}).join("")
         +'</span><input type="text" id="m_'+m[0]+'" value="'+esc(v.t)+'" placeholder="detalle concreto"></div>';
     }).join("")
-    +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2;margin:18px 0 7px;padding-top:11px;border-top:1px solid var(--line)">Conexiones con tu red</div>'
-    +(others.length?'<div class="multi">'+others.map(function(o){
-      return '<label><input type="checkbox" class="cx" value="'+o.id+'"'
-        +((p.conexiones||[]).indexOf(o.id)>=0?" checked":"")+'>'+esc(o.nombre||"(sin nombre)")+'</label>';
-    }).join("")+'</div>':'<p style="color:var(--muted);font-size:12.5px;margin:0">Añade más personas para poder conectarlas.</p>')
     +'</fieldset>';
 
 
@@ -3624,7 +3634,6 @@ function fsConocemos(p){
    +'<p style="color:var(--muted);font-size:12px;margin:0 0 8px">Lo primero de todo. Si esto no está claro, lo de abajo no sirve de mucho.</p>'
    +'<div class="fld"><textarea id="f_comoConocimos" style="min-height:70px" '
    +'placeholder="Dónde, cuándo y por quién. Y qué os unió la primera vez.">'+esc(p.comoConocimos||"")+'</textarea></div>'
-   +'<div style="margin:-4px 0 4px">'+btnVoz("f_comoConocimos")+'</div>'
    +'</fieldset>'
    +'<fieldset style="border-color:#0f8a8a"><legend style="color:#0f8a8a">¿De qué habéis hablado?</legend>'
    +'<p style="color:var(--muted);font-size:12px;margin:0 0 8px">Escribe o dicta lo último que te contó. Dos líneas valen más que una memoria buena.</p>'
@@ -3634,7 +3643,6 @@ function fsConocemos(p){
    +'<div class="fld"><textarea id="pf_txt" style="min-height:80px" '
    +'placeholder="Ej.: me contó que su hija empieza el instituto y que está agobiado con la mudanza"></textarea></div>'
    +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin:-2px 0 8px">'
-   + btnVoz("pf_txt")
    +'<button type="button" class="btn sm primary" onclick="guardarNotaPerfil(\''+p.id+'\')">Añadir a su historia</button>'
    +'<span style="align-self:center;font-size:11px;color:var(--muted)" id="pf_ind">'
    +(n?n+" conversación"+(n===1?"":"es")+" guardada"+(n===1?"":"s"):"Ninguna conversación guardada todavía")+'</span></div>'
@@ -3914,33 +3922,9 @@ function commit(p,isNew){
   sincronizarConexiones(p);
   save(); closeModal(); renderAll();
 }
-/* ---------- dictado por voz (Chrome / Android; si no existe, el botón no se pinta) ---------- */
-function hayVoz(){ return !!(window.SpeechRecognition||window.webkitSpeechRecognition); }
-function btnVoz(targetId){
-  if(!hayVoz()) return "";
-  return '<button type="button" class="btn sm" id="voz_'+targetId+'" onclick="dictar(\''+targetId+'\')" '
-   +'title="Dictar en voz alta">🎤 Dictar</button>';
-}
-var _rec=null;
-function dictar(targetId){
-  var el=document.getElementById(targetId), b=document.getElementById("voz_"+targetId);
-  if(!el) return;
-  if(_rec){ try{ _rec.stop(); }catch(e){} _rec=null; if(b){ b.textContent="🎤 Dictar"; b.classList.remove("primary"); } return; }
-  var R=window.SpeechRecognition||window.webkitSpeechRecognition;
-  _rec=new R(); _rec.lang="es-ES"; _rec.continuous=true; _rec.interimResults=false;
-  var base=el.value;
-  _rec.onresult=function(ev){
-    var t="";
-    for(var i=ev.resultIndex;i<ev.results.length;i++) if(ev.results[i].isFinal) t+=ev.results[i][0].transcript;
-    if(t){ el.value=(base?base.replace(/\s*$/,"")+" ":"")+t.trim(); base=el.value;
-           el.dispatchEvent(new Event("input",{bubbles:true})); }
-  };
-  _rec.onerror=function(){ if(b){ b.textContent="🎤 Dictar"; b.classList.remove("primary"); } _rec=null; };
-  _rec.onend=function(){ if(b){ b.textContent="🎤 Dictar"; b.classList.remove("primary"); } _rec=null; };
-  try{ _rec.start(); if(b){ b.textContent="⏹ Parar"; b.classList.add("primary"); } }
-  catch(e){ _rec=null; toast("No se ha podido activar el micrófono"); }
-}
-window.dictar=dictar;
+/* El micrófono lo pone solo ponerMicros() en cada campo de texto.
+   btnVoz se queda como no-op para no tener dos micros en el mismo campo. */
+function btnVoz(){ return ""; }
 
 var BUZON="geselectiberica@gmail.com";
 function openComentarios(){
@@ -3952,7 +3936,6 @@ function openComentarios(){
    +'</select></div>'
    +'<div class="fld"><label>Cuéntanoslo</label><textarea id="cm_txt" style="min-height:110px" '
    +'placeholder="Con detalle: qué estabas haciendo, qué esperabas y qué pasó."></textarea></div>'
-   +'<div style="margin:-2px 0 10px">'+btnVoz("cm_txt")+'</div>'
    +'<p style="color:var(--muted);font-size:11.5px;margin:0 0 4px">Se envía la versión de la app y tu texto. <b>No se envía ninguna ficha</b> ni ningún dato de tus contactos.</p>'
    +'<div class="modal-actions"><button class="btn" onclick="closeModal()">Cancelar</button>'
    +'<button class="btn" id="cm_copy">Copiar</button>'
@@ -4048,7 +4031,7 @@ function dictar(el,btn){
 }
 function ponerMicros(){
   if(!hayVoz()) return;
-  var campos=document.querySelectorAll("#modal textarea, #modal input[type=text]");
+  var campos=document.querySelectorAll("#modal textarea, #modal input[type=text], #negocio textarea, #negocio input[type=text]");
   Array.prototype.forEach.call(campos,function(t){
     if(t.getAttribute("data-mic") || t.getAttribute("data-nomic")) return;
     if(t.id==="me_pin") return;
@@ -5249,7 +5232,7 @@ function renderNegocio(){
     return '<div class="fld"><label>'+lab+'</label>'
       +'<textarea class="meCampo" data-k="'+k+'" placeholder="'+esc(ph||"")+'" '
       +'style="min-height:'+(alto||64)+'px">'+esc(m[k]||"")+'</textarea>'
-      +(hayVoz()?'<div style="margin-top:4px">'+btnVoz("me_ta_"+k)+'</div>':'')+'</div>';
+      +'</div>';
   };
   var linea=function(lab,k,ph){
     return '<div class="fld"><label>'+lab+'</label>'
@@ -5310,6 +5293,7 @@ function renderNegocio(){
    +'<span id="meGuardado" style="font-size:12px;color:var(--muted)"></span></div>';
 
   box.innerHTML=h;
+  try{ ponerMicros(); }catch(e){}
   var deb;
   var guarda=function(){
     box.querySelectorAll(".meCampo").forEach(function(e){ state.me[e.getAttribute("data-k")]=e.value.trim(); });
