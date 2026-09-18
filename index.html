@@ -272,11 +272,13 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
     <div class="titlewrap"><div class="title"><h1>Friends Map</h1><small id="count"></small></div>
       <p class="lema"><span class="ver" id="verEt" title="Versión de la app">—</span> Todo el mundo quiere percibir que es <b>importante</b>, que <b>tiene éxito</b> y que recuerdan <b>su nombre</b>.</p></div>
     <div class="tabs">
-      <button data-tab="agenda" class="on">Agenda</button>
-      <button data-tab="fichas">Fichas</button>
-      <button data-tab="mapa">Mapa</button>
-      <button data-tab="negocio">Mi perfil</button>
+      <button data-tab="mapa" class="on">Mapa</button>
       <button data-tab="informe">Informe</button>
+      <button data-tab="agenda">Agenda</button>
+      <button data-tab="fichas">Fichas</button>
+      <button data-tab="negocio">Mi perfil</button>
+      <button data-tab="afinidad">Afinidad</button>
+      <button data-tab="sinergias">Sinergias</button>
     </div>
   </header>
 
@@ -297,16 +299,14 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
   <div id="qAviso" style="display:none"></div>
   <div id="aviso"></div>
-  <div id="view-agenda"><div id="agenda"></div></div>
+  <div id="view-agenda" style="display:none"><div id="agenda"></div></div>
   <div id="view-fichas" style="display:none"><div class="grid" id="cards"></div></div>
-  <div id="view-mapa" style="display:none">
+  <div id="view-mapa">
     <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
       <select id="modoMapa" style="width:auto;padding:6px 10px;font-size:13px">
-        <option value="personas">Mapa de personas</option>
-        <option value="circulos">Mapa por familias</option>
-        <option value="industrias">Mapa por sector</option>
-        <option value="sinergias">Sinergias entre fichas</option>
-        <option value="afinidad">Afinidad por objetivos</option>
+        <option value="personas" id="optPersonas">Mapa de personas</option>
+        <option value="circulos">Mapa por círculos</option>
+        <option value="industrias">Mapa por profesión</option>
       </select>
     </div>
     <div id="graphBox">
@@ -319,11 +319,11 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
       <div class="legend" id="legend"></div>
     </div>
     <div id="circulosBox" style="display:none"></div>
-    <div id="afinidadBox" style="display:none"></div>
-    <div id="sinergiasBox" style="display:none"></div>
     <p id="mapaHint" style="color:var(--muted);font-size:12.5px">Arrastra los nodos, rueda para acercar, clic en una persona para abrir su ficha. El color indica la categoría.</p>
   </div>
   <div id="view-negocio" style="display:none"><div id="negocio" class="inf-doc"></div></div>
+  <div id="view-afinidad" style="display:none"><div id="afinidadBox" class="inf-doc"></div></div>
+  <div id="view-sinergias" style="display:none"><div id="sinergiasBox" class="inf-doc"></div></div>
   <div id="view-informe" style="display:none">
     <div class="inf-op">
       <strong style="font-size:13px">Cuánta gente tienes, y de qué tipo</strong>
@@ -342,7 +342,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.18-62 · depurada";
+var VERSION="2026.09.18-63 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -398,7 +398,7 @@ function esF(p){ return p&&p.genero==="f"; }
 function EL(p){ return esF(p)?"ella":"él"; }
 function SU(p){ return esF(p)?"suya":"suyo"; }
 
-var state={ people:[], me:null, tab:"agenda", q:"", grupo:"", tipo:"", tipos:[], modoMapa:"personas", circExtra:[], tipoExtra:[], agenda:[] };
+var state={ people:[], me:null, tab:"mapa", q:"", grupo:"", tipo:"", tipos:[], modoMapa:"circulos", circExtra:[], tipoExtra:[], agenda:[] };
 var SEED=null;
 
 /* ---------- persistencia ---------- */
@@ -493,7 +493,7 @@ function nextAnniversary(s){
 function lower1(s){ s=String(s||"").trim(); return s?s.charAt(0).toLowerCase()+s.slice(1):""; }
 function newPerson(){
   var m={}; MOTS.forEach(function(x){ m[x[0]]={n:0,t:""}; });
-  return { id:uid(), tipo:"amigo", genero:"", nombre:"", apodo:"", ciudad:"", grupo:"", comoConocimos:"", politica:"",
+  return { id:uid(), tipo:"amigo", genero:"", nombre:"", apodo:"", ciudad:"", grupo:"", comoConocimos:"", politica:"", identidad:"",
     pareja:"", hijos:"", familia:"", empleo:"", empresa:"", sector:"",
     aficiones:"", deportes:"", musica:"", comida:"", temas:"", evitar:"",
     exito:"", admirado:"", importante:"", preocupa:"", fascina:"", ayuda:"", logros:"", estilo:"",
@@ -501,7 +501,7 @@ function newPerson(){
     meAporta:"", necesito:"", buscaDeMi:"", problema:"", presume:"", cebo:"", decisionCuesta:"", vestir:"", humor:"",
     nosUne:"", nosSepara:"", hitos:"", sies:"",
     pasos:[], discurso:"",
-    cumple:"", aniversario:"", ultimoContacto:"", frecuencia:90,
+    cumple:"", aniversario:"", ultimoContacto:"", frecuencia:30,
     mot:m, conexiones:[], notas:[], encuentros:[], maslowSel:[] };
 }
 function ensure(p){
@@ -514,7 +514,7 @@ function ensure(p){
     var base=String(p.tipo).split(/[·,\/]| y /)[0].trim().toLowerCase();
     p.tipo = TIPOS.some(function(t){return t[0]===base;}) ? base : "amigo";
   }
-  ["politica","genero","exito","admirado","importante","preocupa","fascina","ayuda","logros","estilo","sector","meAporta","necesito","buscaDeMi","problema","presume","cebo","decisionCuesta","vestir","humor","discurso","nosUne","nosSepara","hitos","sies","quienesImportan","queQuierenLosSuyos","gustosDeLosSuyos","gesto"]
+  ["politica","identidad","genero","exito","admirado","importante","preocupa","fascina","ayuda","logros","estilo","sector","meAporta","necesito","buscaDeMi","problema","presume","cebo","decisionCuesta","vestir","humor","discurso","nosUne","nosSepara","hitos","sies","quienesImportan","queQuierenLosSuyos","gustosDeLosSuyos","gesto"]
     .forEach(function(k){ if(p[k]==null) p[k]=""; });
   ["conexiones","notas","encuentros","pasos","maslowSel"].forEach(function(k){ if(!Array.isArray(p[k])) p[k]=[]; });
   return p;
@@ -1033,19 +1033,32 @@ function renderAfinidad(){
   }).join("");
   box.innerHTML=h;
 }
+/* El mapa de personas necesita sitio: en el móvil no se entiende, así que
+   solo se ofrece a partir de 820 px. Por defecto, el mapa por círculos. */
+function pantallaGrande(){ try{ return window.innerWidth>=820; }catch(e){ return true; } }
+function ajustaModosMapa(){
+  var op=document.getElementById("optPersonas");
+  if(!op) return;
+  if(pantallaGrande()){ op.disabled=false; op.hidden=false; }
+  else{
+    op.disabled=true; op.hidden=true;
+    if(state.modoMapa==="personas"){
+      state.modoMapa="circulos";
+      var mm=document.getElementById("modoMapa"); if(mm) mm.value="circulos";
+    }
+  }
+}
+window.ajustaModosMapa=ajustaModosMapa;
+
 function mapaRender(){
+  try{ ajustaModosMapa(); }catch(e){}
   var gb=document.getElementById("graphBox"), ab=document.getElementById("afinidadBox"),
       cb=document.getElementById("circulosBox"), sb=document.getElementById("sinergiasBox"),
       hint=document.getElementById("mapaHint");
-  var esCir=(state.modoMapa==="circulos"), esAfi=(state.modoMapa==="afinidad"), esSin=(state.modoMapa==="sinergias");
-  var otro=esCir||esAfi||esSin;
-  if(gb) gb.style.display=otro?"none":"";
-  if(hint) hint.style.display=otro?"none":"";
-  if(ab) ab.style.display=esAfi?"":"none";
+  var esCir=(state.modoMapa==="circulos");
+  if(gb) gb.style.display=esCir?"none":"";
+  if(hint) hint.style.display=esCir?"none":"";
   if(cb) cb.style.display=esCir?"":"none";
-  if(sb) sb.style.display=esSin?"":"none";
-  if(esAfi){ renderAfinidad(); return; }
-  if(esSin){ renderSinergias(); return; }
   if(esCir){ renderCirculos(); return; }
   buildGraph();
 }
@@ -1791,7 +1804,7 @@ function briefingDatos(){
   citasSem.sort(function(a,b){ return a.d-b.d; });
   /* a quién le toca: los más vencidos según su frecuencia */
   var toca=gente.map(function(p){
-    var f=parseInt(p.frecuencia,10)||90;
+    var f=parseInt(p.frecuencia,10)||30;
     var u=p.ultimoContacto?parseDate(p.ultimoContacto):null;
     var d=u?daysBetween(u,now):null;
     return {p:p, dias:d, freq:f, exceso:(d===null?-1:d-f)};
@@ -2085,7 +2098,7 @@ window.openEncuentro=openEncuentro;
 function nocheCandidatos(){
   var now=today(), out=[];
   (state.people||[]).forEach(function(p){
-    var f=parseInt(p.frecuencia,10)||90;
+    var f=parseInt(p.frecuencia,10)||30;
     var u=p.ultimoContacto?parseDate(p.ultimoContacto):null;
     var d=u?daysBetween(u,now):null;
     var exceso=(d===null)?-1:d-f;
@@ -2111,7 +2124,7 @@ function openNoche(salto){
   lsSet("nocheIdx",String(i));
   var x=lista[i], p=x.p;
   var motivo = x.exceso>=0
-      ? ('Hace <b>'+x.dias+' días</b> que no hablas con '+esc(EL(p))+', y te habías puesto cada '+(parseInt(p.frecuencia,10)||90)+'.')
+      ? ('Hace <b>'+x.dias+' días</b> que no hablas con '+esc(EL(p))+', y te habías puesto cada '+(parseInt(p.frecuencia,10)||30)+'.')
       : 'Esta ficha está vacía. Una línea ya la pone en marcha.';
   var pregunta=_gestoDe(p);
   var hh='<div style="text-align:center;margin-bottom:4px">'
@@ -2127,7 +2140,7 @@ function openNoche(salto){
    +'<div class="cols">'
    +'<div class="fld"><label>2 · ¿Cuándo fue?</label><input type="date" id="nc_fecha" value="'+todayStr()+'"></div>'
    +'<div class="fld"><label>3 · ¿Cada cuánto quieres verle?</label>'
-   +'<input type="number" min="1" id="nc_freq" value="'+(parseInt(p.frecuencia,10)||90)+'"></div></div>'
+   +'<input type="number" min="1" id="nc_freq" value="'+(parseInt(p.frecuencia,10)||30)+'"></div></div>'
    +'<div class="modal-actions">'
    +'<button class="btn" onclick="openNoche(1)">Otra persona →</button>'
    +'<button class="btn" onclick="openEdit(\''+p.id+'\')">Abrir su ficha</button>'
@@ -2755,7 +2768,7 @@ function openFeedback(pid,eid){
     +ta("Qué preguntarle la próxima vez","fb_proximo","")
     +'</div>'
     +'<div class="fld" style="max-width:280px"><label>Volver a verle dentro de (días)</label>'
-    +'<input type="number" id="fb_freq" min="1" value="'+(p.frecuencia||90)+'"></div>'
+    +'<input type="number" id="fb_freq" min="1" value="'+(p.frecuencia||30)+'"></div>'
     +'<div class="modal-actions"><button class="btn" id="cancel">Cancelar</button><button class="btn primary" id="ok">Guardar</button></div>';
   showModal(h);
   document.getElementById("cancel").onclick=closeModal;
@@ -2767,7 +2780,7 @@ function openFeedback(pid,eid){
     if(!e){ e={id:uid(),fecha:fecha,lugar:"",motivo:"encuentro",hecho:true,fb:fb}; p.encuentros.push(e); }
     else { e.fecha=fecha; e.hecho=true; e.fb=fb; }
     p.ultimoContacto=fecha;
-    p.frecuencia=parseInt(document.getElementById("fb_freq").value,10)||p.frecuencia||90;
+    p.frecuencia=parseInt(document.getElementById("fb_freq").value,10)||p.frecuencia||30;
     if(fb.preocupa) p.preocupa=fb.preocupa;
     if(fb.fascina) p.fascina=fb.fascina;
     if(fb.ayuda) p.ayuda=fb.ayuda;
@@ -3127,12 +3140,38 @@ function abrirProponer(){
 }
 
 /* ---------- editor ---------- */
+/* Crear una categoría sin salir de la ficha. El valor especial __nueva
+   abre el diálogo y, si se crea, se queda seleccionada. */
+function tipoSelChange(sel){
+  if(!sel || sel.value!=="__nueva") return;
+  sel.value = sel.getAttribute("data-prev") || "amigo";
+  var n=prompt("Nombre de la categoría nueva (ej.: Vecinos, Clientes, Padel):","");
+  if(n===null) return;
+  n=String(n).trim(); if(!n) return;
+  if(TIPOS.some(function(t){ return t[1].toLowerCase()===n.toLowerCase(); })){
+    alert("Ya tienes una categoría que se llama «"+n+"»."); return;
+  }
+  var amb = confirm("¿Es una categoría PROFESIONAL?\n\nAceptar = profesional · Cancelar = personal")
+            ? "profesional" : "personal";
+  var col=PALETA_TIPOS[tiposExtra().length%PALETA_TIPOS.length];
+  var id=idDeTipo(n);
+  tiposExtra().push({id:id, nombre:n, color:col, amb:amb});
+  reconstruyeTipos(); save(); renderSeg();
+  /* repintamos el desplegable con la nueva ya elegida */
+  var opts=TIPOS.map(function(t){ return '<option value="'+t[0]+'"'+(t[0]===id?" selected":"")+'>'+esc(t[1])+'</option>'; }).join("")
+    + '<option value="__nueva">+ Crear una categoría nueva…</option>';
+  sel.innerHTML=opts; sel.value=id;
+  sel.dispatchEvent(new Event("input",{bubbles:true}));
+  toast("Categoría «"+n+"» creada");
+}
+window.tipoSelChange=tipoSelChange;
+
 function openEdit(id){
   var p=id?ensure(byId(id)):newPerson(),isNew=!id;
   if(!p) return;
   var others=state.people.filter(function(x){return x.id!==p.id;})
     .sort(function(a,b){return (a.nombre||"").localeCompare(b.nombre||"");});
-  var h='<div style="display:flex;gap:6px;align-items:center;margin:0 0 10px"><button class="btn sm" id="toFichas">← Todas las fichas</button><button class="btn sm" id="toMapa">Ver el mapa</button><span id="fichaGuardado" style="font-size:12px;color:var(--muted);margin-left:auto"></span></div>'
+  var h='<div style="display:flex;gap:6px;align-items:center;margin:0 0 10px"><button class="btn sm" id="toFichas">← Todas las fichas</button><button class="btn sm" id="toMapa">Ver el mapa</button>'+(isNew?'':'<button class="btn sm" type="button" onclick="verEscena(\''+p.id+'\')" title="Un retrato con lo que sabes de esta persona">🐱 Su retrato</button>')+'<span id="fichaGuardado" style="font-size:12px;color:var(--muted);margin-left:auto"></span></div>'
     +'<h2>'+(isNew?"Nueva persona":esc(p.nombre||"Ficha"))+'</h2>'
     +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 14px">'
     +(isNew?'Con el nombre y la categoría ya se guarda. Lo demás, cuando lo vayas sabiendo.'
@@ -3148,6 +3187,8 @@ function openEdit(id){
     +(iaActiva()?'<label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-top:8px"><input type="checkbox" id="f_iaOff" style="width:auto"'+(p.iaOff?" checked":"")+'> No enviar esta ficha a la IA (mantenerla más privada)</label>':'')
     +'</fieldset>';
   h+='<fieldset style="border-color:#d99b2b"><legend style="color:#d99b2b">Gustos e intereses</legend>'
+    +fld("Política y temas sensibles","politica",p.politica,"ta")
+    +'<p style="color:var(--muted);font-size:11.5px;margin:-6px 0 4px">Para saber por dónde no pisar, no para clasificar a nadie. Vive solo en tu dispositivo.</p>'
     +fld("Aficiones (separadas por comas)","aficiones",p.aficiones)
     +'<div class="cols">'+fld("Deporte / equipo","deportes",p.deportes)+fld("Música","musica",p.musica)
     +fld("Comida y bebida","comida",p.comida)+fld("Temas que le encienden","temas",p.temas)+'</div>'
@@ -3160,13 +3201,20 @@ function openEdit(id){
   h+='<fieldset style="border-color:#4a6fa5"><legend style="color:#4a6fa5">Básico</legend>'
     +'<div class="cols">'+fld("Nombre","nombre",p.nombre)+fld("C\u00f3mo le gusta que le llamen","apodo",p.apodo)+'</div>'
     +'<div class="cols">'
-    +'<div class="fld"><label>Categoría</label><select id="f_tipo">'
+    +'<div class="fld"><label>Categoría</label><select id="f_tipo" onchange="tipoSelChange(this)">'
     +TIPOS.map(function(t){return '<option value="'+t[0]+'"'+(p.tipo===t[0]?" selected":"")+'>'+t[1]+'</option>';}).join("")
+    +'<option value="__nueva">+ Crear una categoría nueva…</option>'
     +'</select></div>'
-    +'<div class="fld"><label>Trato (para los pronombres del guión)</label><select id="f_genero">'
+    +'<div class="fld"><label>Pronombre (para el guión)</label><select id="f_genero">'
     +'<option value=""'+(!p.genero?" selected":"")+'>Sin marcar</option>'
     +'<option value="m"'+(p.genero==="m"?" selected":"")+'>Él</option>'
-    +'<option value="f"'+(p.genero==="f"?" selected":"")+'>Ella</option></select></div>'
+    +'<option value="f"'+(p.genero==="f"?" selected":"")+'>Ella</option>'
+    +'<option value="n"'+(p.genero==="n"?" selected":"")+'>Elle · neutro</option></select></div>'
+    +'<div class="fld"><label>Identidad (opcional)</label><select id="f_identidad">'
+    + ["","No binario","Género fluido","Transgénero","Gay","Lesbiana","Bisexual","Otra"].map(function(v){
+        return '<option value="'+esc(v)+'"'+(((p.identidad||"")===v)?" selected":"")+'>'+(v||"Sin marcar")+'</option>'; }).join("")
+    +'</select></div>'
+    +'<p style="color:var(--muted);font-size:11.5px;margin:-6px 0 0">Solo si te ayuda a tratarle bien. No cambia el pronombre del guión, que se elige arriba. Es un dato sensible: vive únicamente en tu dispositivo.</p>'
     +fld("Círculo (equipo, barrio, familia…)","grupo",p.grupo)+'</div>'
     +fld("Cómo os conocisteis","comoConocimos",p.comoConocimos,"ta")
     +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2;margin:18px 0 7px;padding-top:11px;border-top:1px solid var(--line)">Fechas y ritmo</div>'
@@ -3177,7 +3225,7 @@ function openEdit(id){
     +'</div>'
     +'<p style="color:var(--muted);font-size:11.5px;margin:-2px 0 8px">La próxima cita alimenta el aviso de las mañanas: el día antes te preparo el guión y busco noticias.</p>'
     +'<div class="fld" style="max-width:260px"><label>Recordar cada (días)</label>'
-    +'<input type="number" min="1" id="f_frecuencia" value="'+(p.frecuencia||90)+'"></div>'
+    +'<input type="number" min="1" id="f_frecuencia" value="'+(p.frecuencia||30)+'"></div>'
     +'</fieldset>';
   if(isNew){
     h+='<fieldset style="border-color:#6d7a8c"><legend style="color:#6d7a8c">Anotar algo de hoy</legend>'
@@ -3202,8 +3250,6 @@ function openEdit(id){
     +'<div class="cols">'
     +fld("Ciudad","ciudad",p.ciudad)+fld("Sector / ámbito","sector",p.sector)
     +fld("Empleo / puesto","empleo",p.empleo)+fld("Empresa","empresa",p.empresa)+'</div>'
-    +fld("Política y temas sensibles","politica",p.politica,"ta")
-    +'<p style="color:var(--muted);font-size:11.5px;margin:-6px 0 0">Para saber por dónde no pisar, no para clasificar a nadie. Vive solo en tu dispositivo.</p>'
     +'</fieldset>';
   h+='<fieldset style="border-color:#7a5bd0"><legend style="color:#7a5bd0">Su gente</legend>'
     +'<p style="color:var(--muted);font-size:12px;margin:0 0 10px">Nadie se abre tanto hablando de sí mismo como hablando de los suyos. Y casi nadie le pregunta por ellos.</p>'
@@ -3234,7 +3280,6 @@ function openEdit(id){
     +fld("¿Por qué le gustaría sentirse admirado, y por quién?","admirado",p.admirado,"ta")
     +fld("¿Qué le hace sentir importante?","importante",p.importante,"ta")
     +'<button class="btn" type="button" id="proponer">Proponer hipótesis según su perfil</button> '
-    +(isNew?'':'<button class="btn" type="button" onclick="verEscena(\''+p.id+'\')">Generar imagen</button>')
     +'<p style="color:var(--muted);font-size:11.5px;margin:8px 0 0">Lo que proponga son conjeturas para confirmar preguntando, nunca datos. Si te las crees sin comprobarlas, te construyes una persona que no existe.</p>'
     +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2;margin:18px 0 7px;padding-top:11px;border-top:1px solid var(--line)">Qué le mueve</div>'
     +'<p style="color:var(--muted);font-size:12px;margin:0 0 10px">Importancia de 0 a 3 y el detalle concreto: no es lo mismo «dinero» que «ahorra para la entrada de un piso».</p>'
@@ -3306,6 +3351,9 @@ function openEdit(id){
   };
   var tf=document.getElementById("toFichas"); if(tf) tf.onclick=function(){ volver("fichas"); };
   var tm=document.getElementById("toMapa"); if(tm) tm.onclick=function(){ volver("mapa"); };
+  var st=document.getElementById("f_tipo");
+  if(st){ st.setAttribute("data-prev",st.value);
+    st.addEventListener("change",function(){ if(st.value!=="__nueva") st.setAttribute("data-prev",st.value); }); }
   var d=document.getElementById("del");
   if(d) d.onclick=function(){
     if(!confirm("¿Eliminar a "+(p.nombre||"esta persona")+"?")) return;
@@ -3885,7 +3933,7 @@ function fld(label,key,val,type){
   return '<div class="fld"><label>'+label+'</label><input type="'+(type==="date"?"date":"text")+'" id="f_'+key+'" value="'+esc(val)+'"></div>';
 }
 function leerCampos(p){
-  ["nombre","apodo","ciudad","grupo","sector","comoConocimos","politica","pareja","hijos","familia","empleo","empresa",
+  ["nombre","apodo","ciudad","grupo","sector","comoConocimos","politica","identidad","pareja","hijos","familia","empleo","empresa",
    "exito","admirado","importante","preocupa","fascina","ayuda","logros","quienesImportan","queQuierenLosSuyos","gustosDeLosSuyos","gesto",
    "aficiones","deportes","musica","comida","temas","evitar","estilo","vestir","humor","presume","decisionCuesta",
    "cumple","aniversario","ultimoContacto",
@@ -5322,16 +5370,18 @@ function setTab(t){
   state.tab=t;
   document.querySelectorAll(".tabs button").forEach(function(b){ b.classList.toggle("on",b.dataset.tab===t); });
   /* el buscador y los filtros solo pintan donde sirven */
-  var conFiltro=(t==="fichas"||t==="mapa"||t==="informe");
+  var conFiltro=(t==="fichas"||t==="mapa"||t==="informe"||t==="sinergias");
   var seg=document.getElementById("seg"), tb=document.querySelector(".toolbar");
   if(seg) seg.style.display=conFiltro?"":"none";
   if(tb) tb.style.display=(t==="negocio")?"none":"";
-  ["agenda","fichas","mapa","negocio","informe"].forEach(function(k){
+  ["mapa","informe","agenda","fichas","negocio","afinidad","sinergias"].forEach(function(k){
     var v=document.getElementById("view-"+k); if(v) v.style.display=(k===t?"":"none");
   });
   if(t==="mapa") mapaRender();
   if(t==="negocio") renderNegocio();
   if(t==="agenda") renderAgenda();
+  if(t==="afinidad"){ try{ renderAfinidad(); }catch(e){} }
+  if(t==="sinergias"){ try{ renderSinergias(); }catch(e){} }
   if(t==="informe") renderInforme();
   try{ tel("screen",{tab:t}); }catch(e){}
 }
