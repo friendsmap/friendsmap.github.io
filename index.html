@@ -146,6 +146,10 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 .nx{border:0;background:transparent;color:#b8c2d0;cursor:pointer;font-size:12px;padding:2px 5px;border-radius:6px;line-height:1}
 .nx:hover{background:var(--accent-soft);color:var(--accent)}
 .modal-actions.barra{justify-content:flex-start}
+.pad{transition:transform .12s ease,box-shadow .12s ease}
+.pad:active{transform:scale(.985)}
+@media (prefers-reduced-motion:no-preference){.pad{animation:padIn .5s ease both}}
+@keyframes padIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .pt{flex:none;width:10px;height:10px;border-radius:50%;margin-right:2px;align-self:center}
 .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
 .multi{display:flex;flex-wrap:wrap;gap:6px;border:1px solid var(--line);border-radius:8px;padding:7px;background:#fff;max-height:120px;overflow:auto}
@@ -273,12 +277,12 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
       <p class="lema"><span class="ver" id="verEt" title="Versión de la app">—</span> Todo el mundo quiere percibir que es <b>importante</b>, que <b>tiene éxito</b> y que recuerdan <b>su nombre</b>.</p></div>
     <div class="tabs">
       <button data-tab="mapa" class="on">Mapa</button>
-      <button data-tab="informe">Informe</button>
       <button data-tab="agenda">Agenda</button>
       <button data-tab="fichas">Fichas</button>
-      <button data-tab="negocio">Mi perfil</button>
       <button data-tab="afinidad">Afinidad</button>
       <button data-tab="sinergias">Sinergias</button>
+      <button data-tab="informe">Informe</button>
+      <button data-tab="negocio">Mi perfil</button>
     </div>
   </header>
 
@@ -286,7 +290,6 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
   <div class="toolbar">
     <form class="buscador" autocomplete="off" onsubmit="return false"><span class="lupa">⌕</span><input type="search" id="q" name="buscar_personas" placeholder="Buscar persona, interés, empleo, ciudad…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="search" enterkeyhint="search" data-lpignore="true" data-1p-ignore data-bwignore data-form-type="other"><button class="btnx" id="qclear" title="Limpiar" aria-label="Limpiar">✕</button></form>
-    <select id="fGrupo"><option value="">Todos los círculos</option></select>
     <button class="btn primary" id="add">+ Persona</button>
     <button class="btn" id="meBtn">Mi perfil</button>
     <button class="btn" id="syncBtn">Sincronizar</button>
@@ -314,7 +317,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
       <div style="position:absolute;left:10px;bottom:8px;font-size:11px;color:var(--muted);background:rgba(255,255,255,.82);border-radius:6px;padding:3px 8px;pointer-events:none">Pellizca para acercar · arrastra para mover</div>
       <div class="mapctl">
         <button class="btn sm" id="reflow">Reordenar</button>
-        <label class="chip"><input type="checkbox" id="byGroup" style="width:auto" checked> unir por círculo</label>
+        <label class="chip"><input type="checkbox" id="byGroup" style="width:auto" checked> unir por categoría</label>
       </div>
       <div class="legend" id="legend"></div>
     </div>
@@ -342,7 +345,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.18-63 · depurada";
+var VERSION="2026.09.19-64 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -398,7 +401,7 @@ function esF(p){ return p&&p.genero==="f"; }
 function EL(p){ return esF(p)?"ella":"él"; }
 function SU(p){ return esF(p)?"suya":"suyo"; }
 
-var state={ people:[], me:null, tab:"mapa", q:"", grupo:"", tipo:"", tipos:[], modoMapa:"circulos", circExtra:[], tipoExtra:[], agenda:[] };
+var state={ people:[], me:null, tab:"mapa", q:"", grupo:"", tipo:"", tipos:[], modoMapa:"personas", circExtra:[], tipoExtra:[], agenda:[] };
 var SEED=null;
 
 /* ---------- persistencia ---------- */
@@ -1085,7 +1088,7 @@ function renderSinergias(){
     if(!a.w.length||!b.w.length) continue;
     var comunes=a.w.filter(function(w){ return b.w.indexOf(w)>=0; });
     if(comunes.length<2) continue;
-    var mismoGrupo=(a.p.grupo||"")===(b.p.grupo||"") && !!a.p.grupo;
+    var mismoGrupo=(a.p.tipo||"")===(b.p.tipo||"") && !!a.p.tipo;
     pares.push({a:a.p, b:b.p, com:comunes, n:comunes.length, mismoGrupo:mismoGrupo});
   }
   pares.sort(function(x,y){ return y.n-x.n; });
@@ -1117,7 +1120,10 @@ function renderSinergias(){
 }
 /* ---------- Mapa por círculos: radial y agrupado por familias ---------- */
 var CIRC={x:0,y:0,k:1,orden:null};
-function circGrupo(p){ return (p.grupo||"").trim() || (esNegocio(p)?"Trabajo":"Sin círculo"); }
+/* El círculo ya no es un campo aparte: es la categoría de la persona.
+   Lo que hubiera escrito antes en «grupo» se conserva en los datos y el
+   buscador lo sigue encontrando, pero ya no agrupa. */
+function circGrupo(p){ return tipoLabel(p.tipo||"amigo"); }
 function circColor(nombre,i){
   var pal=["#8c5aa8","#2f9d78","#4a6fa5","#ff6b5e","#d99b2b","#20b6a6","#c0468a","#5a8f3a","#9c6b3f","#3f7d9c","#6a4c93","#e2543f"];
   var h=0; for(var j=0;j<nombre.length;j++) h=(h*31+nombre.charCodeAt(j))>>>0;
@@ -1454,8 +1460,9 @@ function circAmbitoDeclarado(k){
   var e=circExtras().filter(function(x){ return x.n===k; })[0];
   return e?e.amb:null;
 }
-function circGente(k){ return state.people.filter(function(p){ return (p.grupo||"").trim()===k; }); }
-function nuevoCirculo(amb){
+function circGente(k){ return state.people.filter(function(p){ return circGrupo(p)===k; }); }
+function nuevoCirculo(amb){ return nuevoTipo(amb); }
+function _nuevoCirculoViejo(amb){
   var n=prompt(amb==="profesional"
     ? "Nombre del nuevo círculo profesional (cliente, feria, sector…)"
     : "Nombre del nuevo círculo personal (barrio, equipo, colegio…)");
@@ -1471,6 +1478,12 @@ function nuevoCirculo(amb){
   toast("Círculo «"+n+"» creado. Ya puedes asignarlo en la ficha de cualquiera.");
 }
 function borrarCirculo(k){
+  var t=TIPOS.filter(function(x){ return x[1]===k; })[0];
+  if(!t){ toast("Ese círculo ya no existe"); return; }
+  if(esTipoBase(t[0])){ toast("«"+k+"» es una categoría de las de serie: no se borra"); return; }
+  return borrarTipo(t[0]);
+}
+function _borrarCirculoViejo(k){
   var gente=circGente(k), ex=circExtras().filter(function(x){ return x.n===k; }).length>0;
   if(gente.length){
     if(!confirm("«"+k+"» tiene "+gente.length+" persona"+(gente.length===1?"":"s")+".\n\n"
@@ -1987,7 +2000,6 @@ function copiarBriefing(){
 window.copiarBriefing=copiarBriefing;
 function verATodos(){ state.tipos=[]; state.grupo=""; state.q="";
   var q=document.getElementById("q"); if(q) q.value="";
-  var g=document.getElementById("fGrupo"); if(g) g.value="";
   try{ renderSeg(); }catch(e){} renderAll(); }
 window.verATodos=verATodos;
 
@@ -2184,16 +2196,19 @@ function renderAgenda(){
   var sinPlan=filtered().filter(function(p){ return esNegocio(p)&&!p.necesito; });
   /* 1º los botones, 2º el briefing, 3º todo lo demás */
   var _pend=(function(){ try{ return nocheCandidatos().length; }catch(e){ return 0; } })();
-  var h='<button onclick="openNoche(0)" style="width:100%;border:0;cursor:pointer;text-align:left;'
-   +'background:linear-gradient(120deg,#f2f0fc,#eae5fa);'
-   +'border-radius:14px;padding:13px 16px;margin:0 0 12px;display:flex;align-items:center;gap:12px">'
-   +'<span style="font-size:22px;line-height:1">🔄</span>'
-   +'<span style="flex:1">'
-   +'<span style="display:block;font-size:14px;font-weight:700;color:#3b2f63">Poner al día</span>'
-   +'<span style="display:block;font-size:11.5px;margin-top:2px;color:#6a5e93">'
-   +(_pend?'<b>'+_pend+'</b> ficha'+(_pend===1?'':'s')+' esperando. Una persona, tres campos, treinta segundos.'
-          :'Repasa una ficha en treinta segundos.')+'</span></span>'
-   +'<span style="font-size:18px;color:#8a7bbd">›</span></button>';
+  var h='<button onclick="openNoche(0)" class="pad" style="width:100%;border:0;cursor:pointer;text-align:left;'
+   +'background:linear-gradient(115deg,#7b4bd8 0%,#9b5de5 45%,#20b6a6 100%);'
+   +'border-radius:16px;padding:16px 18px;margin:0 0 14px;display:flex;align-items:center;gap:14px;'
+   +'box-shadow:0 6px 18px rgba(123,75,216,.32)">'
+   +'<span style="flex:none;width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.22);'
+   +'display:flex;align-items:center;justify-content:center;font-size:22px;line-height:1">⚡</span>'
+   +'<span style="flex:1;min-width:0">'
+   +'<span style="display:block;font-size:16.5px;font-weight:800;color:#fff;letter-spacing:-.2px">Poner al día</span>'
+   +'<span style="display:block;font-size:12px;margin-top:3px;color:rgba(255,255,255,.88)">'
+   +(_pend?'Una persona, tres campos, treinta segundos.':'Repasa una ficha en treinta segundos.')+'</span></span>'
+   +(_pend?'<span style="flex:none;background:#fff;color:#7b4bd8;font-weight:800;font-size:14px;'
+          +'border-radius:99px;min-width:30px;padding:3px 10px;text-align:center">'+_pend+'</span>':'')
+   +'<span style="flex:none;font-size:20px;color:rgba(255,255,255,.8)">›</span></button>';
   h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px">'
    +'<button class="btn primary" onclick="openCitaNueva(\'cita\')">📅 + Cita</button>'
    +'<button class="btn" onclick="openCitaNueva(\'alarma\')">⏰ + Alarma</button></div>';
@@ -3215,7 +3230,7 @@ function openEdit(id){
         return '<option value="'+esc(v)+'"'+(((p.identidad||"")===v)?" selected":"")+'>'+(v||"Sin marcar")+'</option>'; }).join("")
     +'</select></div>'
     +'<p style="color:var(--muted);font-size:11.5px;margin:-6px 0 0">Solo si te ayuda a tratarle bien. No cambia el pronombre del guión, que se elige arriba. Es un dato sensible: vive únicamente en tu dispositivo.</p>'
-    +fld("Círculo (equipo, barrio, familia…)","grupo",p.grupo)+'</div>'
+    +'</div>'
     +fld("Cómo os conocisteis","comoConocimos",p.comoConocimos,"ta")
     +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2;margin:18px 0 7px;padding-top:11px;border-top:1px solid var(--line)">Fechas y ritmo</div>'
     +'<div class="cols3">'
@@ -5109,13 +5124,8 @@ function renderInforme(){
   var hoy=new Date().toLocaleDateString("es-ES",{day:"numeric",month:"long",year:"numeric"});
 
   /* recuento por ámbito (Personal / Profesional) y, dentro, por categoría */
-  var porTipo={}, porCirculo={}, sinCirculo=0;
-  list.forEach(function(p){
-    var t=p.tipo||"amigo";
-    porTipo[t]=(porTipo[t]||0)+1;
-    var g=(p.grupo||"").trim();
-    if(g) porCirculo[g]=(porCirculo[g]||0)+1; else sinCirculo++;
-  });
+  var porTipo={};
+  list.forEach(function(p){ var t=p.tipo||"amigo"; porTipo[t]=(porTipo[t]||0)+1; });
 
   var h='<div class="inf-h1">Friends Map · Informe</div>'
    +'<div class="inf-meta">'+esc(hoy)+' · '+list.length+' de '+state.people.length+' personas</div>';
@@ -5142,27 +5152,6 @@ function renderInforme(){
     });
     h+='</div>';
   });
-
-  /* --- por círculo --- */
-  var circs=Object.keys(porCirculo).sort(function(a,b){ return porCirculo[b]-porCirculo[a]; });
-  h+='<div class="sec-title">Por círculo</div>';
-  if(!circs.length && !sinCirculo){
-    h+='<div class="empty">Nadie todavía.</div>';
-  }else{
-    h+='<div style="border:1px solid var(--line);border-radius:12px;padding:12px 14px">';
-    circs.forEach(function(g){
-      var n=porCirculo[g], pct=list.length?Math.round(n/list.length*100):0;
-      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'
-       +'<span style="flex:1;font-size:12.5px">'+esc(g)+'</span>'
-       +'<span style="width:120px;background:#eef1f5;border-radius:99px;height:7px;overflow:hidden">'
-       +'<span style="display:block;background:#4a6fa5;height:7px;width:'+pct+'%"></span></span>'
-       +'<span style="width:34px;text-align:right;font-size:12.5px;font-weight:700">'+n+'</span></div>';
-    });
-    if(sinCirculo) h+='<div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);'
-       +'border-top:1px solid var(--line);margin-top:7px;padding-top:7px">'
-       +'<span>Sin círculo asignado</span><b>'+sinCirculo+'</b></div>';
-    h+='</div>';
-  }
 
   h+='<p style="font-size:11.5px;color:var(--muted);margin:12px 0 0">El recuento respeta los filtros de arriba. '
    +'Para imprimirlo o guardarlo en PDF, usa la opción de imprimir del navegador.</p>';
@@ -5263,14 +5252,11 @@ function renderSeg(){
   if(lt) lt.onclick=function(){ state.tipos=[]; state.grupo=""; renderSeg(); renderAll(); };
 }
 function renderAll(){
-  var sel=document.getElementById("fGrupo"),cur=state.grupo;
-  sel.innerHTML='<option value="">Todos los círculos</option>'
-    +grupos().map(function(g){return '<option'+(g===cur?" selected":"")+'>'+esc(g)+'</option>';}).join("");
   var n=filtered().length,tot=state.people.length;
   document.getElementById("count").textContent=tot?(tiposActivos().length?n+" de "+tot+" personas":tot+" personas"):"";
   try{ pintaAvisoBusqueda(); }catch(e){}
   renderCards(); renderCitas(); renderAgenda(); try{ revisarAvisos(); }catch(e){}
-  if(state.tab==="mapa") buildGraph();
+  if(state.tab==="mapa") mapaRender();
   if(state.tab==="informe") renderInforme();
 }
 function renderNegocio(){
@@ -5335,10 +5321,12 @@ function renderNegocio(){
    +campo("Competencia de mis proveedores","negCompetencia","")
    +'</details>';
 
-  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;position:sticky;bottom:0;'
+   +'background:linear-gradient(180deg,rgba(255,255,255,0),#fff 35%);padding:12px 0 6px;margin-top:6px">'
+   +'<button class="btn primary" id="meGuardar">Guardar</button>'
    +'<button class="btn" onclick="openSync()">Sincronizar y copias</button>'
    +'<button class="btn" onclick="openComentarios()">💬 Comentarios</button>'
-   +'<span id="meGuardado" style="font-size:12px;color:var(--muted)"></span></div>';
+   +'<span id="meGuardado" style="font-size:12px;color:var(--muted)">Se guarda solo mientras escribes</span></div>';
 
   box.innerHTML=h;
   try{ ponerMicros(); }catch(e){}
@@ -5355,6 +5343,8 @@ function renderNegocio(){
       clearTimeout(deb); deb=setTimeout(function(){ guarda(); pintaAfinidadPerfil(); },700);
     });
   });
+  var bg=document.getElementById("meGuardar");
+  if(bg) bg.onclick=function(){ clearTimeout(deb); guarda(); pintaAfinidadPerfil(); toast("Perfil guardado"); };
 }
 function pintaAfinidadPerfil(){
   try{
@@ -5374,7 +5364,7 @@ function setTab(t){
   var seg=document.getElementById("seg"), tb=document.querySelector(".toolbar");
   if(seg) seg.style.display=conFiltro?"":"none";
   if(tb) tb.style.display=(t==="negocio")?"none":"";
-  ["mapa","informe","agenda","fichas","negocio","afinidad","sinergias"].forEach(function(k){
+  ["mapa","agenda","fichas","afinidad","sinergias","informe","negocio"].forEach(function(k){
     var v=document.getElementById("view-"+k); if(v) v.style.display=(k===t?"":"none");
   });
   if(t==="mapa") mapaRender();
@@ -5495,7 +5485,6 @@ function limpiarBusqueda(reRender){
 }
 window.limpiarBusqueda=limpiarBusqueda;
 document.getElementById("qclear").onclick=function(){ var q=document.getElementById("q"); limpiarBusqueda(); q.focus(); };
-document.getElementById("fGrupo").onchange=function(e){ state.grupo=e.target.value; renderAll(); };
 document.getElementById("add").onclick=function(){ openEdit(null); };
 document.getElementById("meBtn").onclick=function(){ setTab("negocio"); };
 document.getElementById("syncBtn").onclick=sincronizarYa;
@@ -5516,6 +5505,7 @@ window.addEventListener("resize",function(){ if(state.tab==="mapa"){ G.alpha=0.3
 initGraphEvents();
 /* Las categorías propias se registran aquí, con todo ya cargado. */
 try{ reconstruyeTipos(); renderSeg(); }catch(e){}
+try{ ajustaModosMapa(); }catch(e){}
 try{ sembrarMisTextos(); }catch(e){}
 try{ limpiarBusqueda(false); }catch(e){}
 renderAll();
