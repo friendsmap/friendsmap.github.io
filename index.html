@@ -220,6 +220,16 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
   .legend{position:static;padding:0 8px 8px}
 }
 .inf-doc{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:28px 32px;max-width:820px;margin:0 auto}
+@media(max-width:640px){
+  .inf-doc{padding:14px 12px;border-radius:12px}
+  #negocio fieldset{padding:12px 11px;margin-bottom:14px}
+  #negocio legend{font-size:13px}
+  #negocio h2{font-size:19px;line-height:1.25}
+  #negocio label{font-size:13px}
+  #negocio textarea{font-size:16px;line-height:1.55;padding:11px 12px}
+  #negocio input[type=text]{font-size:16px;padding:11px 12px}
+  #negocio .fld{margin-bottom:12px}
+}
 .inf-h1{font-size:24px;font-weight:680;margin:0 0 2px}
 .inf-meta{color:var(--muted);font-size:12.5px;margin-bottom:18px}
 .inf-kpis{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
@@ -345,7 +355,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.19-64 · depurada";
+var VERSION="2026.09.20-65 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -2941,9 +2951,40 @@ function escenaSVG(p){
    +'.n{font-size:26px;font-weight:bold;fill:#fff;letter-spacing:.02em}'
    +'.q{font-size:16px;font-style:italic}'
    +'</style></defs>'
-   +'<rect width="900" height="900" fill="#1e2a3a"/>'
-   +'<rect x="0" y="600" width="900" height="300" fill="#2c3a48"/>'
-   +'<rect x="0" y="596" width="900" height="10" fill="#223140"/>'
+   /* --- el despacho: pared de madera, ventana con luz cálida y mesa --- */
+   +'<defs>'
+   +'<linearGradient id="pared" x1="0" y1="0" x2="0" y2="1">'
+   +'<stop offset="0" stop-color="#4a3b2e"/><stop offset="1" stop-color="#33281f"/></linearGradient>'
+   +'<linearGradient id="mesa" x1="0" y1="0" x2="0" y2="1">'
+   +'<stop offset="0" stop-color="#8a5a33"/><stop offset="1" stop-color="#5e3b20"/></linearGradient>'
+   +'<linearGradient id="luz" x1="0" y1="0" x2="1" y2="1">'
+   +'<stop offset="0" stop-color="#ffe9b8" stop-opacity=".55"/>'
+   +'<stop offset="1" stop-color="#ffe9b8" stop-opacity="0"/></linearGradient>'
+   +'<radialGradient id="vineta" cx="50%" cy="42%" r="72%">'
+   +'<stop offset="55%" stop-color="#000" stop-opacity="0"/>'
+   +'<stop offset="100%" stop-color="#000" stop-opacity=".45"/></radialGradient>'
+   +'</defs>'
+   +'<rect width="900" height="900" fill="url(#pared)"/>'
+   /* listones de la pared */
+   +[0,150,300,450,600,750].map(function(x){
+       return '<rect x="'+x+'" y="0" width="3" height="600" fill="#000" opacity=".14"/>'; }).join("")
+   /* ventana a la izquierda, con la luz entrando en diagonal */
+   +'<g opacity=".9"><rect x="28" y="52" width="150" height="196" rx="4" fill="#c9dcea" opacity=".5"/>'
+   +'<rect x="28" y="52" width="150" height="196" rx="4" fill="none" stroke="#3a2d23" stroke-width="0"/>'
+   +'<rect x="99" y="52" width="6" height="196" fill="#3a2d23"/>'
+   +'<rect x="28" y="146" width="150" height="6" fill="#3a2d23"/>'
+   +'<rect x="22" y="46" width="162" height="208" rx="5" fill="none" stroke="#3a2d23" stroke-width="10"/></g>'
+   +'<path d="M184 70 L470 0 L720 0 L300 600 L60 600 Z" fill="url(#luz)"/>'
+   /* rodapié y tablero de la mesa */
+   +'<rect x="0" y="582" width="900" height="22" fill="#2a211a"/>'
+   +'<rect x="0" y="600" width="900" height="300" fill="url(#mesa)"/>'
+   +'<rect x="0" y="600" width="900" height="12" fill="#a9703f" opacity="0"/>'
+   +'<rect x="0" y="600" width="900" height="9" fill="#a9703f"/>'
+   /* veta de la madera */
+   +[628,664,700,742,788,836].map(function(y){
+       return '<path d="M0 '+y+' Q 230 '+(y-7)+' 460 '+y+' T 900 '+(y-4)+'" stroke="#000" stroke-opacity=".13" stroke-width="2" fill="none"/>'; }).join("")
+   /* sombra de los objetos sobre el tablero */
+   +'<ellipse cx="450" cy="614" rx="430" ry="16" fill="#000" opacity=".22"/>'
    // cuadro grande: en qué quiere tener éxito
    +'<g><rect x="452" y="60" width="416" height="252" fill="#efe9dd" stroke="#c9a961" stroke-width="9"/>'
    +'<text x="480" y="104" class="t s">EN QUÉ QUIERE TENER ÉXITO</text>'
@@ -2960,10 +3001,11 @@ function escenaSVG(p){
    +'<text x="58" y="248" class="t s">QUERRÍA QUE LE ADMIRARAN POR</text>'
    +txtSVG(adm,58,278,28,4,"t q",23,300,16)+'</g>'
    // placa con el nombre
-   +'<g><rect x="250" y="690" width="400" height="86" fill="#8f9294" stroke="#6f7274" stroke-width="4"/>'
-   +'<rect x="258" y="698" width="384" height="70" fill="'+col+'"/>'
-   +'<text x="450" y="732" class="t n" text-anchor="middle">'+esc(recorta(pinceladaDe(p),30))+'</text>'
-   +'<text x="450" y="756" class="t s" text-anchor="middle" style="fill:#f6efe6">UN RASGO SUYO</text></g>'
+   /* placa de sobremesa, centrada y sin pisar la taza ni el libro */
+   +'<g><rect x="286" y="812" width="330" height="74" rx="3" fill="#8f9294" stroke="#6f7274" stroke-width="4"/>'
+   +'<rect x="294" y="820" width="314" height="58" rx="2" fill="'+col+'"/>'
+   +'<text x="451" y="846" class="t n" text-anchor="middle" style="font-size:20px">'+esc(recorta(pinceladaDe(p),24))+'</text>'
+   +'<text x="451" y="868" class="t s" text-anchor="middle" style="fill:#f6efe6;font-size:10.5px">UN RASGO SUYO</text></g>'
    // taza con lo que le fascina
    +'<g transform="translate(70,660)">'
    +'<rect x="0" y="0" width="186" height="132" rx="14" fill="#efe9dd"/>'
@@ -2982,14 +3024,15 @@ function escenaSVG(p){
    +(gesto? '<g transform="translate(250,600)"><rect width="300" height="70" fill="#f3e08a" transform="rotate(-2)"/>'
        +'<text x="16" y="26" class="t s" transform="rotate(-2)">EL GESTO PENDIENTE</text>'
        +txtSVG(gesto,16,46,26,2,"t p",16,260,17).replace(/<text /g,'<text transform="rotate(-2)" ')+'</g>' : '')
+   +'<rect width="900" height="900" fill="url(#vineta)" pointer-events="none"/>'
    +'</svg>';
 }
 function verEscena(id){
   var p=ensure(byId(id)); if(!p) return;
   var svg=escenaSVG(p);
-  var h='<h2>Retrato de '+esc(p.nombre)+'</h2>'
+  var h='<h2>El gatito de '+esc(p.nombre)+'</h2>'
     +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 12px">Su escena: lo que persigue, lo que le preocupa, lo que le fascina y su cebo, todo en una imagen. Dibujada aquí mismo, sin salir del dispositivo.</p>'
-    +'<div id="escenaBox" style="border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#1e2a3a">'+svg+'</div>'
+    +'<div id="escenaBox" style="border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#33281f">'+svg+'</div>'
     +'<div class="modal-actions"><button class="btn" id="es_prompt">Copiar descripción para una IA</button>'
     +'<button class="btn" id="es_png">Descargar imagen</button>'
     +'<button class="btn" id="cancel">Cerrar</button></div>';
@@ -3181,37 +3224,53 @@ function tipoSelChange(sel){
 }
 window.tipoSelChange=tipoSelChange;
 
+/* Un solo campo. Guarda la etiqueta en «identidad» y deduce de ella el
+   pronombre que necesita el guión: Él, Ella o, en todo lo demás, neutro. */
+var TRATOS=[
+  ["",          "Sin marcar"],
+  ["m",         "Él"],
+  ["f",         "Ella"],
+  ["n",         "Elle · neutro"],
+  ["nobinario", "No binario"],
+  ["fluido",    "Género fluido"],
+  ["trans",     "Transgénero"],
+  ["gay",       "Gay"],
+  ["lesbiana",  "Lesbiana"],
+  ["bi",        "Bisexual"],
+  ["otra",      "Otra"]
+];
+function tratoDe(p){
+  var v=(p.identidad||"").trim();
+  if(v) return v;
+  return (p.genero||"");
+}
+function generoDeTrato(v){
+  if(v==="m"||v==="f") return v;
+  if(!v) return "";
+  return "n";                        /* el guión usa neutro para el resto */
+}
+function tratoEtiqueta(v){
+  for(var i=0;i<TRATOS.length;i++) if(TRATOS[i][0]===v) return TRATOS[i][1];
+  return "";
+}
+function tratoChange(sel){
+  var g=document.getElementById("f_genero");
+  if(g) g.value=generoDeTrato(sel.value);
+}
+window.tratoChange=tratoChange;
+
 function openEdit(id){
   var p=id?ensure(byId(id)):newPerson(),isNew=!id;
   if(!p) return;
   var others=state.people.filter(function(x){return x.id!==p.id;})
     .sort(function(a,b){return (a.nombre||"").localeCompare(b.nombre||"");});
-  var h='<div style="display:flex;gap:6px;align-items:center;margin:0 0 10px"><button class="btn sm" id="toFichas">← Todas las fichas</button><button class="btn sm" id="toMapa">Ver el mapa</button>'+(isNew?'':'<button class="btn sm" type="button" onclick="verEscena(\''+p.id+'\')" title="Un retrato con lo que sabes de esta persona">🐱 Su retrato</button>')+'<span id="fichaGuardado" style="font-size:12px;color:var(--muted);margin-left:auto"></span></div>'
+  var h='<div style="display:flex;gap:6px;align-items:center;margin:0 0 10px"><button class="btn sm" id="toFichas">← Todas las fichas</button><button class="btn sm" id="toMapa">Ver el mapa</button>'+(isNew?'':'<button class="btn sm" type="button" onclick="verEscena(\''+p.id+'\')" title="El gatito de esta persona, con todo lo que sabes de ella">🐱 Su gatito</button>')+'<span id="fichaGuardado" style="font-size:12px;color:var(--muted);margin-left:auto"></span></div>'
     +'<h2>'+(isNew?"Nueva persona":esc(p.nombre||"Ficha"))+'</h2>'
     +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 14px">'
     +(isNew?'Con el nombre y la categoría ya se guarda. Lo demás, cuando lo vayas sabiendo.'
            :'Empieza por lo que acabáis de hablar. El resto está debajo y puede esperar.')+'</p>';
   /* ---- la ficha se abre por lo que acaba de pasar; una ficha nueva, por el nombre ---- */
-  if(!isNew){
-    h+='<fieldset style="border-color:#6d7a8c"><legend style="color:#6d7a8c">Anotar algo de hoy</legend>'
-    +'<p style="color:var(--muted);font-size:12px;margin:0 0 8px">Lo que acabas de saber de '+esc((p.apodo||p.nombre||"esta persona").split(" ")[0])+'. Una línea basta.'
-    +((p.notas||[]).length?' Tienes <b>'+p.notas.length+'</b> nota'+(p.notas.length===1?'':'s')+' guardada'+(p.notas.length===1?'':'s')+' — se leen en <b>Historia</b>.':'')+'</p>'
-    +'<div class="notes" id="notes" style="display:none"></div>'
-    +'<div style="display:flex;gap:6px;margin-top:0"><input type="text" id="newNote" placeholder="Ej.: su hija empieza el instituto en septiembre">'
-    +'<button class="btn" type="button" id="addNote">Añadir</button></div>'
-    +(iaActiva()?'<label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-top:8px"><input type="checkbox" id="f_iaOff" style="width:auto"'+(p.iaOff?" checked":"")+'> No enviar esta ficha a la IA (mantenerla más privada)</label>':'')
-    +'</fieldset>';
-  h+='<fieldset style="border-color:#d99b2b"><legend style="color:#d99b2b">Gustos e intereses</legend>'
-    +fld("Política y temas sensibles","politica",p.politica,"ta")
-    +'<p style="color:var(--muted);font-size:11.5px;margin:-6px 0 4px">Para saber por dónde no pisar, no para clasificar a nadie. Vive solo en tu dispositivo.</p>'
-    +fld("Aficiones (separadas por comas)","aficiones",p.aficiones)
-    +'<div class="cols">'+fld("Deporte / equipo","deportes",p.deportes)+fld("Música","musica",p.musica)
-    +fld("Comida y bebida","comida",p.comida)+fld("Temas que le encienden","temas",p.temas)+'</div>'
-    +fld("Temas a evitar","evitar",p.evitar)
-    +fld("¿Qué le hace gracia? ¿Con qué disfruta riendo?","humor",p.humor,"ta")
-    +fld("¿Cómo es su forma de vestir? (qué cuida y qué descuida)","vestir",p.vestir,"ta")
-    +'</fieldset>';
-  }
+
   var citaProx=nextMeeting(p);
   h+='<fieldset style="border-color:#4a6fa5"><legend style="color:#4a6fa5">Básico</legend>'
     +'<div class="cols">'+fld("Nombre","nombre",p.nombre)+fld("C\u00f3mo le gusta que le llamen","apodo",p.apodo)+'</div>'
@@ -3220,16 +3279,10 @@ function openEdit(id){
     +TIPOS.map(function(t){return '<option value="'+t[0]+'"'+(p.tipo===t[0]?" selected":"")+'>'+t[1]+'</option>';}).join("")
     +'<option value="__nueva">+ Crear una categoría nueva…</option>'
     +'</select></div>'
-    +'<div class="fld"><label>Pronombre (para el guión)</label><select id="f_genero">'
-    +'<option value=""'+(!p.genero?" selected":"")+'>Sin marcar</option>'
-    +'<option value="m"'+(p.genero==="m"?" selected":"")+'>Él</option>'
-    +'<option value="f"'+(p.genero==="f"?" selected":"")+'>Ella</option>'
-    +'<option value="n"'+(p.genero==="n"?" selected":"")+'>Elle · neutro</option></select></div>'
-    +'<div class="fld"><label>Identidad (opcional)</label><select id="f_identidad">'
-    + ["","No binario","Género fluido","Transgénero","Gay","Lesbiana","Bisexual","Otra"].map(function(v){
-        return '<option value="'+esc(v)+'"'+(((p.identidad||"")===v)?" selected":"")+'>'+(v||"Sin marcar")+'</option>'; }).join("")
-    +'</select></div>'
-    +'<p style="color:var(--muted);font-size:11.5px;margin:-6px 0 0">Solo si te ayuda a tratarle bien. No cambia el pronombre del guión, que se elige arriba. Es un dato sensible: vive únicamente en tu dispositivo.</p>'
+    +'<div class="fld"><label>Trato</label><select id="f_trato" onchange="tratoChange(this)">'
+    + TRATOS.map(function(t){
+        return '<option value="'+esc(t[0])+'"'+((tratoDe(p)===t[0])?" selected":"")+'>'+esc(t[1])+'</option>'; }).join("")
+    +'</select><input type="hidden" id="f_genero" value="'+esc(p.genero||"")+'"></div>'
     +'</div>'
     +fld("Cómo os conocisteis","comoConocimos",p.comoConocimos,"ta")
     +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2;margin:18px 0 7px;padding-top:11px;border-top:1px solid var(--line)">Fechas y ritmo</div>'
@@ -3242,7 +3295,7 @@ function openEdit(id){
     +'<div class="fld" style="max-width:260px"><label>Recordar cada (días)</label>'
     +'<input type="number" min="1" id="f_frecuencia" value="'+(p.frecuencia||30)+'"></div>'
     +'</fieldset>';
-  if(isNew){
+  {
     h+='<fieldset style="border-color:#6d7a8c"><legend style="color:#6d7a8c">Anotar algo de hoy</legend>'
     +'<p style="color:var(--muted);font-size:12px;margin:0 0 8px">Lo que acabas de saber de '+esc((p.apodo||p.nombre||"esta persona").split(" ")[0])+'. Una línea basta.'
     +((p.notas||[]).length?' Tienes <b>'+p.notas.length+'</b> nota'+(p.notas.length===1?'':'s')+' guardada'+(p.notas.length===1?'':'s')+' — se leen en <b>Historia</b>.':'')+'</p>'
@@ -3258,6 +3311,8 @@ function openEdit(id){
     +fld("Temas a evitar","evitar",p.evitar)
     +fld("¿Qué le hace gracia? ¿Con qué disfruta riendo?","humor",p.humor,"ta")
     +fld("¿Cómo es su forma de vestir? (qué cuida y qué descuida)","vestir",p.vestir,"ta")
+    +fld("Política y temas sensibles","politica",p.politica,"ta")
+    +'<p style="color:var(--muted);font-size:11.5px;margin:-6px 0 0">Para saber por dónde no pisar, no para clasificar a nadie. Vive solo en tu dispositivo.</p>'
     +'</fieldset>';
   }
 
@@ -3948,7 +4003,9 @@ function fld(label,key,val,type){
   return '<div class="fld"><label>'+label+'</label><input type="'+(type==="date"?"date":"text")+'" id="f_'+key+'" value="'+esc(val)+'"></div>';
 }
 function leerCampos(p){
-  ["nombre","apodo","ciudad","grupo","sector","comoConocimos","politica","identidad","pareja","hijos","familia","empleo","empresa",
+  var _tr=document.getElementById("f_trato");
+  if(_tr){ p.identidad=_tr.value; p.genero=generoDeTrato(_tr.value); }
+  ["nombre","apodo","ciudad","grupo","sector","comoConocimos","politica","pareja","hijos","familia","empleo","empresa",
    "exito","admirado","importante","preocupa","fascina","ayuda","logros","quienesImportan","queQuierenLosSuyos","gustosDeLosSuyos","gesto",
    "aficiones","deportes","musica","comida","temas","evitar","estilo","vestir","humor","presume","decisionCuesta",
    "cumple","aniversario","ultimoContacto",
@@ -5273,13 +5330,13 @@ function renderNegocio(){
       +'<input type="text" class="meCampo" data-k="'+k+'" placeholder="'+esc(ph||"")+'" value="'+esc(m[k]||"")+'"></div>';
   };
 
-  var h='<h2 style="margin:0 0 4px">Mi perfil</h2>'
+  var h='<h2 style="margin:0 0 4px;font-size:22px">Mi perfil</h2>'
    +'<p style="color:var(--muted);font-size:13px;margin:0 0 16px">Quién eres y qué persigues. No es relleno: de aquí salen tus discursos, '
    +'y sobre todo de aquí nace la <b>afinidad por objetivos</b> — a quién de tu red conviene acudir para conseguir lo que buscas. '
    +'Se guarda solo, en tu dispositivo.</p>';
 
   /* --- objetivo, lo primero --- */
-  h+='<div style="background:#eefaf7;border:1px solid #bfe6dd;border-left:4px solid #20b6a6;border-radius:12px;padding:14px 16px;margin-bottom:16px">'
+  h+='<div style="background:#eefaf7;border:1px solid #bfe6dd;border-left:4px solid #20b6a6;border-radius:12px;padding:12px 12px;margin-bottom:16px">'
    +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.09em;color:#12857a;margin-bottom:6px">TU OBJETIVO AHORA MISMO</div>'
    +campo("¿Qué buscas? Cuanto más concreto, mejores sugerencias","pido",
           "Ej.: un puesto de dirección de proyectos en movilidad eléctrica, en Barcelona, con decisión en España",72)
