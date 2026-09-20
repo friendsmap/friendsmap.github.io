@@ -365,7 +365,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.24-69 · depurada";
+var VERSION="2026.09.24-70 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -2397,6 +2397,176 @@ function treeSoloArbol(id){
 }
 window.treeNueva=treeNueva; window.treeAMiRed=treeAMiRed; window.treeSoloArbol=treeSoloArbol;
 
+/* ================= EL ÁRBOL DIBUJADO =================
+   Los mayores abajo, en la raíz; los hijos suben por las ramas.
+   Se dibuja con lo que hay: nadie suelto, cada familia su propio árbol. */
+var treeVista="lista";
+function treeVer(v){ treeVista=(v==="dibujo")?"dibujo":"lista"; renderTree();
+  var c=document.getElementById("arbolScroll");
+  if(c) c.scrollLeft=Math.max(0,(c.scrollWidth-c.clientWidth)/2); }
+window.treeVer=treeVer;
+
+/* Quién entra en el dibujo: solo quien tiene padres, pareja o hijos. */
+function arbolGente(){
+  var en={};
+  (state.people||[]).forEach(function(p){
+    var pad=(p.padres||[]).filter(function(id){ return !!byId(id); });
+    if(pad.length){ en[p.id]=1; pad.forEach(function(id){ en[id]=1; }); }
+    if(p.parejaDe && byId(p.parejaDe)){ en[p.id]=1; en[p.parejaDe]=1; }
+  });
+  return Object.keys(en);
+}
+
+/* Coloca a cada uno. Las parejas van juntas y los padres, centrados sobre sus hijos. */
+function arbolLayout(){
+  var ids=arbolGente(), en={}; ids.forEach(function(i){ en[i]=1; });
+  if(!ids.length) return null;
+
+  var par={};
+  ids.forEach(function(i){ var p=byId(i);
+    if(p.parejaDe && en[p.parejaDe] && p.parejaDe!==i){ par[i]=p.parejaDe; par[p.parejaDe]=i; } });
+
+  var uOf={}, U=[];
+  ids.sort(function(a,b){ return (byId(a).nombre||"").localeCompare(byId(b).nombre||""); });
+  ids.forEach(function(i){
+    if(uOf[i]!==undefined) return;
+    var m=[i];
+    if(par[i]!==undefined && uOf[par[i]]===undefined) m.push(par[i]);
+    var k=U.length; m.forEach(function(x){ uOf[x]=k; });
+    U.push({i:k, m:m, hijos:[], padre:null, gen:0, x:0, puesto:false});
+  });
+
+  U.forEach(function(u){
+    var ps={};
+    u.m.forEach(function(id){ (byId(id).padres||[]).forEach(function(pd){
+      if(en[pd] && uOf[pd]!==u.i) ps[uOf[pd]]=1; }); });
+    var k=Object.keys(ps); u.padre=k.length?parseInt(k[0],10):null;
+  });
+  U.forEach(function(u){ if(u.padre!==null) U[u.padre].hijos.push(u.i); });
+
+  /* generación = cuántos escalones hay hasta la raíz (con tope, por si alguien se lía) */
+  U.forEach(function(u){ var g=0, c=u, n=0;
+    while(c.padre!==null && n<40){ g++; c=U[c.padre]; n++; }
+    if(n>=40) u.padre=null;           /* bucle: lo cortamos y queda como raíz */
+    u.gen=g; });
+
+  var cur=[], maxX=0;
+  function ancho(u){ return u.m.length+0.45; }
+  function colocar(k){
+    var u=U[k]; if(u.puesto) return; u.puesto=true;
+    var x=-1;
+    if(u.hijos.length){
+      u.hijos.forEach(colocar);
+      var xs=u.hijos.map(function(c){ return U[c].x+(U[c].m.length-1)/2; });
+      x=(Math.min.apply(null,xs)+Math.max.apply(null,xs))/2-(u.m.length-1)/2;
+    }
+    var min=(cur[u.gen]===undefined?0:cur[u.gen]);
+    if(!(x>=min)) x=min;
+    u.x=x; cur[u.gen]=x+ancho(u);
+    if(x+u.m.length>maxX) maxX=x+u.m.length;
+  }
+  var raices=U.filter(function(u){ return u.padre===null; });
+  raices.forEach(function(u){
+    colocar(u.i);
+    var t=0; cur.forEach(function(v){ if(v>t) t=v; });
+    for(var g=0;g<40;g++) cur[g]=t+1.1;     /* hueco entre familias */
+  });
+
+  var maxG=0; U.forEach(function(u){ if(u.gen>maxG) maxG=u.gen; });
+  return {U:U, maxX:maxX, maxG:maxG, n:ids.length, familias:raices.length};
+}
+
+function arbolSVG(){
+  var L=arbolLayout();
+  if(!L) return "";
+  var COL=104, ROW=136, M=28, R=25;
+  var W=Math.max(320, M*2+L.maxX*COL), H=M*2+(L.maxG+1)*ROW+34;   /* +34: sitio para el tronco */
+  var px=function(u,j){ return M+(u.x+j)*COL+COL/2; };
+  var py=function(u){ return H-M-34-u.gen*ROW-R-18; };   /* gen 0 = los mayores, abajo */
+  var s=[];
+  s.push('<svg id="arbolSVG" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 '+Math.round(W)+' '+Math.round(H)+'" width="'+Math.round(W)+'" height="'+Math.round(H)+'" xmlns="http://www.w3.org/2000/svg" style="display:block">');
+  s.push('<defs><linearGradient id="arGr" x1="0" y1="0" x2="0" y2="1">'
+       +'<stop offset="0" stop-color="#f4faf1"/><stop offset="1" stop-color="#eef3e6"/></linearGradient></defs>');
+  s.push('<rect x="0" y="0" width="'+Math.round(W)+'" height="'+Math.round(H)+'" rx="16" fill="url(#arGr)"/>');
+  s.push('<line x1="0" y1="'+(H-M+12)+'" x2="'+Math.round(W)+'" y2="'+(H-M+12)+'" stroke="#cfdcc2" stroke-width="2"/>');
+
+  /* el tronco: sale del suelo hacia cada familia */
+  L.U.filter(function(u){ return u.padre===null; }).forEach(function(u){
+    var cx=px(u,(u.m.length-1)/2), cy=py(u);
+    s.push('<path d="M'+cx.toFixed(1)+','+(H-M+12)+' L'+cx.toFixed(1)+','+(cy+R+24).toFixed(1)+'" '
+         +'stroke="#8a6a46" stroke-width="13" stroke-linecap="round" fill="none" opacity=".55"/>');
+  });
+
+  /* las ramas: de los padres a los hijos */
+  L.U.forEach(function(u){
+    if(u.padre===null) return;
+    var pa=L.U[u.padre];
+    var x1=px(pa,(pa.m.length-1)/2), y1=py(pa)-R-16;
+    var x2=px(u,(u.m.length-1)/2),  y2=py(u)+R+24;
+    var gr=Math.max(3, 10-u.gen*2);
+    s.push('<path d="M'+x1.toFixed(1)+','+y1.toFixed(1)
+         +' C'+x1.toFixed(1)+','+(y1-ROW*0.42).toFixed(1)
+         +' '+x2.toFixed(1)+','+(y2+ROW*0.42).toFixed(1)
+         +' '+x2.toFixed(1)+','+y2.toFixed(1)+'" '
+         +'stroke="#8a6a46" stroke-width="'+gr+'" stroke-linecap="round" fill="none" opacity=".5"/>');
+  });
+
+  /* las parejas, cogidas de la mano */
+  L.U.forEach(function(u){
+    if(u.m.length<2) return;
+    s.push('<line x1="'+(px(u,0)+R).toFixed(1)+'" y1="'+py(u)+'" x2="'+(px(u,1)-R).toFixed(1)+'" y2="'+py(u)+'" '
+         +'stroke="#c58fb0" stroke-width="3"/>');
+    var mx=((px(u,0)+px(u,1))/2), my=py(u);
+    s.push('<circle cx="'+mx.toFixed(1)+'" cy="'+my+'" r="9" fill="#f4faf1"/>');
+    s.push('<text x="'+mx.toFixed(1)+'" y="'+(my+4)+'" text-anchor="middle" font-size="12" fill="#c0709a">♥</text>');
+  });
+
+  /* y las personas, como hojas */
+  L.U.forEach(function(u){
+    u.m.forEach(function(id,j){
+      var p=byId(id); if(!p) return;
+      var cx=px(u,j), cy=py(u), cid="arc_"+id;
+      s.push('<g style="cursor:pointer" onclick="treeElegir(\''+id+'\')">');
+      s.push('<title>'+esc(p.nombre||"")+(p.semblanza?" — "+esc(p.semblanza.slice(0,90)):"")+'</title>');
+      if(p.foto){
+        s.push('<clipPath id="'+cid+'"><circle cx="'+cx.toFixed(1)+'" cy="'+cy+'" r="'+R+'"/></clipPath>');
+        s.push('<image href="'+p.foto+'" xlink:href="'+p.foto+'" x="'+(cx-R).toFixed(1)+'" y="'+(cy-R)+'" width="'+(R*2)+'" height="'+(R*2)
+             +'" preserveAspectRatio="xMidYMid slice" clip-path="url(#'+cid+')"/>');
+      }else{
+        s.push('<circle cx="'+cx.toFixed(1)+'" cy="'+cy+'" r="'+R+'" fill="'+colorOf(p)+'"/>');
+        s.push('<text x="'+cx.toFixed(1)+'" y="'+(cy+5)+'" text-anchor="middle" fill="#fff" font-size="15" '
+             +'font-weight="700" font-family="system-ui,sans-serif">'+esc(initials(p.nombre))+'</text>');
+      }
+      s.push('<circle cx="'+cx.toFixed(1)+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="'
+           +(esSoloArbol(p)?"#4a7f3a":"#fff")+'" stroke-width="3"/>');
+      var nom=String(p.nombre||"").split(" ").slice(0,2).join(" ");
+      if(nom.length>16) nom=nom.slice(0,15)+"…";
+      var anc=Math.max(38, nom.length*6.6);
+      s.push('<rect x="'+(cx-anc/2).toFixed(1)+'" y="'+(cy+R+4)+'" width="'+anc.toFixed(1)+'" height="17" rx="8" '
+           +'fill="#f4faf1" opacity=".9"/>');
+      s.push('<text x="'+cx.toFixed(1)+'" y="'+(cy+R+16)+'" text-anchor="middle" font-size="11.5" font-weight="600" '
+           +'font-family="system-ui,-apple-system,sans-serif" fill="#2c3327">'+esc(nom)+'</text>');
+      s.push('</g>');
+    });
+  });
+  s.push('</svg>');
+  return s.join("");
+}
+
+function arbolHTML(){
+  var L=arbolLayout();
+  if(!L) return '<div class="empty">Todavía no hay a quién dibujar.<br>'
+    +'<span style="font-size:12.5px;color:var(--muted)">Elige a alguien de la lista y dile de quién es hijo o hija, '
+    +'o quién es su pareja. Con dos personas unidas ya sale el primer árbol.</span><br>'
+    +'<button class="btn sm" style="margin-top:10px" onclick="treeVer(\'lista\')">← Volver a la lista</button></div>';
+  return '<div style="font-size:12.5px;color:var(--muted);margin:0 0 8px">'
+    +L.n+' persona'+(L.n===1?"":"s")+' en '+L.familias+' '+(L.familias===1?"árbol":"árboles")
+    +' · los mayores abajo · toca a alguien para abrir su sitio</div>'
+    +'<div id="arbolScroll" style="overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);'
+    +'border-radius:16px;background:#f4faf1">'+arbolSVG()+'</div>';
+}
+window.arbolLayout=arbolLayout; window.arbolSVG=arbolSVG; window.arbolHTML=arbolHTML;
+
 function renderTree(){
   var el=document.getElementById("treeBox"); if(!el) return;
   var q=treeQ.trim().toLowerCase();
@@ -2411,8 +2581,12 @@ function renderTree(){
    +'</div>'
    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 14px">'
    +'<button class="btn primary" onclick="treeNueva()">+ Persona solo del árbol</button>'
+   +'<button class="btn" id="trVerBtn" onclick="treeVer(\''+(treeVista==="dibujo"?"lista":"dibujo")+'\')">'
+   +(treeVista==="dibujo"?'← Volver a la lista':'🌳 Ver el árbol')+'</button>'
    +'<span style="font-size:11.5px;color:var(--muted)">Para bisabuelos, tíos lejanos o quien ya no está: '
    +'existe aquí y no aparece en People, ni en el mapa, ni en la agenda.</span></div>';
+
+  if(treeVista==="dibujo"){ el.innerHTML=h+arbolHTML(); _trBind(); return; }
 
   var sel=treeSel?byId(treeSel):null;
   if(!sel){
@@ -2483,6 +2657,7 @@ function renderTree(){
       ? '<button class="btn" onclick="treeAMiRed(\''+sel.id+'\')">Pasarla a mis fichas</button>'
       : '<button class="btn" onclick="openEdit(\''+sel.id+'\')">Abrir su ficha</button>'
         +'<button class="btn" onclick="treeSoloArbol(\''+sel.id+'\')">Dejarla solo en el árbol</button>')
+   +'<button class="btn" onclick="treeVer(\'dibujo\')">🌳 Ver el árbol</button>'
    +'<span id="trGuardado" style="font-size:12px;color:var(--muted);align-self:center"></span></div>';
   el.innerHTML=h;
   try{ ponerMicros(); }catch(e){}
@@ -2505,7 +2680,8 @@ function treeGuardar(silencioso){
   var g=document.getElementById("trGuardado"); if(g) g.textContent="Guardado ✓";
   if(!silencioso) toast("Guardado · "+p.nombre);
 }
-function treeElegir(id){ treeSel=id||""; renderTree(); }
+function treeElegir(id){ treeSel=id||""; if(id) treeVista="lista"; renderTree();
+  if(id){ var b=document.getElementById("treeBox"); if(b&&b.scrollIntoView) try{ b.scrollIntoView({block:"start"}); }catch(e){} } }
 function treeFiltro(v){ treeQ=v||""; renderTree(); }
 function _trBind(){
   var i=document.getElementById("trQ"); if(!i) return;
