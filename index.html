@@ -365,7 +365,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.23-68 · depurada";
+var VERSION="2026.09.24-69 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -523,7 +523,7 @@ function nextAnniversary(s){
 function lower1(s){ s=String(s||"").trim(); return s?s.charAt(0).toLowerCase()+s.slice(1):""; }
 function newPerson(){
   var m={}; MOTS.forEach(function(x){ m[x[0]]={n:0,t:""}; });
-  return { id:uid(), tipo:"amigo", genero:"", nombre:"", apodo:"", ciudad:"", grupo:"", comoConocimos:"", politica:"", identidad:"", foto:"", semblanza:"", parejaDe:"", padres:[],
+  return { id:uid(), tipo:"amigo", genero:"", nombre:"", apodo:"", ciudad:"", grupo:"", comoConocimos:"", politica:"", identidad:"", foto:"", semblanza:"", parejaDe:"", padres:[], soloArbol:false,
     pareja:"", hijos:"", familia:"", empleo:"", empresa:"", sector:"",
     aficiones:"", deportes:"", musica:"", comida:"", temas:"", evitar:"",
     exito:"", admirado:"", importante:"", preocupa:"", fascina:"", ayuda:"", logros:"", estilo:"",
@@ -560,9 +560,16 @@ function haystack(p){
   return s.toLowerCase();
 }
 function tiposActivos(){ return (state.tipos&&state.tipos.length)?state.tipos:[]; }
+/* ---------- PERSONAS SOLO DEL ÁRBOL ----------
+   Un bisabuelo al que nunca vas a escribir no tiene por qué ensuciar tus fichas,
+   tu mapa ni tu agenda. Se marca con soloArbol y desaparece de todo lo demás,
+   pero sigue estando disponible para el parentesco. */
+function esSoloArbol(p){ return !!(p && p.soloArbol); }
+function genteViva(){ return (state.people||[]).filter(function(p){ return !esSoloArbol(p); }); }
+
 function filtered(){
   var q=state.q.trim().toLowerCase(), ta=tiposActivos();
-  return state.people.filter(function(p){
+  return genteViva().filter(function(p){
     if(ta.length && ta.indexOf(p.tipo)<0) return false;
     if(state.grupo&&(p.grupo||"")!==state.grupo) return false;
     if(q&&haystack(p).indexOf(q)<0) return false;
@@ -570,7 +577,7 @@ function filtered(){
   });
 }
 function grupos(){
-  var set={}; state.people.forEach(function(p){ if(p.grupo&&(!state.tipo||p.tipo===state.tipo)) set[p.grupo]=1; });
+  var set={}; genteViva().forEach(function(p){ if(p.grupo&&(!state.tipo||p.tipo===state.tipo)) set[p.grupo]=1; });
   return Object.keys(set).sort();
 }
 function contactStatus(p){
@@ -1008,7 +1015,7 @@ function afinidad(obj){
   var toks=afinTokens(obj+" "+((state.me&&state.me.sectores)||"")), seen={}, u=[];
   toks.forEach(function(t){ if(!seen[t]){ seen[t]=1; u.push(t); } });
   var out=[];
-  (state.people||[]).forEach(function(p){
+  genteViva().forEach(function(p){
     var hay=[p.empleo,p.empresa,p.sector,p.ayuda,p.meAporta,p.buscaDeMi,p.problema,p.exito,p.fascina,p.temas,p.aficiones,p.quienesImportan].join(" ");
     var set={}; afinTokens(hay).forEach(function(t){ set[t]=1; });
     var motivos=[], score=0;
@@ -1489,7 +1496,7 @@ function circAmbitoDeclarado(k){
   var e=circExtras().filter(function(x){ return x.n===k; })[0];
   return e?e.amb:null;
 }
-function circGente(k){ return state.people.filter(function(p){ return circGrupo(p)===k; }); }
+function circGente(k){ return genteViva().filter(function(p){ return circGrupo(p)===k; }); }
 function nuevoCirculo(amb){ return nuevoTipo(amb); }
 function _nuevoCirculoViejo(amb){
   var n=prompt(amb==="profesional"
@@ -1750,7 +1757,7 @@ function openCitaEditar(id){
 window.openCitaEditar=openCitaEditar;
 function openCitaNueva(tipo,pid,edit){
   var esAl=(tipo==="alarma"), ed=edit||null;
-  var gente=state.people.slice().sort(function(a,b){ return (a.nombre||"").localeCompare(b.nombre||""); });
+  var gente=genteViva().slice().sort(function(a,b){ return (a.nombre||"").localeCompare(b.nombre||""); });
   var h='<h2>'+(ed?(esAl?"Modificar alarma":"Modificar cita"):(esAl?"Nueva alarma":"Nueva cita"))+'</h2>'
    +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 14px">'
    +(esAl?"Un aviso para ti. Puedes vincularlo a una persona o dejarlo suelto."
@@ -2040,7 +2047,7 @@ function citasUnificadas(){
     out.push({ref:"A:"+x.a.id, origen:"propia", tipo:x.a.tipo||"cita", titulo:x.a.titulo,
       fecha:x.a.fecha, hora:x.a.hora||"", nota:x.a.nota||"", pid:x.a.pid||"", d:x.d});
   });
-  state.people.forEach(function(p){
+  genteViva().forEach(function(p){
     (p.encuentros||[]).forEach(function(e){
       if(e.hecho||!e.fecha) return;
       var f=parseDate(e.fecha); if(!f) return;
@@ -2138,7 +2145,7 @@ window.openEncuentro=openEncuentro;
    La app completa es para cuando hay diez minutos. Esto es para los ratos muertos. */
 function nocheCandidatos(){
   var now=today(), out=[];
-  (state.people||[]).forEach(function(p){
+  genteViva().forEach(function(p){
     var f=parseInt(p.frecuencia,10)||30;
     var u=p.ultimoContacto?parseDate(p.ultimoContacto):null;
     var d=u?daysBetween(u,now):null;
@@ -2361,6 +2368,35 @@ window.npHecha=npHecha; window.npCampo=npCampo;
    Primero buscas a la persona, la eliges, y entonces rellenas su sitio
    en el árbol. Así el parentesco no estorba en las fichas del día a día. */
 var treeQ="", treeSel="";
+function treeNueva(){
+  var n=prompt("Nombre de la persona (solo para el árbol):","");
+  if(n===null) return;
+  n=String(n).trim(); if(!n){ toast("Hace falta un nombre"); return; }
+  var p=newPerson();
+  p.nombre=n;
+  p.soloArbol=true;          /* no sale en People, ni en el mapa, ni en la agenda */
+  p.tipo="familiar";
+  state.people.push(p);
+  save(); renderAll();
+  treeSel=p.id; treeQ=""; renderTree();
+  toast("«"+n+"» añadida solo al árbol");
+}
+function treeAMiRed(id){
+  var p=byId(id); if(!p) return;
+  if(!confirm("«"+(p.nombre||"")+"» pasará a ser una ficha normal: aparecerá en People, "
+    +"en el mapa y en la agenda.\n\n¿Seguir?")) return;
+  p.soloArbol=false; save(); renderAll(); renderTree();
+  toast("Ahora es una ficha normal");
+}
+function treeSoloArbol(id){
+  var p=byId(id); if(!p) return;
+  if(!confirm("«"+(p.nombre||"")+"» saldrá de People, del mapa y de la agenda, "
+    +"y se quedará solo en el árbol.\n\nNo se borra nada de lo que tengas escrito. ¿Seguir?")) return;
+  p.soloArbol=true; save(); renderAll(); renderTree();
+  toast("Ahora vive solo en el árbol");
+}
+window.treeNueva=treeNueva; window.treeAMiRed=treeAMiRed; window.treeSoloArbol=treeSoloArbol;
+
 function renderTree(){
   var el=document.getElementById("treeBox"); if(!el) return;
   var q=treeQ.trim().toLowerCase();
@@ -2372,7 +2408,11 @@ function renderTree(){
    +'<input type="search" id="trQ" placeholder="Buscar a quién colocar en el árbol…" value="'+esc(treeQ)+'" '
    +'autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore>'
    +(treeQ?'<button class="btnx" onclick="treeFiltro(\'\')" title="Limpiar">✕</button>':'')
-   +'</div>';
+   +'</div>'
+   +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 14px">'
+   +'<button class="btn primary" onclick="treeNueva()">+ Persona solo del árbol</button>'
+   +'<span style="font-size:11.5px;color:var(--muted)">Para bisabuelos, tíos lejanos o quien ya no está: '
+   +'existe aquí y no aparece en People, ni en el mapa, ni en la agenda.</span></div>';
 
   var sel=treeSel?byId(treeSel):null;
   if(!sel){
@@ -2394,7 +2434,9 @@ function renderTree(){
         if(pj) sub.push("pareja de "+pj.nombre);
         return '<div class="row" style="cursor:pointer" onclick="treeElegir(\''+p.id+'\')">'
           + avatarHTML(p)
-          +'<div class="grow"><div style="font-weight:600">'+esc(p.nombre||"(sin nombre)")+'</div>'
+          +'<div class="grow"><div style="font-weight:600">'+esc(p.nombre||"(sin nombre)")
+          +(esSoloArbol(p)?' <span style="font-size:10px;font-weight:700;color:#4a7f3a;background:#eaf4e6;'
+            +'border-radius:20px;padding:1px 7px">solo árbol</span>':'')+'</div>'
           +'<div style="font-size:12.5px;color:var(--muted)">'+esc(sub.join(" · ")||"sin colocar en el árbol")+'</div></div>'
           +'<div class="when">'+((p.padres&&p.padres.length)||p.parejaDe?"🌳":"—")+'</div></div>';
       }).join("");
@@ -2409,7 +2451,8 @@ function renderTree(){
              :'<div style="width:56px;height:56px;border-radius:12px;flex:none;background:'+colorOf(sel)+';color:#fff;'
               +'display:flex;align-items:center;justify-content:center;font-weight:700;font-size:19px">'+esc(initials(sel.nombre))+'</div>')
    +'<div class="grow"><div style="font-size:18px;font-weight:700">'+esc(sel.nombre||"(sin nombre)")+'</div>'
-   +'<div style="font-size:12px;color:var(--muted)">'+esc(tipoLabel(sel.tipo))+'</div></div>'
+   +'<div style="font-size:12px;color:var(--muted)">'
+   +(esSoloArbol(sel)?'Solo en el árbol · no aparece en People ni en el mapa':esc(tipoLabel(sel.tipo)))+'</div></div>'
    +'<button class="btn sm" onclick="treeElegir(\'\')">← Otra persona</button></div>';
 
   h+='<fieldset style="border-color:#4a7f3a"><legend style="color:#4a7f3a">Su sitio en el árbol</legend>'
@@ -2436,7 +2479,10 @@ function renderTree(){
   }
   h+='<div class="modal-actions" style="justify-content:flex-start">'
    +'<button class="btn primary" onclick="treeGuardar()">Guardar</button>'
-   +'<button class="btn" onclick="openEdit(\''+sel.id+'\')">Abrir su ficha</button>'
+   +(esSoloArbol(sel)
+      ? '<button class="btn" onclick="treeAMiRed(\''+sel.id+'\')">Pasarla a mis fichas</button>'
+      : '<button class="btn" onclick="openEdit(\''+sel.id+'\')">Abrir su ficha</button>'
+        +'<button class="btn" onclick="treeSoloArbol(\''+sel.id+'\')">Dejarla solo en el árbol</button>')
    +'<span id="trGuardado" style="font-size:12px;color:var(--muted);align-self:center"></span></div>';
   el.innerHTML=h;
   try{ ponerMicros(); }catch(e){}
@@ -2835,7 +2881,7 @@ function puentes(p){
   splitList(p.aficiones).concat(splitList(p.sector),splitList(p.temas)).forEach(function(w){
     if(w.length>3) mine[w.toLowerCase()]=1;
   });
-  state.people.forEach(function(o){
+  genteViva().forEach(function(o){
     if(o.id===p.id) return;
     var his=splitList(o.aficiones).concat(splitList(o.sector),splitList(o.temas));
     var m=his.filter(function(w){ return w.length>3&&mine[w.toLowerCase()]; });
@@ -3639,7 +3685,7 @@ function fsFamilia(p){
 function openEdit(id){
   var p=id?ensure(byId(id)):newPerson(),isNew=!id;
   if(!p) return;
-  var others=state.people.filter(function(x){return x.id!==p.id;})
+  var others=genteViva().filter(function(x){return x.id!==p.id;})
     .sort(function(a,b){return (a.nombre||"").localeCompare(b.nombre||"");});
   var h='<div style="display:flex;gap:6px;align-items:center;margin:0 0 10px"><button class="btn sm" id="toFichas">← Todas las fichas</button><button class="btn sm" id="toMapa">Ver el mapa</button>'+(isNew?'':'<button class="btn sm" type="button" onclick="verEscena(\''+p.id+'\')" title="El gatito de esta persona, con todo lo que sabes de ella">🐱 Su gatito</button>')+'<span id="fichaGuardado" style="font-size:12px;color:var(--muted);margin-left:auto"></span></div>'
     +'<h2>'+(isNew?"Nueva persona":esc(p.nombre||"Ficha"))+'</h2>'
@@ -5652,7 +5698,7 @@ function renderSeg(){
   var el=document.getElementById("seg"), ta=tiposActivos();
   var h='<div class="ambitos">';
   AMBITOS.forEach(function(A){
-    var n=state.people.filter(function(p){ return A.tipos.indexOf(p.tipo||"amigo")>=0; }).length;
+    var n=genteViva().filter(function(p){ return A.tipos.indexOf(p.tipo||"amigo")>=0; }).length;
     var on=A.tipos.some(function(t){ return ta.indexOf(t)>=0; });
     h+='<div class="ambbox'+(A.id==="profesional"?" pro":"")+(on?" on":"")+'">'
       +'<button class="ambtit" data-amb="'+A.id+'">'+A.nombre+' <span class="n">'+n+'</span></button>'
@@ -5691,7 +5737,7 @@ function renderSeg(){
   if(lt) lt.onclick=function(){ state.tipos=[]; state.grupo=""; renderSeg(); renderAll(); };
 }
 function renderAll(){
-  var n=filtered().length,tot=state.people.length;
+  var n=filtered().length,tot=genteViva().length;
   document.getElementById("count").textContent=tot?(tiposActivos().length?n+" de "+tot+" personas":tot+" personas"):"";
   try{ pintaAvisoBusqueda(); }catch(e){}
   renderCards(); renderCitas(); renderAgenda(); try{ revisarAvisos(); }catch(e){}
