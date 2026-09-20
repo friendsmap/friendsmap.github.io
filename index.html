@@ -43,7 +43,9 @@ header.top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-conte
 .card:hover{box-shadow:0 6px 20px rgba(30,42,58,.10)}
 .btn.primary{box-shadow:0 2px 8px rgba(255,107,94,.28)}
 .ver{display:inline-block;background:#e6eaf1;color:#7a8698;border-radius:6px;padding:1px 6px;font-size:10.5px;margin-right:6px;letter-spacing:.02em;cursor:pointer}
-.tabs{display:flex;gap:4px;background:#e6eaf1;padding:3px;border-radius:10px}
+.tabs{display:flex;gap:4px;background:#e6eaf1;padding:3px;border-radius:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;scroll-snap-type:x proximity;max-width:100%}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:0 0 auto;white-space:nowrap;scroll-snap-align:center}
 .tabs button{border:0;background:transparent;padding:6px 13px;border-radius:8px;color:var(--muted);font-weight:550}
 .tabs button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .seg{display:block;margin-bottom:12px}
@@ -191,8 +193,13 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
   .lema{font-size:12px}
   h1{font-size:20px}
   header.top{gap:8px}
-  .tabs{width:100%}
-  .tabs button{flex:1;padding:8px 6px;font-size:13px}
+  .tabs{width:100%;padding:3px 4px;gap:2px;
+    /* el degradado del borde avisa de que hay más pestañas a la derecha */
+    -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 10px,#000 calc(100% - 14px),transparent 100%);
+    mask-image:linear-gradient(90deg,transparent 0,#000 10px,#000 calc(100% - 14px),transparent 100%)}
+  .tabs button{flex:0 0 auto;padding:7px 11px;font-size:13px}
+  header.top{overflow:hidden}
+  .titlewrap{min-width:0}
   .seg{width:100%}
   .ambitos{gap:8px}
   .ambbox{min-width:100%}
@@ -286,25 +293,24 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
     <div class="titlewrap"><div class="title"><h1>Friends Map</h1><small id="count"></small></div>
       <p class="lema"><span class="ver" id="verEt" title="Versión de la app">—</span> Todo el mundo quiere percibir que es <b>importante</b>, que <b>tiene éxito</b> y que recuerdan <b>su nombre</b>.</p></div>
     <div class="tabs">
-      <button data-tab="mapa" class="on">Mapa</button>
+      <button data-tab="mapa" class="on">Map</button>
       <button data-tab="agenda">Agenda</button>
-      <button data-tab="aldia">Al día</button>
-      <button data-tab="fichas">Fichas</button>
-      <button data-tab="notas">Notas</button>
-      <button data-tab="afinidad">Afinidad</button>
-      <button data-tab="sinergias">Sinergias</button>
-      <button data-tab="informe">Informe</button>
-      <button data-tab="negocio">Mi perfil</button>
+      <button data-tab="fichas">People</button>
+      <button data-tab="notas">Notes</button>
+      <button data-tab="afinidad">Affinity</button>
+      <button data-tab="sinergias">Synergies</button>
+      <button data-tab="informe">Report</button>
+      <button data-tab="negocio">My profile</button>
+      <button data-tab="tree">Tree 🌳</button>
     </div>
   </header>
 
   <div class="toolbar">
     <form class="buscador" autocomplete="off" onsubmit="return false"><span class="lupa">⌕</span><input type="search" id="q" name="buscar_personas" placeholder="Buscar persona, interés, empleo, ciudad…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="search" enterkeyhint="search" data-lpignore="true" data-1p-ignore data-bwignore data-form-type="other"><button class="btnx" id="qclear" title="Limpiar" aria-label="Limpiar">✕</button></form>
+  </div>
+  <div class="toolbar" id="acciones">
     <button class="btn primary" id="add">+ Persona</button>
-    <button class="btn" id="meBtn">Mi perfil</button>
-    <button class="btn" id="syncBtn">Sincronizar</button>
-    <button class="btn" id="syncOpt" title="Opciones de sincronización">⋯</button>
-    <button class="btn" id="comentBtn" title="Cuéntanos qué falta o qué falla">💬 Comentarios</button>
+    <button class="btn" id="syncOpt" title="Sincronizar, copias y ajustes">⋯</button>
     <button class="btn primary" id="instalar" style="display:none">Instalar</button>
     <span class="syncst" id="syncSt"></span>
     <input type="file" id="file" accept="application/json" style="display:none">
@@ -337,8 +343,8 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
     <p id="mapaHint" style="color:var(--muted);font-size:12.5px">Arrastra los nodos, rueda para acercar, clic en una persona para abrir su ficha. El color indica la categoría.</p>
   </div>
   <div id="view-negocio" style="display:none"><div id="negocio" class="inf-doc"></div></div>
-  <div id="view-aldia" style="display:none"><div id="aldia"></div></div>
   <div id="view-notas" style="display:none"><div id="notasPers"></div></div>
+  <div id="view-tree" style="display:none"><div id="treeBox"></div></div>
   <div id="view-afinidad" style="display:none"><div id="afinidadBox" class="inf-doc"></div></div>
   <div id="view-sinergias" style="display:none"><div id="sinergiasBox" class="inf-doc"></div></div>
   <div id="view-informe" style="display:none">
@@ -359,7 +365,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.22-67 · depurada";
+var VERSION="2026.09.23-68 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -605,7 +611,9 @@ function renderCards(){
     return;
   }
   if(!list.length){ el.innerHTML='<div class="empty" style="grid-column:1/-1">Sin resultados para ese filtro.</div>'; return; }
-  el.innerHTML=list.map(function(p){
+  var masBtn='<div style="grid-column:1/-1;margin-bottom:2px">'
+    +'<button class="btn primary" onclick="openEdit(null)">+ Persona</button></div>';
+  el.innerHTML=masBtn+list.map(function(p){
     var tags=splitList(p.aficiones).slice(0,3).map(function(t){return '<span class="tag">'+esc(t)+'</span>';}).join("");
     var top=topMots(p).filter(function(x){return x.n===3;}).map(function(x){return '<span class="tag g">'+esc(x.lb)+'</span>';}).join("");
     var sub=[p.empleo,p.empresa||p.ciudad].filter(Boolean).join(" · ");
@@ -2349,6 +2357,118 @@ function renderNotasPers(){
 window.renderNotasPers=renderNotasPers; window.npNueva=npNueva; window.npBorrar=npBorrar;
 window.npHecha=npHecha; window.npCampo=npCampo;
 
+/* ---------- TREE · el árbol vive aquí, no en la ficha ----------
+   Primero buscas a la persona, la eliges, y entonces rellenas su sitio
+   en el árbol. Así el parentesco no estorba en las fichas del día a día. */
+var treeQ="", treeSel="";
+function renderTree(){
+  var el=document.getElementById("treeBox"); if(!el) return;
+  var q=treeQ.trim().toLowerCase();
+  var h='<h2 style="margin:0 0 4px">Tree 🌳</h2>'
+   +'<p style="color:var(--muted);font-size:12.5px;margin:0 0 14px">Busca a una persona, elígela y coloca su sitio en el árbol. '
+   +'Cuantos más padres y parejas tengas puestos, mejor se dibujará.</p>'
+   +'<div class="buscador" style="margin:0 0 12px">'
+   +'<span class="lupa">⌕</span>'
+   +'<input type="search" id="trQ" placeholder="Buscar a quién colocar en el árbol…" value="'+esc(treeQ)+'" '
+   +'autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore>'
+   +(treeQ?'<button class="btnx" onclick="treeFiltro(\'\')" title="Limpiar">✕</button>':'')
+   +'</div>';
+
+  var sel=treeSel?byId(treeSel):null;
+  if(!sel){
+    var lista=state.people.slice().sort(function(a,b){ return (a.nombre||"").localeCompare(b.nombre||""); });
+    if(q) lista=lista.filter(function(p){ return (p.nombre||"").toLowerCase().indexOf(q)>=0
+                                              || (p.apodo||"").toLowerCase().indexOf(q)>=0; });
+    if(!state.people.length){
+      h+='<div class="empty">Todavía no hay nadie. Crea fichas en <b>People</b> y vuelve.</div>';
+    }else if(!lista.length){
+      h+='<div class="empty">Nadie con ese nombre. <button class="btn sm" onclick="treeFiltro(\'\')">Ver a todos</button></div>';
+    }else{
+      var conArbol=lista.filter(function(p){ return (p.padres&&p.padres.length)||p.parejaDe; }).length;
+      h+='<div class="sec-title">'+(q?"Coincidencias":"Tu gente")+' · '+conArbol+' ya colocad'+(conArbol===1?"a":"as")+'</div>';
+      h+=lista.slice(0,80).map(function(p){
+        var pad=(p.padres||[]).map(function(id){ var x=byId(id); return x?x.nombre:""; }).filter(Boolean);
+        var pj=p.parejaDe?byId(p.parejaDe):null;
+        var sub=[];
+        if(pad.length) sub.push("hijo/a de "+pad.join(" y "));
+        if(pj) sub.push("pareja de "+pj.nombre);
+        return '<div class="row" style="cursor:pointer" onclick="treeElegir(\''+p.id+'\')">'
+          + avatarHTML(p)
+          +'<div class="grow"><div style="font-weight:600">'+esc(p.nombre||"(sin nombre)")+'</div>'
+          +'<div style="font-size:12.5px;color:var(--muted)">'+esc(sub.join(" · ")||"sin colocar en el árbol")+'</div></div>'
+          +'<div class="when">'+((p.padres&&p.padres.length)||p.parejaDe?"🌳":"—")+'</div></div>';
+      }).join("");
+    }
+    el.innerHTML=h; _trBind(); return;
+  }
+
+  /* --- ficha de árbol de la persona elegida --- */
+  var pad=Array.isArray(sel.padres)?sel.padres:[];
+  h+='<div style="display:flex;gap:12px;align-items:center;margin-bottom:14px">'
+   + (sel.foto?'<img src="'+sel.foto+'" alt="" style="width:56px;height:56px;border-radius:12px;object-fit:cover;flex:none">'
+             :'<div style="width:56px;height:56px;border-radius:12px;flex:none;background:'+colorOf(sel)+';color:#fff;'
+              +'display:flex;align-items:center;justify-content:center;font-weight:700;font-size:19px">'+esc(initials(sel.nombre))+'</div>')
+   +'<div class="grow"><div style="font-size:18px;font-weight:700">'+esc(sel.nombre||"(sin nombre)")+'</div>'
+   +'<div style="font-size:12px;color:var(--muted)">'+esc(tipoLabel(sel.tipo))+'</div></div>'
+   +'<button class="btn sm" onclick="treeElegir(\'\')">← Otra persona</button></div>';
+
+  h+='<fieldset style="border-color:#4a7f3a"><legend style="color:#4a7f3a">Su sitio en el árbol</legend>'
+   +'<div class="cols">'
+   +'<div class="fld"><label>Es hijo o hija de</label><select id="tr_padre1">'+opcionesPersonas(pad[0]||"",sel.id)+'</select></div>'
+   +'<div class="fld"><label>y de</label><select id="tr_padre2">'+opcionesPersonas(pad[1]||"",sel.id)+'</select></div>'
+   +'</div>'
+   +'<div class="fld" style="max-width:340px"><label>Pareja de</label><select id="tr_parejaDe">'
+   + opcionesPersonas(sel.parejaDe||"",sel.id)+'</select></div>'
+   +'<div class="fld"><label>Quién fue · dónde vivió, cómo era, sus hitos y sus hazañas</label>'
+   +'<textarea id="tr_semblanza" style="min-height:120px" '
+   +'placeholder="Nació en Santorcaz y vivió allí toda su vida. Tozudo y muy generoso con los suyos. Montó el taller en el 68 y sacó adelante a cuatro hijos. Nunca perdió una partida de mus.">'
+   +esc(sel.semblanza||"")+'</textarea></div>'
+   +'</fieldset>';
+
+  /* quién cuelga de esta persona, para poder seguir el hilo */
+  var hijos=state.people.filter(function(x){ return (x.padres||[]).indexOf(sel.id)>=0; });
+  if(hijos.length){
+    h+='<div class="sec-title">Sus hijos e hijas</div>'
+     + hijos.map(function(x){
+         return '<div class="row" style="cursor:pointer" onclick="treeElegir(\''+x.id+'\')">'
+           + avatarHTML(x)+'<div class="grow"><div style="font-weight:600">'+esc(x.nombre)+'</div></div></div>';
+       }).join("");
+  }
+  h+='<div class="modal-actions" style="justify-content:flex-start">'
+   +'<button class="btn primary" onclick="treeGuardar()">Guardar</button>'
+   +'<button class="btn" onclick="openEdit(\''+sel.id+'\')">Abrir su ficha</button>'
+   +'<span id="trGuardado" style="font-size:12px;color:var(--muted);align-self:center"></span></div>';
+  el.innerHTML=h;
+  try{ ponerMicros(); }catch(e){}
+  var deb, auto=function(){ treeGuardar(true); };
+  el.querySelectorAll("select,textarea").forEach(function(e){
+    e.addEventListener("input",function(){ clearTimeout(deb); deb=setTimeout(auto,700); });
+    e.addEventListener("change",function(){ clearTimeout(deb); deb=setTimeout(auto,300); });
+  });
+}
+function treeGuardar(silencioso){
+  var p=byId(treeSel); if(!p) return;
+  var v=function(id){ var e=document.getElementById(id); return e?e.value:""; };
+  var pa=[]; var a=v("tr_padre1"), b=v("tr_padre2");
+  if(a) pa.push(a);
+  if(b && b!==a) pa.push(b);
+  p.padres=pa;
+  p.parejaDe=v("tr_parejaDe")||"";
+  p.semblanza=(v("tr_semblanza")||"").trim();
+  save();
+  var g=document.getElementById("trGuardado"); if(g) g.textContent="Guardado ✓";
+  if(!silencioso) toast("Guardado · "+p.nombre);
+}
+function treeElegir(id){ treeSel=id||""; renderTree(); }
+function treeFiltro(v){ treeQ=v||""; renderTree(); }
+function _trBind(){
+  var i=document.getElementById("trQ"); if(!i) return;
+  i.oninput=function(){ treeQ=i.value; var pos=i.selectionStart; renderTree();
+    var n=document.getElementById("trQ"); if(n){ n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} } };
+}
+window.renderTree=renderTree; window.treeElegir=treeElegir; window.treeFiltro=treeFiltro;
+window.treeGuardar=treeGuardar;
+
 function renderAgenda(){
   var el=document.getElementById("agenda"),now=today(),fechas=[];
   filtered().forEach(function(p){
@@ -3587,7 +3707,6 @@ function openEdit(id){
     +fld("Qué quieren ellos (lo que persiguen los suyos)","queQuierenLosSuyos",p.queQuierenLosSuyos,"ta")
     +fld("Aficiones y gustos de los suyos","gustosDeLosSuyos",p.gustosDeLosSuyos,"ta")
     +fld("Un gesto que le pueda hacer y me cueste tiempo","gesto",p.gesto,"ta")+'</fieldset>';
-  h+=fsFamilia(p);
   h+='<fieldset style="border-color:#0f8a8a"><legend style="color:#0f8a8a">Conexiones con tu red</legend>'
     +(others.length?'<div class="multi">'+others.map(function(o){
       return '<label><input type="checkbox" class="cx" value="'+o.id+'"'
@@ -4262,15 +4381,6 @@ function fld(label,key,val,type){
   return '<div class="fld"><label>'+label+'</label><input type="'+(type==="date"?"date":"text")+'" id="f_'+key+'" value="'+esc(val)+'"></div>';
 }
 function leerCampos(p){
-  var _p1=document.getElementById("f_padre1"), _p2=document.getElementById("f_padre2");
-  if(_p1||_p2){
-    var pa=[]; if(_p1&&_p1.value) pa.push(_p1.value); if(_p2&&_p2.value && _p2.value!==(_p1&&_p1.value)) pa.push(_p2.value);
-    p.padres=pa;
-  }
-  var _pj=document.getElementById("f_parejaDe");
-  if(_pj) p.parejaDe=_pj.value||"";
-  var _sm=document.getElementById("f_semblanza");
-  if(_sm) p.semblanza=_sm.value.trim();
   var _tr=document.getElementById("f_trato");
   if(_tr){ p.identidad=_tr.value; p.genero=generoDeTrato(_tr.value); }
   ["nombre","apodo","ciudad","grupo","sector","comoConocimos","politica","pareja","hijos","familia","empleo","empresa",
@@ -5177,7 +5287,10 @@ function sugerirAsistido(p,nota){
 }
 function openSync(){
   var puede=fsSoportado(), conectada=!!FS.handle;
-  var h='<h2>Sincronizar</h2>'
+  var _extra='<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px">'
+   +'<button class="btn primary" onclick="closeModal();sincronizarYa()">Sincronizar ahora</button>'
+   +'<button class="btn" onclick="closeModal();openComentarios()">💬 Comentarios</button></div>';
+  var h=''+_extra+'<h2>Sincronizar</h2>'
     +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 12px">Tus datos viven en este dispositivo. Esto los copia a la carpeta que compartes entre ordenador y móvil.</p>'
     +(state.people.length?'':'<div class="warnbox">Esta copia está vacía. Antes de sincronizar, trae tus datos: <b>Traer de la carpeta</b> o <b>Copiar o pegar datos</b>. Si sincronizas en vacío no borro nada: te aviso y paro.</div>')
     +'<div id="syncInfo" class="'+(conectada?"okbox":"infobox")+'">'
@@ -5726,10 +5839,12 @@ function setTab(t,volviendo){
   document.querySelectorAll(".tabs button").forEach(function(b){ b.classList.toggle("on",b.dataset.tab===t); });
   /* el buscador y los filtros solo pintan donde sirven */
   var conFiltro=(t==="fichas"||t==="mapa"||t==="informe"||t==="sinergias");
-  var seg=document.getElementById("seg"), tb=document.querySelector(".toolbar");
+  var seg=document.getElementById("seg"), tb=document.querySelector(".toolbar"),
+      acc=document.getElementById("acciones");
   if(seg) seg.style.display=conFiltro?"":"none";
-  if(tb) tb.style.display=(t==="negocio"||t==="notas"||t==="aldia")?"none":"";
-  ["mapa","agenda","aldia","fichas","notas","afinidad","sinergias","informe","negocio"].forEach(function(k){
+  if(tb)  tb.style.display=conFiltro?"":"none";        /* el buscador, donde se filtra */
+  if(acc) acc.style.display=(t==="mapa")?"":"none";    /* los botones, solo en Map */
+  ["mapa","agenda","fichas","notas","afinidad","sinergias","informe","negocio","tree"].forEach(function(k){
     var v=document.getElementById("view-"+k); if(v) v.style.display=(k===t?"":"none");
   });
   if(t==="mapa") mapaRender();
@@ -5738,8 +5853,8 @@ function setTab(t,volviendo){
   if(t==="afinidad"){ try{ renderAfinidad(); }catch(e){} }
   if(t==="sinergias"){ try{ renderSinergias(); }catch(e){} }
   if(t==="informe") renderInforme();
-  if(t==="aldia") renderAlDia();
   if(t==="notas") renderNotasPers();
+  if(t==="tree") renderTree();
   try{ tel("screen",{tab:t}); }catch(e){}
 }
 
@@ -5853,10 +5968,7 @@ function limpiarBusqueda(reRender){
 window.limpiarBusqueda=limpiarBusqueda;
 document.getElementById("qclear").onclick=function(){ var q=document.getElementById("q"); limpiarBusqueda(); q.focus(); };
 document.getElementById("add").onclick=function(){ openEdit(null); };
-document.getElementById("meBtn").onclick=function(){ setTab("negocio"); };
-document.getElementById("syncBtn").onclick=sincronizarYa;
 document.getElementById("syncOpt").onclick=openSync;
-var _cb=document.getElementById("comentBtn"); if(_cb) _cb.onclick=openComentarios;
 document.getElementById("instalar").onclick=instalarApp;
 try{ if(window.matchMedia && window.matchMedia("(display-mode: standalone)").matches){ document.getElementById("instalar").style.display="none"; } }catch(e){}
 document.getElementById("file").onchange=function(e){ if(e.target.files[0]) importJSON(e.target.files[0]); e.target.value=""; };
