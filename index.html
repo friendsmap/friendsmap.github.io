@@ -134,6 +134,12 @@ header.top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-conte
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .cols3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
 fieldset{border:1px solid var(--line);border-radius:10px;padding:12px;margin:0 0 12px}
+fieldset>legend{cursor:pointer;user-select:none;-webkit-user-select:none}
+fieldset>legend:hover{color:var(--fg)}
+fieldset>legend[data-pl]::before{content:"\25BE  ";font-size:10px;opacity:.6}
+fieldset.plegado>legend[data-pl]::before{content:"\25B8  "}
+fieldset.plegado{padding-bottom:5px}
+fieldset.plegado>*:not(legend){display:none}
 legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 .mot{display:grid;grid-template-columns:150px 120px 1fr;gap:8px;align-items:center;margin-bottom:6px}
 .mot .lb{font-size:13px}
@@ -365,7 +371,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.26-73 · depurada";
+var VERSION="2026.09.26-74 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -657,6 +663,7 @@ function borrarPersona(id,ev){
   if(!confirm("\u00bfEliminar a "+n+"?"+(extras.length?"\n\nSe borra tambi\u00e9n "+extras.join(", ")+".":"")+"\n\nQuedar\u00e1 una copia en friends-map-anterior.json la pr\u00f3xima vez que sincronices.")) return;
   state.people=state.people.filter(function(x){ return x.id!==id; });
   state.people.forEach(function(x){ x.conexiones=(x.conexiones||[]).filter(function(c){ return c!==id; }); });
+  try{ limpiaParentesco(id); }catch(e){}      /* y del árbol: padres y parejas */
   save(); renderSeg(); renderAll();
   toast("Eliminada la ficha de "+n);
 }
@@ -2428,10 +2435,39 @@ function arbolGente(){
   return Object.keys(en);
 }
 
+/* Baraja de partida: el mismo árbol admite muchas colocaciones y unas cruzan
+   menos ramas que otras. «Reorganizar» prueba cuarenta y se queda con la mejor. */
+function arbolSemilla(){
+  if(state.arbolSeed===undefined){ var v=parseInt(lsGet("arbolSeed")||"0",10); state.arbolSeed=isNaN(v)?0:v; }
+  return state.arbolSeed||0;
+}
+function _rngArbol(s){ return function(){ s=(s*1664525+1013904223)%4294967296; return s/4294967296; }; }
+function arbolReorganizar(){
+  var antes=arbolLayout();
+  if(!antes){ toast("Todavía no hay árbol que reorganizar"); return; }
+  var base=antes.coste, mejorS=arbolSemilla(), mejorC=base;
+  for(var s=1; s<=40; s++){
+    state.arbolSeed=s;
+    var L=arbolLayout();
+    if(L && L.coste<mejorC-0.0001){ mejorC=L.coste; mejorS=s; }
+  }
+  state.arbolSeed=mejorS;
+  try{ lsSet("arbolSeed",String(mejorS)); }catch(e){}   /* para que aguante el cierre de la app */
+  save(); renderTree();
+  var c=document.getElementById("arbolScroll");
+  if(c) c.scrollLeft=Math.max(0,(c.scrollWidth-c.clientWidth)/2);
+  toast(mejorC<base-0.0001 ? "Reorganizado · ahora se cruzan menos ramas"
+                           : "Ya estaba en la mejor colocación que sé encontrar");
+}
+window.arbolReorganizar=arbolReorganizar; window.arbolSemilla=arbolSemilla;
+
 function arbolLayout(){
   var ids=arbolGente(), en={}; ids.forEach(function(i){ en[i]=1; });
   if(!ids.length) return null;
   ids.sort(function(a,b){ return (byId(a).nombre||"").localeCompare(byId(b).nombre||""); });
+  var _sd=arbolSemilla();
+  if(_sd){ var rr=_rngArbol(_sd*7919+13);
+    for(var q=ids.length-1;q>0;q--){ var t=Math.floor(rr()*(q+1)), tmp=ids[q]; ids[q]=ids[t]; ids[t]=tmp; } }
   var padresDe=function(id){ return (byId(id).padres||[]).filter(function(x){ return en[x] && x!==id; }); };
 
   /* --- parejas: una sola, y siempre en los dos sentidos --- */
@@ -2610,7 +2646,8 @@ function arbolLayout(){
   var minX=1e9, maxX=0, maxG=0;
   U.forEach(function(u){ if(u.x<minX) minX=u.x; if(u.x+u.m.length>maxX) maxX=u.x+u.m.length; if(u.gen>maxG) maxG=u.gen; });
   U.forEach(function(u){ u.x-=minX; });
-  return {U:U, uOf:uOf, enlaces:enlaces, maxX:maxX-minX, maxG:maxG, n:ids.length, familias:comp, bucle:bucle};
+  return {U:U, uOf:uOf, enlaces:enlaces, maxX:maxX-minX, maxG:maxG, n:ids.length, familias:comp,
+          bucle:bucle, coste:(mejor?mejor.c:0)};
 }
 
 function arbolSVG(){
@@ -2727,6 +2764,9 @@ function arbolHTML(){
     +L.n+' persona'+(L.n===1?"":"s")+' · '+(L.maxG+1)+' generacion'+(L.maxG?"es":"")
     +' · '+L.familias+' '+(L.familias===1?"familia":"familias todavía sin unir")
     +' · toca a alguien para abrir su sitio</div>'
+    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px">'
+    +'<button class="btn sm" onclick="arbolReorganizar()" title="Prueba otras colocaciones y se queda con la que menos ramas cruza">↻ Reorganizar</button>'
+    +'<span style="font-size:11.5px;color:var(--muted)">Si el dibujo sale enredado, esto prueba cuarenta colocaciones y deja la más limpia.</span></div>'
     +(L.bucle?'<div class="empty" style="margin:0 0 8px;color:var(--accent)">Hay un parentesco imposible: '
       +'alguien acaba siendo antepasado de sí mismo. Revisa los padres de las últimas personas que has tocado.</div>':'')
     +'<div id="arbolScroll" style="overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);'
@@ -2735,6 +2775,39 @@ function arbolHTML(){
 window.arbolLayout=arbolLayout; window.arbolSVG=arbolSVG; window.arbolHTML=arbolHTML; window.arbolGente=arbolGente;
 
 /* ---- construir el árbol deprisa: crear a alguien ya enganchado ---- */
+function treeBorrar(id){
+  var p=byId(id); if(!p) return;
+  /* Avisamos de a quién deja huérfano antes de borrar, no después. */
+  var hijos=state.people.filter(function(x){ return (x.padres||[]).indexOf(id)>=0; });
+  var pj=p.parejaDe?byId(p.parejaDe):null;
+  var avisa=[];
+  if(hijos.length) avisa.push("· "+hijos.length+" persona"+(hijos.length>1?"s":"")+" se queda"+(hijos.length>1?"n":"")
+    +" sin ese padre o madre: "+hijos.slice(0,4).map(function(x){ return x.nombre; }).join(", "));
+  if(pj) avisa.push("· "+pj.nombre+" se queda sin pareja");
+  if(avisa.length && !confirm("Al quitar a «"+(p.nombre||"")+"» del árbol:\n\n"+avisa.join("\n")
+      +"\n\nNo se borra a nadie más. ¿Sigo?")) return;
+  if(esSoloArbol(p)){
+    if(!confirm("Eliminar a «"+(p.nombre||"")+"». Solo existe en el árbol, así que desaparece del todo.\n\n"
+      +"Quedará una copia en friends-map-anterior.json la próxima vez que sincronices.")) return;
+    state.people=state.people.filter(function(x){ return x.id!==id; });
+    limpiaParentesco(id);
+    save(); renderAll(); treeSel=""; renderTree();
+    toast("Eliminada del árbol");
+  }else{
+    borrarPersona(id);                 /* es una ficha de verdad: su propio aviso */
+    if(!byId(id)){ treeSel=""; renderTree(); }
+  }
+}
+/* Al borrar a alguien hay que quitarlo también de los padres y las parejas de los
+   demás. Si no, quedan apuntando a un fantasma. */
+function limpiaParentesco(id){
+  state.people.forEach(function(x){
+    if(Array.isArray(x.padres)) x.padres=x.padres.filter(function(c){ return c!==id; });
+    if(x.parejaDe===id) x.parejaDe="";
+  });
+}
+window.treeBorrar=treeBorrar; window.limpiaParentesco=limpiaParentesco;
+
 function treeCrear(rel, ancla){
   var a=byId(ancla); if(!a) return;
   var q={padre:"¿Cómo se llama su padre o su madre?", pareja:"¿Cómo se llama su pareja?", hijo:"¿Cómo se llama su hijo o hija?", hermano:"¿Cómo se llama su hermano o hermana?"};
@@ -2881,9 +2954,11 @@ function renderTree(){
       : '<button class="btn" onclick="openEdit(\''+sel.id+'\')">Abrir su ficha</button>'
         +'<button class="btn" onclick="treeSoloArbol(\''+sel.id+'\')">Dejarla solo en el árbol</button>')
    +'<button class="btn" onclick="treeVer(\'dibujo\')">🌳 Ver el árbol</button>'
+   +'<button class="btn danger" onclick="treeBorrar(\''+sel.id+'\')">Eliminar</button>'
    +'<span id="trGuardado" style="font-size:12px;color:var(--muted);align-self:center"></span></div>';
   el.innerHTML=h;
   try{ ponerMicros(); }catch(e){}
+  try{ plegaGrupos(el); }catch(e){}
   var deb, auto=function(){ treeGuardar(true); };
   el.querySelectorAll("select,textarea,input[type=text]").forEach(function(e){
     e.addEventListener("input",function(){ clearTimeout(deb); deb=setTimeout(auto,700); });
@@ -4092,7 +4167,12 @@ function openEdit(id){
   var others=genteViva().filter(function(x){return x.id!==p.id;})
     .sort(function(a,b){return (a.nombre||"").localeCompare(b.nombre||"");});
   var h='<div style="display:flex;gap:6px;align-items:center;margin:0 0 10px"><button class="btn sm" id="toFichas">← Todas las fichas</button><button class="btn sm" id="toMapa">Ver el mapa</button>'+(isNew?'':'<button class="btn sm" type="button" onclick="verEscena(\''+p.id+'\')" title="El gatito de esta persona, con todo lo que sabes de ella">🐱 Su gatito</button>')+'<span id="fichaGuardado" style="font-size:12px;color:var(--muted);margin-left:auto"></span></div>'
-    +'<h2>'+(isNew?"Nueva persona":esc(p.nombre||"Ficha"))+'</h2>'
+    +'<h2 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+    +'<span class="grow">'+(isNew?"Nueva persona":esc(p.nombre||"Ficha"))+'</span>'
+    +'<button class="btn sm" type="button" onclick="plegarTodos(document.getElementById(\'modal\'),true)" '
+    +'title="Cerrar todos los grupos">Plegar todo</button>'
+    +'<button class="btn sm" type="button" onclick="plegarTodos(document.getElementById(\'modal\'),false)" '
+    +'title="Abrir todos los grupos">Abrir todo</button></h2>'
     +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 14px">'
     +(isNew?'Con el nombre y la categoría ya se guarda. Lo demás, cuando lo vayas sabiendo.'
            :'Empieza por lo que acabáis de hablar. El resto está debajo y puede esperar.')+'</p>';
@@ -4950,6 +5030,44 @@ function openComentarios(){
 }
 window.openComentarios=openComentarios;
 
+/* ---------- Grupos plegables ----------
+   Como «Mi patrón» o «Método comercial», pero en todas partes: tocas el título
+   del grupo y se cierra. Se recuerda por nombre de grupo, así que si no te
+   interesa «Gustos e intereses», queda cerrado en todas las fichas.
+   Vive en el navegador, no en tus datos: es una preferencia, no información. */
+function plegadosLee(){
+  try{ return JSON.parse(lsGet("plegados")||"{}")||{}; }catch(e){ return {}; }
+}
+function plegadosEscribe(o){ try{ lsSet("plegados",JSON.stringify(o)); }catch(e){} }
+function plegaGrupos(root){
+  root=root||document;
+  var cerr=plegadosLee();
+  root.querySelectorAll("fieldset>legend").forEach(function(lg){
+    if(lg.getAttribute("data-pl")) return;
+    lg.setAttribute("data-pl","1");
+    var fs=lg.parentNode;
+    var k=(lg.textContent||"").trim();
+    var ce=!!cerr[k];
+    if(ce) fs.classList.add("plegado");
+    lg.setAttribute("title","Tocar para "+(ce?"abrir":"plegar")+" este grupo");
+    lg.addEventListener("click",function(){
+      var c=fs.classList.toggle("plegado");
+      var o=plegadosLee();
+      if(c) o[k]=1; else delete o[k];
+      plegadosEscribe(o);
+      lg.setAttribute("title","Tocar para "+(c?"abrir":"plegar")+" este grupo");
+    });
+  });
+}
+function plegarTodos(root,cerrar){
+  root=root||document;
+  root.querySelectorAll("fieldset>legend").forEach(function(lg){
+    var fs=lg.parentNode;
+    if(fs.classList.contains("plegado")!==!!cerrar) lg.click();
+  });
+}
+window.plegaGrupos=plegaGrupos; window.plegarTodos=plegarTodos;
+
 function showModal(h){
   var m=document.getElementById("modal");
   m.innerHTML='<button type="button" class="cerrarX" onclick="closeModal()" title="Cerrar" aria-label="Cerrar">✕</button>'+h;
@@ -4957,6 +5075,7 @@ function showModal(h){
   var o=document.getElementById("overlay"); o.classList.add("on"); o.scrollTop=0;
   try{ history.pushState({fm:"modal"},""); }catch(e){}
   try{ ponerMicros(); }catch(e){}
+  try{ plegaGrupos(m); }catch(e){}
 }
 function closeModal(){ try{ pararDictado(); }catch(e){} document.getElementById("overlay").classList.remove("on"); }
 
@@ -6344,6 +6463,7 @@ function renderNegocio(){
 
   box.innerHTML=h;
   try{ ponerMicros(); }catch(e){}
+  try{ plegaGrupos(box); }catch(e){}
   var deb;
   var guarda=function(){
     box.querySelectorAll(".meCampo").forEach(function(e){ state.me[e.getAttribute("data-k")]=e.value.trim(); });
