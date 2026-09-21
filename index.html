@@ -374,7 +374,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.28-77 · depurada";
+var VERSION="2026.09.28-78 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -2424,8 +2424,18 @@ window.treeNueva=treeNueva; window.treeAMiRed=treeAMiRed; window.treeSoloArbol=t
    una de las dos familias y la otra rama se quedaba suelta. */
 var treeVista="lista";
 function treeVer(v){ treeVista=(v==="dibujo")?"dibujo":"lista"; renderTree();
+  arbolMontado();
   var c=document.getElementById("arbolScroll");
   if(c) c.scrollLeft=Math.max(0,(c.scrollWidth-c.clientWidth)/2); }
+/* Al pintar el dibujo: gestos encendidos y el zoom que dejaste la última vez.
+   La primera vez se ajusta solo, para que no aparezca cortado. */
+function arbolMontado(){
+  if(!document.getElementById("arbolSVG")) return;
+  try{ arbolGestos(); }catch(e){}
+  var z=arbolZLee();
+  if(z) arbolZAplica(z,false); else arbolAjustar();
+}
+window.arbolMontado=arbolMontado;
 window.treeVer=treeVer;
 
 /* Quién entra en el dibujo: solo quien tiene padres, pareja o hijos. */
@@ -2457,7 +2467,7 @@ function arbolReorganizar(){
   }
   state.arbolSeed=mejorS;
   try{ lsSet("arbolSeed",String(mejorS)); }catch(e){}   /* para que aguante el cierre de la app */
-  save(); renderTree();
+  save(); renderTree(); arbolMontado();
   var c=document.getElementById("arbolScroll");
   if(c) c.scrollLeft=Math.max(0,(c.scrollWidth-c.clientWidth)/2);
   toast(mejorC<base-0.0001 ? "Reorganizado · ahora se cruzan menos ramas"
@@ -2676,7 +2686,8 @@ function arbolSVG(){
   var pyDe=function(id){ return py(U[L.uOf[id]]); };
   var s=[];
   s.push('<svg id="arbolSVG" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 '+Math.round(W)+' '+Math.round(H)
-       +'" width="'+Math.round(W)+'" height="'+Math.round(H)+'" xmlns="http://www.w3.org/2000/svg" style="display:block">');
+       +'" data-w="'+Math.round(W)+'" data-h="'+Math.round(H)+'"'
+       +' width="'+Math.round(W)+'" height="'+Math.round(H)+'" xmlns="http://www.w3.org/2000/svg" style="display:block">');
   s.push('<defs><linearGradient id="arGr" x1="0" y1="0" x2="0" y2="1">'
        +'<stop offset="0" stop-color="#f4faf1"/><stop offset="1" stop-color="#eef3e6"/></linearGradient></defs>');
   s.push('<rect x="0" y="0" width="'+Math.round(W)+'" height="'+Math.round(H)+'" rx="16" fill="url(#arGr)"/>');
@@ -2770,6 +2781,175 @@ function arbolSVG(){
   return s.join("");
 }
 
+/* ---------- ZOOM DEL ÁRBOL ----------
+   El pellizco del navegador no servía: el dibujo vive dentro de una caja con
+   scroll propio, así que pellizcar movía la página entera y el árbol seguía
+   igual de grande. Aquí el pellizco actúa sobre el dibujo, y hay botones
+   para quien no quiera pelearse con los dedos. */
+var arbolZ = 0;                      /* 0 = todavía no elegido: se ajusta solo */
+function arbolZLee(){
+  if(arbolZ) return arbolZ;
+  var v=parseFloat(lsGet("arbolZoom")||"0");
+  arbolZ=(v>=0.2 && v<=3)?v:0;
+  return arbolZ;
+}
+function arbolZAplica(z,guardar){
+  var svg=document.getElementById("arbolSVG"); if(!svg) return;
+  var w=parseFloat(svg.getAttribute("data-w"))||parseFloat(svg.getAttribute("width"))||600;
+  var hh=parseFloat(svg.getAttribute("data-h"))||parseFloat(svg.getAttribute("height"))||400;
+  z=Math.max(0.2,Math.min(3,z||1));
+  arbolZ=z;
+  svg.setAttribute("width",Math.round(w*z));
+  svg.setAttribute("height",Math.round(hh*z));
+  var et=document.getElementById("arbolPc");
+  if(et) et.textContent=Math.round(z*100)+"%";
+  if(guardar!==false){ try{ lsSet("arbolZoom",String(z)); }catch(e){} }
+}
+function arbolZoom(f){ arbolZAplica((arbolZ||1)*f); }
+function arbolAjustar(){
+  var c=document.getElementById("arbolScroll"), svg=document.getElementById("arbolSVG");
+  if(!c||!svg) return;
+  var w=parseFloat(svg.getAttribute("data-w"))||1;
+  var disp=(c.clientWidth||c.offsetWidth||360)-6;
+  arbolZAplica(Math.max(0.2,Math.min(1,disp/w)));
+  c.scrollLeft=0;
+}
+window.arbolZoom=arbolZoom; window.arbolAjustar=arbolAjustar; window.arbolZAplica=arbolZAplica;
+
+/* el pellizco, sobre el dibujo */
+function arbolGestos(){
+  var c=document.getElementById("arbolScroll"); if(!c||c._pz) return;
+  c._pz=1;
+  var d0=0, z0=1;
+  var dist=function(t){
+    var dx=t[0].clientX-t[1].clientX, dy=t[0].clientY-t[1].clientY;
+    return Math.sqrt(dx*dx+dy*dy);
+  };
+  c.addEventListener("touchstart",function(e){
+    if(e.touches.length!==2) return;
+    d0=dist(e.touches); z0=arbolZ||1;
+  },{passive:true});
+  c.addEventListener("touchmove",function(e){
+    if(e.touches.length!==2 || !d0) return;
+    e.preventDefault();                    /* si no, el móvil hace scroll y no zoom */
+    arbolZAplica(z0*(dist(e.touches)/d0), false);
+  },{passive:false});
+  c.addEventListener("touchend",function(){
+    if(d0){ d0=0; try{ lsSet("arbolZoom",String(arbolZ)); }catch(e){} }
+  },{passive:true});
+  /* rueda con Ctrl, para el escritorio */
+  c.addEventListener("wheel",function(e){
+    if(!e.ctrlKey) return;
+    e.preventDefault();
+    arbolZAplica((arbolZ||1)*(e.deltaY<0?1.1:0.9));
+  },{passive:false});
+}
+window.arbolGestos=arbolGestos;
+
+/* ---------- LLEVARSE EL ÁRBOL ----------
+   Se pinta el SVG en un lienzo y de ahí sale el JPEG. El PDF lo montamos a
+   mano: es un PDF de una página con esa imagen dentro, sin librerías. */
+function arbolLienzo(escala,cb){
+  var svg=document.getElementById("arbolSVG");
+  if(!svg){ toast("Abre primero el dibujo del árbol"); return; }
+  var w=parseFloat(svg.getAttribute("data-w"))||600,
+      hh=parseFloat(svg.getAttribute("data-h"))||400;
+  var copia=svg.cloneNode(true);
+  copia.setAttribute("width",w); copia.setAttribute("height",hh);
+  var txt='<?xml version="1.0" encoding="UTF-8"?>'+new XMLSerializer().serializeToString(copia);
+  var img=new Image();
+  img.onload=function(){
+    try{
+      var cv=document.createElement("canvas");
+      cv.width=Math.round(w*escala); cv.height=Math.round(hh*escala);
+      var ctx=cv.getContext("2d");
+      if(!ctx){ toast("Este navegador no puede generar la imagen"); return; }
+      ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,cv.width,cv.height);
+      ctx.drawImage(img,0,0,cv.width,cv.height);
+      cb(cv);
+    }catch(e){ toast("No he podido generar la imagen"); }
+  };
+  img.onerror=function(){ toast("No he podido generar la imagen"); };
+  img.src="data:image/svg+xml;base64,"+btoa(unescape(encodeURIComponent(txt)));
+}
+
+function b64aBytes(b64){
+  var s=atob(b64), u=new Uint8Array(s.length);
+  for(var i=0;i<s.length;i++) u[i]=s.charCodeAt(i);
+  return u;
+}
+/* Un PDF de una página con un JPEG dentro. Nada de librerías: son seis objetos. */
+function pdfDeJpeg(jpg,w,h){
+  var W=Math.round(w), H=Math.round(h);
+  var txt=function(s){ var u=new Uint8Array(s.length); for(var i=0;i<s.length;i++) u[i]=s.charCodeAt(i)&255; return u; };
+  var partes=[], off=[], total=0;
+  var mete=function(u){ partes.push(u); total+=u.length; };
+  var obj=function(s){ off.push(total); mete(txt(s)); };
+  mete(txt("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n"));
+  obj("1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n");
+  obj("2 0 obj\n<</Type/Pages/Kids[3 0 R]/Count 1>>\nendobj\n");
+  obj("3 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 "+W+" "+H+"]"
+     +"/Resources<</XObject<</I0 4 0 R>>/ProcSet[/PDF/ImageC]>>/Contents 5 0 R>>\nendobj\n");
+  off.push(total);
+  mete(txt("4 0 obj\n<</Type/XObject/Subtype/Image/Width "+W+"/Height "+H
+     +"/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length "+jpg.length+">>\nstream\n"));
+  mete(jpg);
+  mete(txt("\nendstream\nendobj\n"));
+  var cont="q\n"+W+" 0 0 "+H+" 0 0 cm\n/I0 Do\nQ\n";
+  obj("5 0 obj\n<</Length "+cont.length+">>\nstream\n"+cont+"endstream\nendobj\n");
+  var xref=total;
+  var s="xref\n0 6\n0000000000 65535 f \n";
+  for(var i=0;i<5;i++){ var o=String(off[i]); while(o.length<10) o="0"+o; s+=o+" 00000 n \n"; }
+  s+="trailer\n<</Size 6/Root 1 0 R>>\nstartxref\n"+xref+"\n%%EOF\n";
+  mete(txt(s));
+  var out=new Uint8Array(total), p=0;
+  partes.forEach(function(u){ out.set(u,p); p+=u.length; });
+  return out;
+}
+window.pdfDeJpeg=pdfDeJpeg;
+
+function nombreArbol(ext){
+  var d=new Date(), z=function(n){ return (n<10?"0":"")+n; };
+  return "arbol-"+d.getFullYear()+z(d.getMonth()+1)+z(d.getDate())+"."+ext;
+}
+/* Enviarlo por WhatsApp o lo que tenga; y si el aparato no sabe compartir, se descarga. */
+function entregar(blob,nombre,tipo){
+  var file=null;
+  try{ file=new File([blob],nombre,{type:tipo}); }catch(e){}
+  if(file && navigator.canShare && navigator.canShare({files:[file]}) && navigator.share){
+    navigator.share({files:[file], title:"Mi árbol", text:"Mi árbol genealógico"})
+      .then(function(){ toast("Enviado"); })
+      .catch(function(){ descargar(blob,nombre); });
+    return;
+  }
+  descargar(blob,nombre);
+}
+function descargar(blob,nombre){
+  var u=URL.createObjectURL(blob), a=document.createElement("a");
+  a.href=u; a.download=nombre; document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(u); a.remove(); },1500);
+  toast("Guardado como "+nombre);
+}
+function arbolExportar(tipo){
+  var L=arbolLayout();
+  if(!L){ toast("Todavía no hay árbol que exportar"); return; }
+  toast("Preparando el "+(tipo==="pdf"?"PDF":"PNG")+"…");
+  arbolLienzo(2,function(cv){          /* x2: que se lea bien al imprimir */
+    if(tipo==="png"){
+      cv.toBlob(function(b){
+        if(!b){ toast("No he podido generar el PNG"); return; }
+        entregar(b,nombreArbol("png"),"image/png");
+      },"image/png");
+      return;
+    }
+    var url=cv.toDataURL("image/jpeg",0.92);
+    var jpg=b64aBytes(url.split(",")[1]);
+    var pdf=pdfDeJpeg(jpg,cv.width,cv.height);
+    entregar(new Blob([pdf],{type:"application/pdf"}),nombreArbol("pdf"),"application/pdf");
+  });
+}
+window.arbolExportar=arbolExportar; window.entregar=entregar;
+
 function arbolHTML(){
   var L=arbolLayout();
   if(!L) return '<div class="empty">Todavía no hay a quién dibujar.<br>'
@@ -2782,7 +2962,15 @@ function arbolHTML(){
     +' · toca a alguien para abrir su sitio</div>'
     +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px">'
     +'<button class="btn sm" onclick="arbolReorganizar()" title="Prueba otras colocaciones y se queda con la que menos ramas cruza">↻ Reorganizar</button>'
-    +'<span style="font-size:11.5px;color:var(--muted)">Si el dibujo sale enredado, esto prueba cuarenta colocaciones y deja la más limpia.</span></div>'
+    +'<button class="btn sm" onclick="arbolZoom(0.8)" title="Reducir">−</button>'
+    +'<button class="btn sm" onclick="arbolAjustar()" title="Que quepa entero de ancho">Ajustar</button>'
+    +'<button class="btn sm" onclick="arbolZoom(1.25)" title="Ampliar">+</button>'
+    +'<span id="arbolPc" style="font-size:11.5px;color:var(--muted);min-width:38px">100%</span>'
+    +'<button class="btn sm" onclick="arbolExportar(\'pdf\')" title="Un PDF de una página con el árbol">⬇ PDF</button>'
+    +'<button class="btn sm" onclick="arbolExportar(\'png\')" title="Una imagen para pegar o enviar">⬇ PNG</button>'
+    +'</div>'
+    +'<div style="font-size:11.5px;color:var(--muted);margin:0 0 8px">Pellizca con dos dedos para acercar o alejar. '
+    +'Con «PDF» o «PNG» se abre el menú de compartir del móvil: WhatsApp, correo, o guardarlo.</div>'
     +(L.bucle?'<div class="empty" style="margin:0 0 8px;color:var(--accent)">Hay un parentesco imposible: '
       +'alguien acaba siendo antepasado de sí mismo. Revisa los padres de las últimas personas que has tocado.</div>':'')
     +'<div id="arbolScroll" style="overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);'
