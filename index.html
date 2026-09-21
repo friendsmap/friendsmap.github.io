@@ -46,7 +46,10 @@ header.top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-conte
 .tabs{display:flex;gap:4px;background:#e6eaf1;padding:3px;border-radius:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;scroll-snap-type:x proximity;max-width:100%}
 .tabs::-webkit-scrollbar{display:none}
 .tabs button{flex:0 0 auto;white-space:nowrap;scroll-snap-align:center}
-.tabs button{border:0;background:transparent;padding:6px 13px;border-radius:8px;color:var(--muted);font-weight:550}
+.tabs button{border:0;background:transparent;padding:6px 11px;border-radius:8px;color:var(--muted);font-weight:550}
+.tabs .tico{font-size:12px;opacity:.55;margin-left:1px;font-style:normal}
+.tabs button.on .tico{opacity:1}
+@media(max-width:420px){ .tabs button{padding:6px 9px} .tabs .tico{font-size:11px} }
 .tabs button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .seg{display:block;margin-bottom:12px}
 .ambitos{display:flex;gap:10px;flex-wrap:wrap}
@@ -299,15 +302,15 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
     <div class="titlewrap"><div class="title"><h1>Friends Map</h1><small id="count"></small></div>
       <p class="lema"><span class="ver" id="verEt" title="Versión de la app">—</span> Todo el mundo quiere percibir que es <b>importante</b>, que <b>tiene éxito</b> y que recuerdan <b>su nombre</b>.</p></div>
     <div class="tabs">
-      <button data-tab="mapa" class="on">Map</button>
-      <button data-tab="agenda">Agenda</button>
-      <button data-tab="fichas">People</button>
-      <button data-tab="notas">Notes</button>
-      <button data-tab="afinidad">Affinity</button>
-      <button data-tab="sinergias">Synergies</button>
-      <button data-tab="informe">Report</button>
-      <button data-tab="negocio">My profile</button>
-      <button data-tab="tree">Tree 🌳</button>
+      <button data-tab="mapa" class="on">Map <span class="tico">🗺</span></button>
+      <button data-tab="agenda">Agenda <span class="tico">🗓</span></button>
+      <button data-tab="fichas">People <span class="tico">👥</span></button>
+      <button data-tab="notas">Notes <span class="tico">📝</span></button>
+      <button data-tab="afinidad">Affinity <span class="tico">🎯</span></button>
+      <button data-tab="sinergias">Synergies <span class="tico">🔗</span></button>
+      <button data-tab="informe">Report <span class="tico">📊</span></button>
+      <button data-tab="negocio">My profile <span class="tico">🙋</span></button>
+      <button data-tab="tree">Tree <span class="tico">🌳</span></button>
     </div>
   </header>
 
@@ -371,7 +374,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.27-75 · depurada";
+var VERSION="2026.09.27-76 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
