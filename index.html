@@ -374,7 +374,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.28-78 · depurada";
+var VERSION="2026.09.29-79 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -5911,8 +5911,36 @@ function leerCarpeta(){
     return leerArchivo();
   }).catch(function(){ return null; });
 }
+/* Aguanta lo que le echen. Antes, si le llegaba un número (state.me guarda un
+   par de contadores internos), lanzaba un error que tiraba el combinar entero. */
+/* Junta dos listas sin repetir, quedándose con lo que ya había. */
+function unirLista(mias,otras,clave){
+  mias=Array.isArray(mias)?mias:[]; otras=Array.isArray(otras)?otras:[];
+  var visto={}, out=[];
+  mias.concat(otras).forEach(function(x){
+    if(x==null) return;
+    var k=String(clave?clave(x):x);
+    if(visto[k]) return; visto[k]=1; out.push(x);
+  });
+  return out;
+}
+window.unirLista=unirLista;
+
+/* Junta dos listas sin repetir, quedándose con lo que ya había. */
+function unirLista(mias,otras,clave){
+  mias=Array.isArray(mias)?mias:[]; otras=Array.isArray(otras)?otras:[];
+  var visto={}, out=[];
+  mias.concat(otras).forEach(function(x){
+    if(x==null) return;
+    var k=String(clave?clave(x):x);
+    if(visto[k]) return; visto[k]=1; out.push(x);
+  });
+  return out;
+}
+window.unirLista=unirLista;
+
 function unirTexto(a,b){
-  a=(a||"").trim(); b=(b||"").trim();
+  a=(a==null?"":String(a)).trim(); b=(b==null?"":String(b)).trim();
   if(!b) return a; if(!a) return b;
   if(a.indexOf(b)>=0) return a;
   if(b.indexOf(a)>=0) return b;
@@ -5936,8 +5964,15 @@ function fusionarPersona(a,b){
         var key=(typeof x==="string")?x:(x.id||JSON.stringify([x.d,x.t,x.fecha,x.motivo]));
         if(seen[key]) return; seen[key]=1; arr.push(x);
       });
+      if(k==="padres") arr=arr.slice(0,2);     /* nadie tiene tres padres */
       r[k]=arr; return;
     }
+    /* Un id de pareja o una foto no son prosa: pegarlos uno detrás de otro
+       dejaba un valor imposible y la pareja desaparecía del árbol. */
+    if(k==="parejaDe"||k==="foto"||k==="id"||k==="cumple"||k==="ultimoContacto"){
+      if(!r[k] && vb) r[k]=vb; return;
+    }
+    if(typeof vb==="boolean"){ r[k]=r[k]||vb; return; }
     if(typeof vb==="string"){ r[k]=unirTexto(r[k],vb); return; }
     if(typeof vb==="number"){ if(!r[k]) r[k]=vb; return; }
   });
@@ -5974,11 +6009,32 @@ function elegirComo(d,origen){
   showModal(h);
   document.getElementById("cancel").onclick=closeModal;
   document.getElementById("fu_combinar").onclick=function(){
-    var antes=state.people.length;
-    state.people=fusionar(state.people,d.people||[]);
-    if(d.me) Object.keys(d.me).forEach(function(k){ state.me[k]=unirTexto(state.me[k],d.me[k]); });
-    save(); closeModal(); renderSeg(); renderAll();
-    toast("Combinado: "+antes+" + "+n+" → "+state.people.length+" fichas");
+    try{
+      var antes=state.people.length, nAntes=(state.notasPers||[]).length;
+      state.people=fusionar(state.people,d.people||[]);
+      state.me=state.me||newMe();
+      if(d.me) Object.keys(d.me).forEach(function(k){
+        if(typeof d.me[k]==="number"){ if(!state.me[k]) state.me[k]=d.me[k]; return; }
+        state.me[k]=unirTexto(state.me[k],d.me[k]);
+      });
+      /* Esto faltaba: combinar solo traía las fichas. Las notas, la agenda y
+         las categorías propias se quedaban en el otro aparato. */
+      state.notasPers=unirLista(state.notasPers,d.notasPers,function(x){ return x.id||x.t; });
+      state.agenda   =unirLista(state.agenda,   d.agenda,   function(x){ return x.id||(x.titulo+x.fecha); });
+      state.circExtra=unirLista(state.circExtra,d.circExtra,function(x){ return x.n||x; });
+      state.tipoExtra=unirLista(state.tipoExtra,d.tipoExtra,function(x){ return x.id||x; });
+      reconstruyeTipos();
+      save(); closeModal(); renderSeg(); renderAll();
+      try{ renderNotasPers(); renderAgenda(); }catch(e){}
+      var nn=(state.notasPers||[]).length;
+      toast("Combinado: "+state.people.length+" fichas"
+        +(nn>nAntes?" · "+(nn-nAntes)+" nota"+((nn-nAntes)===1?"":"s")+" nueva"+((nn-nAntes)===1?"":"s"):""));
+    }catch(err){
+      /* Antes esto moría en silencio: el diálogo se quedaba abierto y no se
+         guardaba nada, así que parecía que la sincronización no servía. */
+      alert("No he podido combinar: "+(err&&err.message||err)
+        +"\n\nNo se ha tocado nada de lo que tienes aquí. Dímelo y lo arreglo.");
+    }
   };
   document.getElementById("fu_sustituir").onclick=function(){
     if(!confirm("Se pierde lo que tienes aquí. ¿Seguro?")) return;
