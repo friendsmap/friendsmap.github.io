@@ -374,7 +374,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.29-79 · depurada";
+var VERSION="2026.09.30-80 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -2326,9 +2326,27 @@ function npHecha(id){
   n.hecha=!n.hecha; save(); renderNotasPers();
 }
 function npCampo(id,campo,v){
+  npSenal("Guardando…");
+  clearTimeout(npCampo.t); npCampo.t=setTimeout(function(){ npSenal("Guardado ✓"); },600);
   var n=notasPers().filter(function(x){ return x.id===id; })[0]; if(!n) return;
   n[campo]=v; save();
 }
+/* Se guardan solas al escribir, pero sin un botón y sin una señal no había
+   forma de saberlo. Esto no cambia cuándo se guarda: lo hace visible. */
+function npGuardar(){
+  notasPers().forEach(function(n){
+    var e=document.getElementById("np_"+n.id);
+    if(e) n.t=e.value;
+  });
+  save();
+  npSenal("Guardado ✓");
+  toast("Notas guardadas");
+}
+function npSenal(t){
+  var e=document.getElementById("npEstado"); if(e) e.textContent=t||"";
+}
+window.npGuardar=npGuardar; window.npSenal=npSenal;
+
 function renderNotasPers(){
   var el=document.getElementById("notasPers"); if(!el) return;
   var todas=notasPers();
@@ -2339,7 +2357,10 @@ function renderNotasPers(){
   var h='<h2 style="margin:0 0 4px">Notas personales</h2>'
    +'<p style="color:var(--muted);font-size:12.5px;margin:0 0 14px">Lo que quieres recordar y no es de nadie en concreto. '
    +'Pendientes, ideas y recordatorios que te pones a ti mismo. Se guardan solas mientras escribes.</p>'
-   +'<button class="btn primary" onclick="npNueva()" style="margin-bottom:14px">+ Nota</button>';
+   +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">'
+   +'<button class="btn primary" onclick="npNueva()">+ Nota</button>'
+   +'<button class="btn" onclick="npGuardar()">Guardar</button>'
+   +'<span id="npEstado" style="font-size:12px;color:var(--muted)"></span></div>';
 
   var pinta=function(n){
     var venc = n.rec && n.rec<hoy && !n.hecha;
@@ -5544,10 +5565,72 @@ function gdSubir(tok){
       .then(function(j){ if(j.id) GD.fileId=j.id; return true; });
   });
 }
+/* ---------- EL GUARDIÁN DE DRIVE ----------
+   La carpeta local ya se protegía (no sobrescribe si el archivo tiene gente que
+   aquí no está), pero Drive NO: subía a pelo. Con dos aparatos, el que guardaba
+   el último pisaba al otro, y por eso el escritorio se quedaba con menos fichas,
+   sin árbol y sin notas. */
+function loQueFalta(d){
+  var r={fichas:[],notas:0,citas:0,arbol:[],hay:false};
+  if(!d || !Array.isArray(d.people)) return r;
+  var mios={}; (state.people||[]).forEach(function(p){ mios[p.id]=p; });
+  d.people.forEach(function(q){
+    var m=mios[q.id];
+    if(!m){ r.fichas.push(q.nombre||"(sin nombre)"); return; }
+    /* la misma ficha, pero allí tiene parentesco y aquí no */
+    var alla=((q.padres||[]).length?1:0)+(q.parejaDe?1:0)+(q.semblanza?1:0);
+    var aqui=((m.padres||[]).length?1:0)+(m.parejaDe?1:0)+(m.semblanza?1:0);
+    if(alla>aqui) r.arbol.push(q.nombre||"(sin nombre)");
+  });
+  var mn={}; (state.notasPers||[]).forEach(function(n){ mn[n.id]=1; });
+  r.notas=(d.notasPers||[]).filter(function(n){ return !mn[n.id]; }).length;
+  var ma={}; (state.agenda||[]).forEach(function(a){ ma[a.id]=1; });
+  r.citas=(d.agenda||[]).filter(function(a){ return !ma[a.id]; }).length;
+  r.hay=!!(r.fichas.length||r.notas||r.citas||r.arbol.length);
+  return r;
+}
+function textoFalta(f){
+  var t=[];
+  if(f.fichas.length) t.push(f.fichas.length+" ficha"+(f.fichas.length===1?"":"s")+" que aquí no tienes ("
+    +f.fichas.slice(0,4).join(", ")+(f.fichas.length>4?"…":"")+")");
+  if(f.arbol.length)  t.push(f.arbol.length+" persona"+(f.arbol.length===1?"":"s")+" con datos de árbol más completos");
+  if(f.notas)         t.push(f.notas+" nota"+(f.notas===1?"":"s")+" personal"+(f.notas===1?"":"es"));
+  if(f.citas)         t.push(f.citas+" cita"+(f.citas===1?"":"s")+" en la agenda");
+  return t.join("\n· ");
+}
+window.loQueFalta=loQueFalta; window.textoFalta=textoFalta;
+
+/* Avisa una sola vez por sesión, para no ser pesado. */
+function avisoDrivePisar(f){
+  if(avisoDrivePisar.dicho) return;
+  avisoDrivePisar.dicho=true;
+  alert("No he subido a Drive para no borrarte nada.\n\n"
+    +"En Drive hay cosas que en este aparato no están:\n· "+textoFalta(f)
+    +"\n\nAbre ⋯ → Sincronizar y pulsa «Traer fichas de Drive» → Combinar. "
+    +"Después ya se guardará solo con normalidad.");
+}
+window.avisoDrivePisar=avisoDrivePisar;
+
 function gdSyncSubir(){
   if(!gdActivo()) return Promise.resolve(false);
   return gdToken("").then(function(tok){
-    return (GD.fileId?Promise.resolve():gdBuscar(tok)).then(function(){ return gdSubir(tok); })
+    return (GD.fileId?Promise.resolve():gdBuscar(tok))
+      .then(function(){
+        /* Mirar SIEMPRE qué hay arriba antes de pisarlo. */
+        if(!GD.fileId) return null;
+        return gdDescargar(tok).catch(function(){ return null; });
+      })
+      .then(function(remoto){
+        var f=loQueFalta(remoto);
+        if(f.hay){
+          GD.pendiente=f;
+          setSync("Drive tiene datos sin traer · no he subido");
+          avisoDrivePisar(f);
+          throw {noPisar:true};
+        }
+        GD.pendiente=null;
+        return gdSubir(tok);
+      })
       .then(function(){
         var marca=""; try{ marca=JSON.parse(payload()).saved; }catch(e){}
         setSyncMeta({driveGuardado:savedLocal()});
@@ -5555,7 +5638,10 @@ function gdSyncSubir(){
         try{ gdBackup(tok); }catch(e){}
         setSync("guardado en Drive "+new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"})); revisarAvisos(); return true;
       });
-  }).catch(function(){ GD.error=true; setSync("Drive: pulsa Reconectar"); revisarAvisos(); return false; });
+  }).catch(function(e){
+    if(e&&e.noPisar) return false;          /* no es un fallo: es la protección */
+    GD.error=true; setSync("Drive: pulsa Reconectar"); revisarAvisos(); return false;
+  });
 }
 function gdBackup(tok){
   try{ if(syncMeta().driveBackupDia===todayStr()) return Promise.resolve(); }catch(e){}
@@ -6219,6 +6305,13 @@ function openSync(){
       +'</div></fieldset>';
   }
   if(!gdActivo()){
+  if(GD.pendiente && GD.pendiente.hay){
+    h+='<div class="infobox" style="margin-bottom:12px;border-color:#e0b4bd;background:#fdf3f5">'
+     +'<b style="color:#b3455b">Drive tiene datos que aquí no están</b><br>'
+     +'<span style="font-size:12.5px">· '+esc(textoFalta(GD.pendiente)).replace(/\n/g,"<br>· ")+'</span>'
+     +'<br><span style="font-size:11.5px;color:var(--muted)">No he subido nada para no borrártelos. '
+     +'Pulsa <b>Traer fichas de Drive</b> y luego <b>Combinar</b>.</span></div>';
+  }
   h+='<div class="infobox" style="margin-bottom:12px"><b>En este aparato:</b> '+esc(resumenDatos())
    +'<br><span style="font-size:11.5px;color:var(--muted)">Compara este recuento con el del otro aparato después de sincronizar. '
    +'Si no coincide, es que falta traer datos, no que se hayan perdido.</span></div>'
