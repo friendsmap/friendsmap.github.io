@@ -374,7 +374,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.27-76 · depurada";
+var VERSION="2026.09.28-77 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -556,6 +556,7 @@ function ensure(p){
   ["politica","identidad","foto","semblanza","parejaDe","genero","exito","admirado","importante","preocupa","fascina","ayuda","logros","estilo","sector","meAporta","necesito","buscaDeMi","problema","presume","cebo","decisionCuesta","vestir","humor","discurso","nosUne","nosSepara","hitos","sies","quienesImportan","queQuierenLosSuyos","gustosDeLosSuyos","gesto"]
     .forEach(function(k){ if(p[k]==null) p[k]=""; });
   ["conexiones","notas","encuentros","pasos","maslowSel","padres"].forEach(function(k){ if(!Array.isArray(p[k])) p[k]=[]; });
+  p.soloArbol=!!p.soloArbol;                 /* que llegue como sí o no, no como «no sé» */
   return p;
 }
 
@@ -5108,7 +5109,8 @@ function closeModal(){ try{ pararDictado(); }catch(e){} document.getElementById(
 /* ---------- import / export / demo ---------- */
 function exportJSON(){
   try{
-  var blob=new Blob([JSON.stringify({people:state.people,me:state.me,v:3,exported:new Date().toISOString()},null,2)],{type:"application/json"});
+  /* la copia manual llevaba solo fichas y perfil: se perdían agenda, notas y categorías */
+  var blob=new Blob([payload()],{type:"application/json"});
   var a=document.createElement("a");
   a.href=URL.createObjectURL(blob); a.download="friends-map.json"; a.click();
   setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
@@ -5509,7 +5511,24 @@ function hoyISO(){ return new Date().toISOString().slice(0,10); }
 function syncMeta(){ try{ return JSON.parse(lsGet("sync")||"{}"); }catch(e){ return {}; } }
 function setSyncMeta(o){ try{ var m=syncMeta(); for(var k in o) m[k]=o[k]; lsSet("sync",JSON.stringify(m)); }catch(e){} }
 function savedLocal(){ try{ return (JSON.parse(localStorage.getItem(KEY)||"{}").saved)||""; }catch(e){ return ""; } }
-function payload(){ return JSON.stringify({people:state.people,me:state.me,circExtra:state.circExtra||[],tipoExtra:state.tipoExtra||[],agenda:state.agenda||[],v:3,saved:new Date().toISOString()},null,2); }
+/* Lo que sube a Drive y a la carpeta. Tiene que ser TODO lo que guarda save():
+   las notas personales se quedaban en el móvil porque faltaban aquí. */
+/* Un recuento de lo que hay, para poder comparar los dos aparatos de un vistazo. */
+function resumenDatos(d){
+  d=d||state;
+  var np=(d.notasPers||[]).length, ag=(d.agenda||[]).length,
+      pe=(d.people||[]).length,
+      ar=(d.people||[]).filter(function(p){ return (p.padres||[]).length||p.parejaDe; }).length;
+  return pe+" ficha"+(pe===1?"":"s")+" · "+ar+" en el árbol · "+np+" nota"+(np===1?"":"s")+" · "+ag+" en la agenda";
+}
+window.resumenDatos=resumenDatos;
+
+function payload(){ return JSON.stringify({
+  people:state.people, me:state.me,
+  circExtra:state.circExtra||[], tipoExtra:state.tipoExtra||[],
+  agenda:state.agenda||[], notasPers:state.notasPers||[],
+  v:3, saved:new Date().toISOString()
+},null,2); }
 function setSync(t){ var e=document.getElementById("syncSt"); if(e) e.textContent=t||""; FS.msg=t||""; }
 function fsSoportado(){ return typeof window.showDirectoryPicker==="function"; }
 function idb(){ return new Promise(function(res,rej){
@@ -5783,8 +5802,11 @@ function aplicarDatos(d){
   if(Array.isArray(d.circExtra)) state.circExtra=d.circExtra;
   if(Array.isArray(d.tipoExtra)) state.tipoExtra=d.tipoExtra;
   if(Array.isArray(d.agenda)) state.agenda=d.agenda;
+  if(Array.isArray(d.notasPers)) state.notasPers=d.notasPers;
+  /* si el archivo es de una versión vieja y no las trae, no se borran las de aquí */
   reconstruyeTipos();
   save(); renderSeg(); renderAll();
+  try{ renderNotasPers(); }catch(e){}
 }
 function restaurarCarpeta(){
   if(!fsSoportado()) return;
@@ -5953,7 +5975,10 @@ function openSync(){
       +'</div></fieldset>';
   }
   if(!gdActivo()){
-  h+='<fieldset><legend>Móvil</legend>'
+  h+='<div class="infobox" style="margin-bottom:12px"><b>En este aparato:</b> '+esc(resumenDatos())
+   +'<br><span style="font-size:11.5px;color:var(--muted)">Compara este recuento con el del otro aparato después de sincronizar. '
+   +'Si no coincide, es que falta traer datos, no que se hayan perdido.</span></div>'
+   +'<fieldset><legend>Móvil</legend>'
     +'<p style="font-size:13px;margin:0 0 8px">Manda el archivo con el menú de compartir de Android y guárdalo en <b>Drive → Claude → App Amigos</b>, sustituyendo el anterior.</p>'
     +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
     +'<button class="btn primary" id="sy_enviar">Enviar a Drive</button>'
