@@ -371,7 +371,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.26-74 · depurada";
+var VERSION="2026.09.27-75 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -2470,11 +2470,21 @@ function arbolLayout(){
     for(var q=ids.length-1;q>0;q--){ var t=Math.floor(rr()*(q+1)), tmp=ids[q]; ids[q]=ids[t]; ids[t]=tmp; } }
   var padresDe=function(id){ return (byId(id).padres||[]).filter(function(x){ return en[x] && x!==id; }); };
 
-  /* --- parejas: una sola, y siempre en los dos sentidos --- */
+  /* --- parejas --- */
   var par={};
+  /* 1. lo que hayas marcado a mano manda */
   ids.forEach(function(i){ var p=byId(i);
     if(p.parejaDe && en[p.parejaDe] && p.parejaDe!==i && par[i]===undefined && par[p.parejaDe]===undefined){
       par[i]=p.parejaDe; par[p.parejaDe]=i; } });
+  /* 2. y quien comparte hijos va junto aunque no lo hayas marcado.
+        Si pones «padre y madre» de alguien, esos dos van juntos: es lo que
+        espera cualquiera que mire un árbol. Antes salían separados, y si ella
+        tenía hermanos se quedaba entre ellos, lejos de él. */
+  ids.forEach(function(i){
+    var pd=padresDe(i); if(pd.length<2) return;
+    var a=pd[0], b=pd[1];
+    if(a!==b && par[a]===undefined && par[b]===undefined){ par[a]=b; par[b]=a; }
+  });
 
   /* --- unidades: lo que va pegado en el dibujo (una persona, o un matrimonio) --- */
   var uOf={}, U=[];
@@ -2666,13 +2676,15 @@ function arbolSVG(){
   s.push('<defs><linearGradient id="arGr" x1="0" y1="0" x2="0" y2="1">'
        +'<stop offset="0" stop-color="#f4faf1"/><stop offset="1" stop-color="#eef3e6"/></linearGradient></defs>');
   s.push('<rect x="0" y="0" width="'+Math.round(W)+'" height="'+Math.round(H)+'" rx="16" fill="url(#arGr)"/>');
-  s.push('<line x1="0" y1="'+(H-M+12)+'" x2="'+Math.round(W)+'" y2="'+(H-M+12)+'" stroke="#cfdcc2" stroke-width="2"/>');
 
-  /* tronco bajo quien no tiene padres en el árbol */
+  /* Un tocón corto bajo quien no tiene padres: marca dónde empieza la raíz.
+     Antes bajaba hasta el suelo y cruzaba por encima de las ramas de otros,
+     que se confundían con parentescos que no existían. */
   U.filter(function(u){ return !u.arriba.length; }).forEach(function(u){
-    var cx=px(u,(u.m.length-1)/2), cy=py(u);
-    s.push('<path d="M'+cx.toFixed(1)+','+(H-M+12)+' L'+cx.toFixed(1)+','+(cy+R+24).toFixed(1)+'" '
-         +'stroke="#8a6a46" stroke-width="13" stroke-linecap="round" fill="none" opacity=".5"/>');
+    var cx=px(u,(u.m.length-1)/2), cy=py(u)+R+24;
+    s.push('<path d="M'+cx.toFixed(1)+','+cy.toFixed(1)+' L'+cx.toFixed(1)+','+(cy+26).toFixed(1)+'" '
+         +'stroke="#8a6a46" stroke-width="12" stroke-linecap="round" fill="none" opacity=".4"/>');
+    s.push('<ellipse cx="'+cx.toFixed(1)+'" cy="'+(cy+28).toFixed(1)+'" rx="15" ry="4" fill="#8a6a46" opacity=".22"/>');
   });
 
   /* Las ramas: de cada pareja de padres sale un tronco corto, se abre en un hombro
@@ -2940,11 +2952,20 @@ function renderTree(){
   };
   var padres=pad.map(byId).filter(Boolean);
   var pareja=sel.parejaDe?[byId(sel.parejaDe)].filter(Boolean):[];
+  /* con quién comparte hijos, aunque no esté marcado como pareja */
+  var coPadres={};
+  state.people.forEach(function(x){
+    var pd=(x.padres||[]).filter(function(c){ return !!byId(c); });
+    if(pd.length>1 && pd.indexOf(sel.id)>=0)
+      pd.forEach(function(c){ if(c!==sel.id && c!==sel.parejaDe) coPadres[c]=1; });
+  });
+  var coP=Object.keys(coPadres).map(byId).filter(Boolean);
   var hijos=state.people.filter(function(x){ return (x.padres||[]).indexOf(sel.id)>=0; });
   var hermanos=pad.length?state.people.filter(function(x){
     return x.id!==sel.id && (x.padres||[]).some(function(id){ return pad.indexOf(id)>=0; });
   }):[];
   h+=lazos("Sus padres",padres)+lazos("Su pareja",pareja)
+    +lazos("Comparte hijos con · en el árbol se dibujan juntos",coP)
     +lazos("Sus hermanos y hermanas",hermanos)+lazos("Sus hijos e hijas",hijos);
 
   h+='<div class="modal-actions" style="justify-content:flex-start">'
@@ -5035,26 +5056,28 @@ window.openComentarios=openComentarios;
    del grupo y se cierra. Se recuerda por nombre de grupo, así que si no te
    interesa «Gustos e intereses», queda cerrado en todas las fichas.
    Vive en el navegador, no en tus datos: es una preferencia, no información. */
-function plegadosLee(){
-  try{ return JSON.parse(lsGet("plegados")||"{}")||{}; }catch(e){ return {}; }
+/* Todo arranca plegado: una ficha con siete grupos abiertos es una pared.
+   Se guardan los que TÚ abres, y esos siguen abiertos la próxima vez. */
+function abiertosLee(){
+  try{ return JSON.parse(lsGet("gruposAbiertos")||"{}")||{}; }catch(e){ return {}; }
 }
-function plegadosEscribe(o){ try{ lsSet("plegados",JSON.stringify(o)); }catch(e){} }
+function abiertosEscribe(o){ try{ lsSet("gruposAbiertos",JSON.stringify(o)); }catch(e){} }
 function plegaGrupos(root){
   root=root||document;
-  var cerr=plegadosLee();
+  var ab=abiertosLee();
   root.querySelectorAll("fieldset>legend").forEach(function(lg){
     if(lg.getAttribute("data-pl")) return;
     lg.setAttribute("data-pl","1");
     var fs=lg.parentNode;
     var k=(lg.textContent||"").trim();
-    var ce=!!cerr[k];
-    if(ce) fs.classList.add("plegado");
-    lg.setAttribute("title","Tocar para "+(ce?"abrir":"plegar")+" este grupo");
+    var abierto=!!ab[k];
+    if(!abierto) fs.classList.add("plegado");
+    lg.setAttribute("title","Tocar para "+(abierto?"plegar":"abrir")+" este grupo");
     lg.addEventListener("click",function(){
       var c=fs.classList.toggle("plegado");
-      var o=plegadosLee();
-      if(c) o[k]=1; else delete o[k];
-      plegadosEscribe(o);
+      var o=abiertosLee();
+      if(c) delete o[k]; else o[k]=1;
+      abiertosEscribe(o);
       lg.setAttribute("title","Tocar para "+(c?"abrir":"plegar")+" este grupo");
     });
   });
