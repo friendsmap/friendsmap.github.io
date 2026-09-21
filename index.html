@@ -365,7 +365,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.24-70 · depurada";
+var VERSION="2026.09.26-73 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -425,7 +425,7 @@ var state={ people:[], me:null, tab:"mapa", q:"", grupo:"", tipo:"", tipos:[], m
 var SEED=null;
 
 /* ---------- persistencia ---------- */
-function newMe(){ return {nombre:"",titular:"",experiencia:"",resuelvo:"",logros:"",sectores:"",pido:"",patron:"",mantra:"",frases:""}; }
+function newMe(){ return {nombre:"",apodo:"",foto:"",titular:"",experiencia:"",resuelvo:"",logros:"",sectores:"",pido:"",objPlazo:"",objFreno:"",objPaso:"",cumple:"",trato:"",ciudad:"",empleo:"",empresa:"",sector:"",aficiones:"",musica:"",deportes:"",temas:"",evitar:"",humor:"",vestir:"",politica:"",hijos:"",familia:"",quienesImportan:"",queQuierenLosSuyos:"",gustosDeLosSuyos:"",gesto:"",fascina:"",presume:"",preocupa:"",decisionCuesta:"",ayuda:"",exito:"",admirado:"",importante:"",patron:"",mantra:"",frases:""}; }
 var FRASES_SEED="Decidir es conducir la vida, y disfruta moviendo el timón y consiguiendo tu vida aunque toda decisión tenga un coste. El mayor coste es siempre no decidir y permanecer pensando.\nMantenerse ocupado no es lo mismo que hacer lo que de verdad importa. Mira si el día de hoy va donde tú quieres ir.\nLa experiencia y el rigor ya están ahí. Buscar validación fuera no los aumenta: solo los retrasa. Se falla mucho menos de lo que se teme.\nVale más actuar y corregir que no actuar. El error se arregla; el tiempo parado no se recupera.\nLa seguridad no llega antes de decidir: llega de decidir. Apóyate en lo que ya has construido eligiendo.\nNo hace falta más certeza para empezar. Pensar es una herramienta, no un escondite.\nMantener abiertas todas las posibilidades es no elegir ninguna. Elige una y acepta el precio de las demás.\nUno puede equivocarse y corregir. Lo que no se recupera es el tiempo esperando a sentirse preparado.\nNo existe la decisión perfecta. Existe una suficientemente buena a la que se le da trabajo hasta hacerla grande.\nLa duda no es una señal para parar. Casi siempre es solo la señal de que algo importa.\nHoy toca hacer lo que se sabe que toca, sobre todo cuando todavía no se siente uno preparado.\nLa ventaja no está en pensar más que ayer, sino en que lo que ya se sabe se convierta en acción.\nSi algo lleva días analizándose, ya se sabe lo que se quiere. Lo que falta es aceptar lo que cuesta.\nAnalizar de más mantiene vivas todas las opciones. Elegir mata algunas: por eso cuesta, y por eso hay que hacerlo.\nEntender el mecanismo está muy bien. Pero hoy toca mover algo.\nElegir, ejecutar y construir. En ese orden, y hoy.\nLa certeza siempre llega tarde.";
 var FRASES_LOTE=3;   /* sube 1 cada vez que se anadan frases nuevas */
 var FRASES_VIEJAS=["Decidir es conducir mi vida, y disfruto haciéndolo aunque tenga un coste.", "Me mantengo ocupado, pero no estoy haciendo lo que de verdad quiero hacer.", "No estoy convencido de mi experiencia y mi rigor. Busco validación fuera, y no me equivoco tanto.", "Me vale más actuar y equivocarme para luego corregir que no actuar.", "Más seguridad en mí mismo: apoyarme en lo que he construido decidiendo."];
@@ -902,12 +902,19 @@ function openPersuasion(id){
   tel("action",{a:"persuasion"});
 }
 
+/* La vuelta a la ficha, arriba del todo: al final del formulario no la veía nadie. */
+function barraVolver(id,titulo,sub){
+  return '<div style="position:sticky;top:-14px;z-index:5;background:var(--bg);padding:10px 0 8px;margin:-4px 0 10px">'
+    +'<button class="btn sm" onclick="openEdit(\''+id+'\')">← Volver a la ficha</button></div>'
+    +'<h2 style="margin:0">'+titulo+'</h2>'
+    +(sub?'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 14px">'+sub+'</p>':'');
+}
+window.barraVolver=barraVolver;
+
 function openPlan(id){
   var p=ensure(byId(id)); if(!p) return;
   var t=terreno(p), neg=esNegocio(p), c=ceboDe(p);
-  var h='<h2>Plan — '+esc(p.nombre)+'</h2>'
-    +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 12px">'+tipoLabel(p.tipo)
-    +(p.empresa?' · '+esc(p.empresa):'')+'</p>'
+  var h=barraVolver(p.id,'Plan — '+esc(p.nombre),tipoLabel(p.tipo)+(p.empresa?' · '+esc(p.empresa):''))
     +'<div class="infobox">El mismo menú para los dos. Él no quiere ayudarte: quiere resolver lo suyo y que se le note el acierto. '
     +'Tu trabajo es que conseguir lo suyo pase por ti. <b>Recuerda:</b> no critiques, habla de lo que le interesa a '+EL(p)+' y hazle sentir importante con sinceridad.</div>';
 
@@ -2399,7 +2406,11 @@ window.treeNueva=treeNueva; window.treeAMiRed=treeAMiRed; window.treeSoloArbol=t
 
 /* ================= EL ÁRBOL DIBUJADO =================
    Los mayores abajo, en la raíz; los hijos suben por las ramas.
-   Se dibuja con lo que hay: nadie suelto, cada familia su propio árbol. */
+
+   Lo importante: cada persona cuelga de SUS padres aunque esté casada.
+   Así la familia de tu padre y la de tu madre se unen por el matrimonio,
+   y lo mismo con la de tu mujer. Antes un matrimonio solo podía colgar de
+   una de las dos familias y la otra rama se quedaba suelta. */
 var treeVista="lista";
 function treeVer(v){ treeVista=(v==="dibujo")?"dibujo":"lista"; renderTree();
   var c=document.getElementById("arbolScroll");
@@ -2417,112 +2428,266 @@ function arbolGente(){
   return Object.keys(en);
 }
 
-/* Coloca a cada uno. Las parejas van juntas y los padres, centrados sobre sus hijos. */
 function arbolLayout(){
   var ids=arbolGente(), en={}; ids.forEach(function(i){ en[i]=1; });
   if(!ids.length) return null;
+  ids.sort(function(a,b){ return (byId(a).nombre||"").localeCompare(byId(b).nombre||""); });
+  var padresDe=function(id){ return (byId(id).padres||[]).filter(function(x){ return en[x] && x!==id; }); };
 
+  /* --- parejas: una sola, y siempre en los dos sentidos --- */
   var par={};
   ids.forEach(function(i){ var p=byId(i);
-    if(p.parejaDe && en[p.parejaDe] && p.parejaDe!==i){ par[i]=p.parejaDe; par[p.parejaDe]=i; } });
+    if(p.parejaDe && en[p.parejaDe] && p.parejaDe!==i && par[i]===undefined && par[p.parejaDe]===undefined){
+      par[i]=p.parejaDe; par[p.parejaDe]=i; } });
 
+  /* --- unidades: lo que va pegado en el dibujo (una persona, o un matrimonio) --- */
   var uOf={}, U=[];
-  ids.sort(function(a,b){ return (byId(a).nombre||"").localeCompare(byId(b).nombre||""); });
   ids.forEach(function(i){
     if(uOf[i]!==undefined) return;
-    var m=[i];
-    if(par[i]!==undefined && uOf[par[i]]===undefined) m.push(par[i]);
+    var m=[i]; if(par[i]!==undefined && uOf[par[i]]===undefined) m.push(par[i]);
     var k=U.length; m.forEach(function(x){ uOf[x]=k; });
-    U.push({i:k, m:m, hijos:[], padre:null, gen:0, x:0, puesto:false});
+    U.push({i:k,m:m,gen:0,ord:0,x:0,comp:0});
   });
 
-  U.forEach(function(u){
-    var ps={};
-    u.m.forEach(function(id){ (byId(id).padres||[]).forEach(function(pd){
-      if(en[pd] && uOf[pd]!==u.i) ps[uOf[pd]]=1; }); });
-    var k=Object.keys(ps); u.padre=k.length?parseInt(k[0],10):null;
+  /* --- generación ---
+     Cuatro reglas que se aplican a la vez hasta que todo encaja:
+       1. estás un escalón por encima de tus padres
+       2. tu cónyuge está a tu altura (así se unen las dos familias)
+       3. tus hermanos están a tu altura (si tu hermana se casa con alguien
+          mayor, subís los dos: si no, los tíos quedaban colgando)
+       4. quien no tiene padres se pega justo debajo de sus hijos
+     Todas suben, nunca bajan, así que esto termina siempre. */
+  var gen={}, bucle=false;
+  ids.forEach(function(i){ gen[i]=0; });
+  var hermanosDe={};
+  ids.forEach(function(i){
+    var pd=padresDe(i); if(!pd.length) return;
+    hermanosDe[i]=ids.filter(function(j){
+      return j!==i && padresDe(j).some(function(x){ return pd.indexOf(x)>=0; });
+    });
   });
-  U.forEach(function(u){ if(u.padre!==null) U[u.padre].hijos.push(u.i); });
-
-  /* generación = cuántos escalones hay hasta la raíz (con tope, por si alguien se lía) */
-  U.forEach(function(u){ var g=0, c=u, n=0;
-    while(c.padre!==null && n<40){ g++; c=U[c.padre]; n++; }
-    if(n>=40) u.padre=null;           /* bucle: lo cortamos y queda como raíz */
-    u.gen=g; });
-
-  var cur=[], maxX=0;
-  function ancho(u){ return u.m.length+0.45; }
-  function colocar(k){
-    var u=U[k]; if(u.puesto) return; u.puesto=true;
-    var x=-1;
-    if(u.hijos.length){
-      u.hijos.forEach(colocar);
-      var xs=u.hijos.map(function(c){ return U[c].x+(U[c].m.length-1)/2; });
-      x=(Math.min.apply(null,xs)+Math.max.apply(null,xs))/2-(u.m.length-1)/2;
-    }
-    var min=(cur[u.gen]===undefined?0:cur[u.gen]);
-    if(!(x>=min)) x=min;
-    u.x=x; cur[u.gen]=x+ancho(u);
-    if(x+u.m.length>maxX) maxX=x+u.m.length;
+  for(var it=0; it<120; it++){
+    var cambio=false;
+    ids.forEach(function(i){                                   /* 1 */
+      var g=gen[i];
+      padresDe(i).forEach(function(pd){ if(gen[pd]+1>g) g=gen[pd]+1; });
+      if(g!==gen[i]){ gen[i]=g; cambio=true; }
+    });
+    ids.forEach(function(i){                                   /* 2 */
+      var j=par[i]; if(j===undefined) return;
+      var mx=Math.max(gen[i],gen[j]);
+      if(gen[i]!==mx){ gen[i]=mx; cambio=true; }
+      if(gen[j]!==mx){ gen[j]=mx; cambio=true; }
+    });
+    ids.forEach(function(i){                                   /* 3 */
+      var hs=hermanosDe[i]; if(!hs || !hs.length) return;
+      var mx=gen[i]; hs.forEach(function(j){ if(gen[j]>mx) mx=gen[j]; });
+      if(gen[i]!==mx){ gen[i]=mx; cambio=true; }
+    });
+    ids.forEach(function(i){                                   /* 4 */
+      if(padresDe(i).length) return;
+      var hijos=ids.filter(function(j){ return padresDe(j).indexOf(i)>=0; });
+      if(!hijos.length) return;
+      var min=1e9; hijos.forEach(function(j){ if(gen[j]<min) min=gen[j]; });
+      if(min-1>gen[i]){ gen[i]=min-1; cambio=true; }
+    });
+    if(!cambio) break;
+    if(it===119) bucle=true;       /* alguien acaba siendo antepasado de sí mismo */
   }
-  var raices=U.filter(function(u){ return u.padre===null; });
-  raices.forEach(function(u){
-    colocar(u.i);
-    var t=0; cur.forEach(function(v){ if(v>t) t=v; });
-    for(var g=0;g<40;g++) cur[g]=t+1.1;     /* hueco entre familias */
+  U.forEach(function(u){ var mx=0; u.m.forEach(function(i){ if(gen[i]>mx) mx=gen[i]; }); u.gen=mx; });
+
+  /* --- quién cuelga de quién, unidad a unidad (para ordenar y para dibujar) --- */
+  U.forEach(function(u){ u.arriba=[]; u.abajo=[]; });
+  var enlaces=[];                 /* {hijo:idPersona, padres:[ids], uh:unidad, up:unidad} */
+  ids.forEach(function(i){
+    var pd=padresDe(i); if(!pd.length) return;
+    var up=uOf[pd[0]], uh=uOf[i];
+    if(up===uh) return;           /* padre de sí mismo: lo ignoramos */
+    enlaces.push({hijo:i, padres:pd, up:up, uh:uh});
+    if(U[uh].arriba.indexOf(up)<0) U[uh].arriba.push(up);
+    if(U[up].abajo.indexOf(uh)<0) U[up].abajo.push(uh);
+    if(pd[1]!==undefined && uOf[pd[1]]!==up){   /* padres que no son pareja entre sí */
+      var up2=uOf[pd[1]];
+      if(U[uh].arriba.indexOf(up2)<0) U[uh].arriba.push(up2);
+      if(U[up2].abajo.indexOf(uh)<0) U[up2].abajo.push(uh);
+    }
   });
 
-  var maxG=0; U.forEach(function(u){ if(u.gen>maxG) maxG=u.gen; });
-  return {U:U, maxX:maxX, maxG:maxG, n:ids.length, familias:raices.length};
+  /* --- familias: todo lo que está unido por sangre o por matrimonio --- */
+  var comp=0;
+  U.forEach(function(u){ u.comp=-1; });
+  U.forEach(function(u){
+    if(u.comp>=0) return;
+    var cola=[u.i]; u.comp=comp;
+    while(cola.length){
+      var c=U[cola.shift()];
+      c.arriba.concat(c.abajo).forEach(function(k){ if(U[k].comp<0){ U[k].comp=comp; cola.push(k); } });
+    }
+    comp++;
+  });
+
+  /* --- orden dentro de cada fila: baricentro, para que se crucen las menos ramas --- */
+  var filas={}, gens=[];
+  U.forEach(function(u){ (filas[u.gen]=filas[u.gen]||[]).push(u); });
+  Object.keys(filas).forEach(function(g){ gens.push(parseInt(g,10)); });
+  gens.sort(function(a,b){ return a-b; });
+  gens.forEach(function(g){ filas[g].forEach(function(u,i){ u.ord=i; }); });
+  var media=function(a){ var s=0; a.forEach(function(v){ s+=v; }); return a.length?s/a.length:0; };
+  /* Cuántas ramas se cruzan con el orden actual. Probamos varias pasadas y nos
+     quedamos con la mejor: si no, mandaba siempre la última y salían marañas. */
+  var cruces=function(){
+    var c=0;
+    gens.forEach(function(g){
+      var e=[];
+      (filas[g]||[]).forEach(function(u){ u.abajo.forEach(function(k){ e.push([u.ord,U[k].ord]); }); });
+      for(var i=0;i<e.length;i++) for(var j=i+1;j<e.length;j++)
+        if((e[i][0]-e[j][0])*(e[i][1]-e[j][1])<0) c++;
+    });
+    return c;
+  };
+  /* Además de no cruzarse, las ramas deben ser cortas: así los hermanos quedan
+     cerca de sus padres en vez de irse cada uno a una punta. */
+  var largo=function(){
+    var t=0;
+    U.forEach(function(u){
+      var n=Math.max(1,(filas[u.gen]||[]).length-1), p=u.ord/n;
+      u.abajo.forEach(function(k){
+        var v=U[k], m=Math.max(1,(filas[v.gen]||[]).length-1);
+        t+=Math.abs(p-v.ord/m);
+      });
+    });
+    return t;
+  };
+  var mejor=null, guarda=function(){
+    var c=cruces()*1000+largo();
+    if(mejor===null || c<mejor.c){ mejor={c:c,o:U.map(function(u){ return u.ord; })}; }
+  };
+  guarda();
+  for(var pas=0; pas<24; pas++){
+    var orden=(pas%2)?gens:gens.slice().reverse();
+    orden.forEach(function(g){
+      filas[g].forEach(function(u){
+        var v=(pas%2?u.abajo:u.arriba).map(function(k){ return U[k].ord; });
+        u.bar=v.length?media(v):u.ord;
+      });
+      filas[g].sort(function(a,b){
+        if(a.comp!==b.comp) return a.comp-b.comp;      /* cada familia, junta */
+        if(a.bar!==b.bar) return a.bar-b.bar;
+        return a.ord-b.ord;
+      });
+      filas[g].forEach(function(u,i){ u.ord=i; });
+    });
+    guarda();
+  }
+  U.forEach(function(u,i){ u.ord=mejor.o[i]; });
+  gens.forEach(function(g){ filas[g].sort(function(a,b){ return a.ord-b.ord; }); });
+
+  /* --- posición: hueco entre familias, y luego se centran padres e hijos --- */
+  var GAP=0.55, FAM=1.4;
+  gens.forEach(function(g){
+    var x=0, cp=null;
+    filas[g].forEach(function(u){
+      if(cp!==null && u.comp!==cp) x+=FAM;
+      u.x=x; x+=u.m.length+GAP; cp=u.comp;
+    });
+  });
+  var centro=function(u){ return u.x+(u.m.length-1)/2; };
+  for(var r=0; r<60; r++){
+    var orden2=(r%2)?gens:gens.slice().reverse();
+    orden2.forEach(function(g){
+      var f=filas[g];
+      f.forEach(function(u){
+        var v=(r%2?u.abajo:u.arriba).map(function(k){ return centro(U[k]); });
+        if(!v.length) return;
+        var quiere=media(v)-(u.m.length-1)/2;
+        var izq=f[u.ord-1], der=f[u.ord+1];
+        var min=izq?(izq.x+izq.m.length+(izq.comp!==u.comp?FAM:GAP)):-1e6;
+        var max=der?(der.x-u.m.length-(der.comp!==u.comp?FAM:GAP)):1e6;
+        u.x=Math.max(min,Math.min(max,u.x+(quiere-u.x)*0.5));
+      });
+    });
+  }
+  var minX=1e9, maxX=0, maxG=0;
+  U.forEach(function(u){ if(u.x<minX) minX=u.x; if(u.x+u.m.length>maxX) maxX=u.x+u.m.length; if(u.gen>maxG) maxG=u.gen; });
+  U.forEach(function(u){ u.x-=minX; });
+  return {U:U, uOf:uOf, enlaces:enlaces, maxX:maxX-minX, maxG:maxG, n:ids.length, familias:comp, bucle:bucle};
 }
 
 function arbolSVG(){
   var L=arbolLayout();
   if(!L) return "";
-  var COL=104, ROW=136, M=28, R=25;
-  var W=Math.max(320, M*2+L.maxX*COL), H=M*2+(L.maxG+1)*ROW+34;   /* +34: sitio para el tronco */
+  var COL=104, ROW=142, M=28, R=25, PIE=34;
+  var W=Math.max(320, M*2+L.maxX*COL), H=M*2+(L.maxG+1)*ROW+PIE;
+  var U=L.U;
   var px=function(u,j){ return M+(u.x+j)*COL+COL/2; };
-  var py=function(u){ return H-M-34-u.gen*ROW-R-18; };   /* gen 0 = los mayores, abajo */
+  var py=function(u){ return H-M-PIE-u.gen*ROW-R-18; };
+  var pxDe=function(id){ var u=U[L.uOf[id]]; return px(u,u.m.indexOf(id)); };
+  var pyDe=function(id){ return py(U[L.uOf[id]]); };
   var s=[];
-  s.push('<svg id="arbolSVG" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 '+Math.round(W)+' '+Math.round(H)+'" width="'+Math.round(W)+'" height="'+Math.round(H)+'" xmlns="http://www.w3.org/2000/svg" style="display:block">');
+  s.push('<svg id="arbolSVG" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 '+Math.round(W)+' '+Math.round(H)
+       +'" width="'+Math.round(W)+'" height="'+Math.round(H)+'" xmlns="http://www.w3.org/2000/svg" style="display:block">');
   s.push('<defs><linearGradient id="arGr" x1="0" y1="0" x2="0" y2="1">'
        +'<stop offset="0" stop-color="#f4faf1"/><stop offset="1" stop-color="#eef3e6"/></linearGradient></defs>');
   s.push('<rect x="0" y="0" width="'+Math.round(W)+'" height="'+Math.round(H)+'" rx="16" fill="url(#arGr)"/>');
   s.push('<line x1="0" y1="'+(H-M+12)+'" x2="'+Math.round(W)+'" y2="'+(H-M+12)+'" stroke="#cfdcc2" stroke-width="2"/>');
 
-  /* el tronco: sale del suelo hacia cada familia */
-  L.U.filter(function(u){ return u.padre===null; }).forEach(function(u){
+  /* tronco bajo quien no tiene padres en el árbol */
+  U.filter(function(u){ return !u.arriba.length; }).forEach(function(u){
     var cx=px(u,(u.m.length-1)/2), cy=py(u);
     s.push('<path d="M'+cx.toFixed(1)+','+(H-M+12)+' L'+cx.toFixed(1)+','+(cy+R+24).toFixed(1)+'" '
-         +'stroke="#8a6a46" stroke-width="13" stroke-linecap="round" fill="none" opacity=".55"/>');
+         +'stroke="#8a6a46" stroke-width="13" stroke-linecap="round" fill="none" opacity=".5"/>');
   });
 
-  /* las ramas: de los padres a los hijos */
-  L.U.forEach(function(u){
-    if(u.padre===null) return;
-    var pa=L.U[u.padre];
-    var x1=px(pa,(pa.m.length-1)/2), y1=py(pa)-R-16;
-    var x2=px(u,(u.m.length-1)/2),  y2=py(u)+R+24;
-    var gr=Math.max(3, 10-u.gen*2);
-    s.push('<path d="M'+x1.toFixed(1)+','+y1.toFixed(1)
-         +' C'+x1.toFixed(1)+','+(y1-ROW*0.42).toFixed(1)
-         +' '+x2.toFixed(1)+','+(y2+ROW*0.42).toFixed(1)
-         +' '+x2.toFixed(1)+','+y2.toFixed(1)+'" '
-         +'stroke="#8a6a46" stroke-width="'+gr+'" stroke-linecap="round" fill="none" opacity=".5"/>');
+  /* Las ramas: de cada pareja de padres sale un tronco corto, se abre en un hombro
+     horizontal y de ahí sube una ramita a cada hijo. Con curvas sueltas, cuando
+     alguien tenía tres hijos separados, no había quien siguiera la línea. */
+  var grupos={};
+  L.enlaces.forEach(function(e){
+    var k=e.padres.slice().sort().join("|");
+    (grupos[k]=grupos[k]||{padres:e.padres,hijos:[]}).hijos.push(e.hijo);
+  });
+  var gl=Object.keys(grupos).map(function(k){ return grupos[k]; });
+  gl.forEach(function(G){
+    G.xp=0; G.padres.forEach(function(id){ G.xp+=pxDe(id); }); G.xp/=G.padres.length;
+    G.yp=pyDe(G.padres[0])-R-16;
+    G.gh=U[L.uOf[G.hijos[0]]].gen;
+  });
+  gl.sort(function(a,b){ return a.gh-b.gh || a.xp-b.xp; });
+  var nivel={};
+  gl.forEach(function(G){
+    var yBase=py(U[L.uOf[G.hijos[0]]])+R+24;
+    nivel[G.gh]=(nivel[G.gh]||0);
+    var yH=yBase+14+nivel[G.gh]*13;         /* cada grupo, su propio hombro */
+    nivel[G.gh]++;
+    if(yH>G.yp-10) yH=Math.max(G.yp-10,yBase+6);
+    var xs=G.hijos.map(pxDe).concat([G.xp]);
+    var x0=Math.min.apply(null,xs), x1=Math.max.apply(null,xs);
+    var gr=Math.max(3,9-G.gh*1.4).toFixed(1), rad=9;
+    var d=[];
+    /* del centro de los padres hasta el hombro */
+    d.push('M'+G.xp.toFixed(1)+','+G.yp.toFixed(1)+' L'+G.xp.toFixed(1)+','+(yH+rad).toFixed(1));
+    /* el hombro */
+    if(x1-x0>1) d.push('M'+x0.toFixed(1)+','+yH.toFixed(1)+' L'+x1.toFixed(1)+','+yH.toFixed(1));
+    s.push('<path d="'+d.join(' ')+'" stroke="#8a6a46" stroke-width="'+gr+'" stroke-linecap="round" '
+         +'stroke-linejoin="round" fill="none" opacity=".45"/>');
+    G.hijos.forEach(function(id){
+      var xh=pxDe(id), yh=pyDe(id)+R+24;
+      s.push('<path d="M'+xh.toFixed(1)+','+yh.toFixed(1)+' L'+xh.toFixed(1)+','+yH.toFixed(1)+'" '
+           +'stroke="#8a6a46" stroke-width="'+gr+'" stroke-linecap="round" fill="none" opacity=".45"/>');
+    });
   });
 
   /* las parejas, cogidas de la mano */
-  L.U.forEach(function(u){
+  U.forEach(function(u){
     if(u.m.length<2) return;
-    s.push('<line x1="'+(px(u,0)+R).toFixed(1)+'" y1="'+py(u)+'" x2="'+(px(u,1)-R).toFixed(1)+'" y2="'+py(u)+'" '
-         +'stroke="#c58fb0" stroke-width="3"/>');
-    var mx=((px(u,0)+px(u,1))/2), my=py(u);
+    var mx=(px(u,0)+px(u,1))/2, my=py(u);
+    s.push('<line x1="'+(px(u,0)+R).toFixed(1)+'" y1="'+my+'" x2="'+(px(u,1)-R).toFixed(1)+'" y2="'+my+'" stroke="#c58fb0" stroke-width="3"/>');
     s.push('<circle cx="'+mx.toFixed(1)+'" cy="'+my+'" r="9" fill="#f4faf1"/>');
     s.push('<text x="'+mx.toFixed(1)+'" y="'+(my+4)+'" text-anchor="middle" font-size="12" fill="#c0709a">♥</text>');
   });
 
   /* y las personas, como hojas */
-  L.U.forEach(function(u){
+  U.forEach(function(u){
     u.m.forEach(function(id,j){
       var p=byId(id); if(!p) return;
       var cx=px(u,j), cy=py(u), cid="arc_"+id;
@@ -2534,16 +2699,15 @@ function arbolSVG(){
              +'" preserveAspectRatio="xMidYMid slice" clip-path="url(#'+cid+')"/>');
       }else{
         s.push('<circle cx="'+cx.toFixed(1)+'" cy="'+cy+'" r="'+R+'" fill="'+colorOf(p)+'"/>');
-        s.push('<text x="'+cx.toFixed(1)+'" y="'+(cy+5)+'" text-anchor="middle" fill="#fff" font-size="15" '
-             +'font-weight="700" font-family="system-ui,sans-serif">'+esc(initials(p.nombre))+'</text>');
+        s.push('<text x="'+cx.toFixed(1)+'" y="'+(cy+5)+'" text-anchor="middle" fill="#fff" font-size="15" font-weight="700" '
+             +'font-family="system-ui,sans-serif">'+esc(initials(p.nombre))+'</text>');
       }
       s.push('<circle cx="'+cx.toFixed(1)+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="'
            +(esSoloArbol(p)?"#4a7f3a":"#fff")+'" stroke-width="3"/>');
       var nom=String(p.nombre||"").split(" ").slice(0,2).join(" ");
       if(nom.length>16) nom=nom.slice(0,15)+"…";
       var anc=Math.max(38, nom.length*6.6);
-      s.push('<rect x="'+(cx-anc/2).toFixed(1)+'" y="'+(cy+R+4)+'" width="'+anc.toFixed(1)+'" height="17" rx="8" '
-           +'fill="#f4faf1" opacity=".9"/>');
+      s.push('<rect x="'+(cx-anc/2).toFixed(1)+'" y="'+(cy+R+4)+'" width="'+anc.toFixed(1)+'" height="17" rx="8" fill="#f4faf1" opacity=".9"/>');
       s.push('<text x="'+cx.toFixed(1)+'" y="'+(cy+R+16)+'" text-anchor="middle" font-size="11.5" font-weight="600" '
            +'font-family="system-ui,-apple-system,sans-serif" fill="#2c3327">'+esc(nom)+'</text>');
       s.push('</g>');
@@ -2560,12 +2724,46 @@ function arbolHTML(){
     +'o quién es su pareja. Con dos personas unidas ya sale el primer árbol.</span><br>'
     +'<button class="btn sm" style="margin-top:10px" onclick="treeVer(\'lista\')">← Volver a la lista</button></div>';
   return '<div style="font-size:12.5px;color:var(--muted);margin:0 0 8px">'
-    +L.n+' persona'+(L.n===1?"":"s")+' en '+L.familias+' '+(L.familias===1?"árbol":"árboles")
-    +' · los mayores abajo · toca a alguien para abrir su sitio</div>'
+    +L.n+' persona'+(L.n===1?"":"s")+' · '+(L.maxG+1)+' generacion'+(L.maxG?"es":"")
+    +' · '+L.familias+' '+(L.familias===1?"familia":"familias todavía sin unir")
+    +' · toca a alguien para abrir su sitio</div>'
+    +(L.bucle?'<div class="empty" style="margin:0 0 8px;color:var(--accent)">Hay un parentesco imposible: '
+      +'alguien acaba siendo antepasado de sí mismo. Revisa los padres de las últimas personas que has tocado.</div>':'')
     +'<div id="arbolScroll" style="overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);'
     +'border-radius:16px;background:#f4faf1">'+arbolSVG()+'</div>';
 }
-window.arbolLayout=arbolLayout; window.arbolSVG=arbolSVG; window.arbolHTML=arbolHTML;
+window.arbolLayout=arbolLayout; window.arbolSVG=arbolSVG; window.arbolHTML=arbolHTML; window.arbolGente=arbolGente;
+
+/* ---- construir el árbol deprisa: crear a alguien ya enganchado ---- */
+function treeCrear(rel, ancla){
+  var a=byId(ancla); if(!a) return;
+  var q={padre:"¿Cómo se llama su padre o su madre?", pareja:"¿Cómo se llama su pareja?", hijo:"¿Cómo se llama su hijo o hija?", hermano:"¿Cómo se llama su hermano o hermana?"};
+  var n=prompt(q[rel]+"  (se añade solo al árbol)",""); if(n===null) return;
+  n=String(n).trim(); if(!n){ toast("Hace falta un nombre"); return; }
+  var p=newPerson(); p.nombre=n; p.soloArbol=true; p.tipo="familiar";
+  if(rel==="padre"){
+    var pd=(a.padres||[]).filter(function(x){ return !!byId(x); });
+    if(pd.length>=2){ toast("Ya tiene padre y madre puestos"); return; }
+    a.padres=pd.concat([p.id]);
+  }
+  else if(rel==="pareja"){
+    if(a.parejaDe && byId(a.parejaDe)){ toast("Ya tiene pareja. Quítasela antes si quieres cambiarla."); return; }
+    a.parejaDe=p.id; p.parejaDe=a.id;
+  }
+  else if(rel==="hijo"){
+    p.padres=[a.id]; if(a.parejaDe && byId(a.parejaDe)) p.padres.push(a.parejaDe);
+  }
+  else if(rel==="hermano"){
+    var pp=(a.padres||[]).filter(function(x){ return !!byId(x); });
+    if(!pp.length){ toast("Ponle antes padre o madre: los hermanos se reconocen por ahí."); return; }
+    p.padres=pp.slice(0,2);
+  }
+  state.people.push(p); save(); renderAll();
+  treeSel=(rel==="padre"||rel==="hermano"||rel==="pareja")?p.id:a.id;
+  treeVista="lista"; renderTree();
+  toast("«"+n+"» añadida al árbol");
+}
+window.treeCrear=treeCrear;
 
 function renderTree(){
   var el=document.getElementById("treeBox"); if(!el) return;
@@ -2629,6 +2827,15 @@ function renderTree(){
    +(esSoloArbol(sel)?'Solo en el árbol · no aparece en People ni en el mapa':esc(tipoLabel(sel.tipo)))+'</div></div>'
    +'<button class="btn sm" onclick="treeElegir(\'\')">← Otra persona</button></div>';
 
+  /* el nombre se puede cambiar aquí, esté o no en People */
+  h+='<fieldset><legend>Quién es</legend>'
+   +'<div class="cols">'
+   +'<div class="fld"><label>Nombre</label><input id="tr_nombre" type="text" value="'+esc(sel.nombre||"")+'" placeholder="Nombre y apellidos"></div>'
+   +'<div class="fld"><label>Cómo le llamáis</label><input id="tr_apodo" type="text" value="'+esc(sel.apodo||"")+'" placeholder="El apodo de casa"></div>'
+   +'</div>'
+   +'<div id="fotoCaja" style="margin-top:6px">'+fotoCajaHTML(sel)+'</div>'
+   +'</fieldset>';
+
   h+='<fieldset style="border-color:#4a7f3a"><legend style="color:#4a7f3a">Su sitio en el árbol</legend>'
    +'<div class="cols">'
    +'<div class="fld"><label>Es hijo o hija de</label><select id="tr_padre1">'+opcionesPersonas(pad[0]||"",sel.id)+'</select></div>'
@@ -2636,21 +2843,37 @@ function renderTree(){
    +'</div>'
    +'<div class="fld" style="max-width:340px"><label>Pareja de</label><select id="tr_parejaDe">'
    + opcionesPersonas(sel.parejaDe||"",sel.id)+'</select></div>'
-   +'<div class="fld"><label>Quién fue · dónde vivió, cómo era, sus hitos y sus hazañas</label>'
+   +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 2px">'
+   +'<button class="btn sm" onclick="treeCrear(\'padre\',\''+sel.id+'\')">+ Padre o madre</button>'
+   +'<button class="btn sm" onclick="treeCrear(\'pareja\',\''+sel.id+'\')">+ Pareja</button>'
+   +'<button class="btn sm" onclick="treeCrear(\'hijo\',\''+sel.id+'\')">+ Hijo o hija</button>'
+   +'<button class="btn sm" onclick="treeCrear(\'hermano\',\''+sel.id+'\')">+ Hermano o hermana</button></div>'
+   +'<p style="font-size:11.5px;color:var(--muted);margin:2px 0 0">Crean a la persona ya enganchada, sin salir de aquí. '
+   +'Así se sube de golpe a los abuelos y a los bisabuelos.</p>'
+   +'<div class="fld" style="margin-top:10px"><label>Quién fue · dónde vivió, cómo era, sus hitos y sus hazañas</label>'
    +'<textarea id="tr_semblanza" style="min-height:120px" '
    +'placeholder="Nació en Santorcaz y vivió allí toda su vida. Tozudo y muy generoso con los suyos. Montó el taller en el 68 y sacó adelante a cuatro hijos. Nunca perdió una partida de mus.">'
    +esc(sel.semblanza||"")+'</textarea></div>'
    +'</fieldset>';
 
-  /* quién cuelga de esta persona, para poder seguir el hilo */
+  /* su gente, para seguir el hilo sin volver a la lista */
+  var lazos=function(tit,arr){
+    if(!arr.length) return "";
+    return '<div class="sec-title">'+tit+'</div>'+arr.map(function(x){
+      return '<div class="row" style="cursor:pointer" onclick="treeElegir(\''+x.id+'\')">'
+        + avatarHTML(x)+'<div class="grow"><div style="font-weight:600">'+esc(x.nombre||"(sin nombre)")+'</div></div>'
+        +'<div class="when">›</div></div>';
+    }).join("");
+  };
+  var padres=pad.map(byId).filter(Boolean);
+  var pareja=sel.parejaDe?[byId(sel.parejaDe)].filter(Boolean):[];
   var hijos=state.people.filter(function(x){ return (x.padres||[]).indexOf(sel.id)>=0; });
-  if(hijos.length){
-    h+='<div class="sec-title">Sus hijos e hijas</div>'
-     + hijos.map(function(x){
-         return '<div class="row" style="cursor:pointer" onclick="treeElegir(\''+x.id+'\')">'
-           + avatarHTML(x)+'<div class="grow"><div style="font-weight:600">'+esc(x.nombre)+'</div></div></div>';
-       }).join("");
-  }
+  var hermanos=pad.length?state.people.filter(function(x){
+    return x.id!==sel.id && (x.padres||[]).some(function(id){ return pad.indexOf(id)>=0; });
+  }):[];
+  h+=lazos("Sus padres",padres)+lazos("Su pareja",pareja)
+    +lazos("Sus hermanos y hermanas",hermanos)+lazos("Sus hijos e hijas",hijos);
+
   h+='<div class="modal-actions" style="justify-content:flex-start">'
    +'<button class="btn primary" onclick="treeGuardar()">Guardar</button>'
    +(esSoloArbol(sel)
@@ -2662,7 +2885,7 @@ function renderTree(){
   el.innerHTML=h;
   try{ ponerMicros(); }catch(e){}
   var deb, auto=function(){ treeGuardar(true); };
-  el.querySelectorAll("select,textarea").forEach(function(e){
+  el.querySelectorAll("select,textarea,input[type=text]").forEach(function(e){
     e.addEventListener("input",function(){ clearTimeout(deb); deb=setTimeout(auto,700); });
     e.addEventListener("change",function(){ clearTimeout(deb); deb=setTimeout(auto,300); });
   });
@@ -2676,6 +2899,12 @@ function treeGuardar(silencioso){
   p.padres=pa;
   p.parejaDe=v("tr_parejaDe")||"";
   p.semblanza=(v("tr_semblanza")||"").trim();
+  var nn=(v("tr_nombre")||"").trim();
+  if(nn && nn!==p.nombre){ p.nombre=nn; renderAll(); }      /* el nombre se cambia desde aquí */
+  p.apodo=(v("tr_apodo")||"").trim();
+  /* la pareja, en los dos sentidos: si no, el dibujo los separa */
+  state.people.forEach(function(x){ if(x.id!==p.id && x.parejaDe===p.id && p.parejaDe!==x.id) x.parejaDe=""; });
+  if(p.parejaDe){ var pj=byId(p.parejaDe); if(pj) pj.parejaDe=p.id; }
   save();
   var g=document.getElementById("trGuardado"); if(g) g.textContent="Guardado ✓";
   if(!silencioso) toast("Guardado · "+p.nombre);
@@ -3227,9 +3456,8 @@ function openGuion(id){
     ["Al despedirte",g.despedida],
     ["Qué evitar",g.evitar]
   ];
-  var h='<h2>Guión — '+esc(p.nombre)+'</h2>'
-    +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 12px">'+tipoLabel(p.tipo)+' · '
-    +(prox?'cita el '+esc(fmtDate(prox.fecha))+(prox.lugar?' · '+esc(prox.lugar):''):'sin cita agendada')+'</p>'
+  var h=barraVolver(p.id,'Guión — '+esc(p.nombre),tipoLabel(p.tipo)+' · '
+    +(prox?'cita el '+esc(fmtDate(prox.fecha))+(prox.lugar?' · '+esc(prox.lugar):''):'sin cita agendada'))
     +'<div class="okbox">El objetivo no es caerle bien: es que salga sintiéndose más capaz de conseguir lo suyo. '
     +'El menú es compartido y los dos tienen que disfrutarlo.</div>';
   blocks.forEach(function(b){
@@ -3240,7 +3468,7 @@ function openGuion(id){
   }
   h+='<div class="modal-actions"><button class="btn" id="copy">Copiar guión</button>'
     +'<button class="btn" onclick="openPlan(\''+p.id+'\')">Plan</button>'
-    +'<button class="btn" onclick="openEdit(\''+p.id+'\')">Editar ficha</button>'
+    +'<button class="btn" onclick="openEdit(\''+p.id+'\')">Volver a la ficha</button>'
     +'<button class="btn primary" onclick="openFeedback(\''+p.id+'\',null)">Ya nos vimos</button>'
     +'<button class="btn" id="cancel">Cerrar</button></div>';
   showModal(h);
@@ -3969,6 +4197,7 @@ function openEdit(id){
 
   h+='<div class="modal-actions barra">'
     +(isNew?"":'<button class="btn" onclick="openPerfil(\''+p.id+'\')">Perfil</button>')
+    +(isNew?"":'<button class="btn" onclick="openFuturo(\''+p.id+'\')" title="Las once preguntas para adivinar por dónde va a tirar">🔮 Predice su futuro</button>')
     +(isNew?"":'<button class="btn" onclick="openPlan(\''+p.id+'\')">Plan</button>')
     +(isNew?"":'<button class="btn" onclick="openGuion(\''+p.id+'\')">Guión</button>')
     +(isNew?"":'<button class="btn" onclick="openHistoria(\''+p.id+'\')">Historia</button>')
@@ -4330,10 +4559,12 @@ function maslowHTML(p){
   return h+'</div>';
 }
 
-function fsLectura(p){
-  var h='<fieldset style="border-color:#b5476b"><legend style="color:#b5476b">Lectura del perfil</legend>'
-    +'<p style="color:var(--muted);font-size:12px;margin:0 0 4px">Once preguntas para entenderle mejor. Puedes escribirlas tú, o pulsar <b>Sugerir</b> y la app propone una hipótesis a partir de lo que ya has anotado más arriba.</p>'
-    +'<p style="font-size:11.5px;margin:0 0 10px;color:#b5476b"><b>Son hipótesis, no diagnósticos.</b> Sirven para preguntar mejor y comprobar si aciertas, no para etiquetar a nadie. Si no encaja, bórralo.</p>'
+function fsLectura(p,sola){
+  /* sola = va en «Predice su futuro», que ya trae su propia explicación arriba */
+  var h='<fieldset style="border-color:#b5476b"><legend style="color:#b5476b">'
+    +(sola?'Las once preguntas':'Lectura del perfil')+'</legend>'
+    +(sola?'':'<p style="color:var(--muted);font-size:12px;margin:0 0 4px">Once preguntas para entenderle mejor. Puedes escribirlas tú, o pulsar <b>Sugerir</b> y la app propone una hipótesis a partir de lo que ya has anotado más arriba.</p>'
+    +'<p style="font-size:11.5px;margin:0 0 10px;color:#b5476b"><b>Son hipótesis, no diagnósticos.</b> Sirven para preguntar mejor y comprobar si aciertas, no para etiquetar a nadie. Si no encaja, bórralo.</p>')
     +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'
     +'<button type="button" class="btn sm primary" onclick="sugerirTodo(\''+p.id+'\')">Sugerir todas</button>'
     +'<button type="button" class="btn sm" onclick="limpiarLectura()">Vaciar</button></div>'
@@ -4382,6 +4613,40 @@ function guardarNotaPerfil(id){
 }
 window.guardarNotaPerfil=guardarNotaPerfil;
 
+/* ---------- 🔮 Predice su futuro ----------
+   Son las once preguntas de la antigua «Lectura del perfil». Estaban enterradas
+   al final de Perfil, entre otras cinco cosas; aquí se quedan solas, que es
+   donde se piensan bien. Dos de ellas ya preguntaban por sus próximos 3 años. */
+function openFuturo(id){
+  var p=state.people.filter(function(x){ return x.id===id; })[0]; if(!p) return;
+  var h=barraVolver(p.id,'🔮 Predice su futuro · '+esc(p.nombre),"")
+   +'<div style="display:flex;gap:12px;align-items:flex-start;background:#fbf2f7;border:1px solid #edd3e1;'
+   +'border-left:4px solid #b5476b;border-radius:12px;padding:12px;margin:0 0 16px">'
+   +'<div style="font-size:30px;line-height:1;flex:none">🧙</div>'
+   +'<div style="font-size:12.5px;line-height:1.6;color:#4a3340">'
+   +'Once preguntas para adivinar por dónde va a tirar. Escríbelas tú, o pulsa <b>Sugerir</b> '
+   +'y la app propone una hipótesis con lo que ya tienes anotado.<br>'
+   +'<b style="color:#b5476b">Son hipótesis, no diagnósticos.</b> Valen para preguntar mejor y '
+   +'comprobar si aciertas, no para etiquetar a nadie. Si no encaja, bórralo.'
+   +'<span id="futGuardado" style="margin-left:6px;color:var(--muted)"></span></div></div>'
+   + fsLectura(p,true)
+   +'<div class="modal-actions">'
+   +'<button class="btn" onclick="openEdit(\''+p.id+'\')">Volver a la ficha</button>'
+   +'<button class="btn" onclick="openPerfil(\''+p.id+'\')">Perfil</button>'
+   +'<button class="btn primary" id="futOk">Guardar y cerrar</button></div>';
+  showModal(h);
+  var ind=function(t){ var e=document.getElementById("futGuardado"); if(e) e.textContent=t; };
+  var deb, leer=function(){
+    LECTURA.forEach(function(L){ var e=document.getElementById("f_"+L[0]); if(e) p[L[0]]=e.value.trim(); });
+    save(); ind("Guardado ✓");
+  };
+  document.getElementById("modal").querySelectorAll("textarea").forEach(function(el){
+    el.addEventListener("input",function(){ ind("Guardando…"); clearTimeout(deb); deb=setTimeout(leer,700); });
+  });
+  document.getElementById("futOk").onclick=function(){ leer(); closeModal(); renderAll(); };
+}
+window.openFuturo=openFuturo;
+
 function openPerfil(id){
   var p=state.people.filter(function(x){ return x.id===id; })[0]; if(!p) return;
   var h='<h2>Perfil · '+esc(p.nombre)+'</h2>'
@@ -4389,7 +4654,12 @@ function openPerfil(id){
    + fsConocemos(p)
    + bloquePsico(p)
    +'<div id="maslowBox" style="margin-bottom:14px">'+maslowHTML(p)+'</div>'
-   + fsLectura(p)
+   +'<div style="background:#fbf2f7;border:1px solid #edd3e1;border-radius:12px;padding:12px;margin:0 0 14px;'
+   +'display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+   +'<span style="font-size:24px;line-height:1">🔮</span>'
+   +'<span style="font-size:12.5px;color:#4a3340;flex:1;min-width:180px">Las once preguntas de la lectura se han mudado: '
+   +'ahora viven solas, con su mago.</span>'
+   +'<button class="btn sm" onclick="openFuturo(\''+p.id+'\')">Predice su futuro</button></div>'
    +'<div class="modal-actions">'
    +'<button class="btn" onclick="openEdit(\''+p.id+'\')">Volver a la ficha</button>'
    +'<button class="btn primary" id="perfilOk">Guardar y cerrar</button></div>';
@@ -4407,8 +4677,7 @@ function openPerfil(id){
 }
 function openHistoria(id){
   var p=state.people.filter(function(x){ return x.id===id; })[0]; if(!p) return;
-  var h='<h2>Historia · '+esc(p.nombre)+'</h2>'
-   +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 14px">Todo lo que habéis compartido, y cómo de cuidada está la relación.</p>'
+  var h=barraVolver(p.id,'Historia · '+esc(p.nombre),'Todo lo que habéis compartido, y cómo de cuidada está la relación.')
    + bloqueMomentos(p)
    +'<div class="modal-actions">'
    +'<button class="btn" onclick="openEdit(\''+p.id+'\')">Volver a la ficha</button>'
@@ -5920,6 +6189,38 @@ function renderAll(){
   if(state.tab==="mapa") mapaRender();
   if(state.tab==="informe") renderInforme();
 }
+/* Mi foto vive en state.me, no en una ficha: su propia caja. */
+function fotoMeCajaHTML(){
+  var m=state.me||{};
+  return '<div style="display:flex;gap:12px;align-items:center">'
+   + (m.foto ? '<img src="'+m.foto+'" alt="" style="width:64px;height:64px;border-radius:12px;object-fit:cover;flex:none">'
+             : '<div style="width:64px;height:64px;border-radius:12px;flex:none;background:#4a6fa5;color:#fff;'
+               +'display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px">'+esc(initials(m.nombre||"Yo"))+'</div>')
+   + '<div style="display:flex;gap:6px;flex-wrap:wrap">'
+   + '<button class="btn sm" type="button" onclick="fotoMeElegir()">'+(m.foto?"Cambiar mi foto":"Añadir mi foto")+'</button>'
+   + (m.foto?'<button class="btn sm" type="button" onclick="fotoMeQuitar()">Quitar</button>':'')
+   + '</div></div>';
+}
+function fotoMeElegir(){
+  var i=document.createElement("input"); i.type="file"; i.accept="image/*";
+  i.onchange=function(){
+    var f=i.files&&i.files[0]; if(!f) return;
+    var r=new FileReader();
+    r.onload=function(){ fotoRedimensiona(r.result,function(d){
+      state.me=state.me||newMe(); state.me.foto=d; save();
+      var c=document.getElementById("fotoCajaMe"); if(c) c.innerHTML=fotoMeCajaHTML();
+      toast("Foto guardada"); try{ avisoEspacio(); }catch(e){}
+    }); };
+    r.readAsDataURL(f);
+  };
+  i.click();
+}
+function fotoMeQuitar(){
+  state.me=state.me||newMe(); state.me.foto=""; save();
+  var c=document.getElementById("fotoCajaMe"); if(c) c.innerHTML=fotoMeCajaHTML();
+}
+window.fotoMeCajaHTML=fotoMeCajaHTML; window.fotoMeElegir=fotoMeElegir; window.fotoMeQuitar=fotoMeQuitar;
+
 function renderNegocio(){
   var box=document.getElementById("negocio"); if(!box) return;
   var m=state.me||(state.me=newMe());
@@ -5934,48 +6235,100 @@ function renderNegocio(){
       +'<input type="text" class="meCampo" data-k="'+k+'" placeholder="'+esc(ph||"")+'" value="'+esc(m[k]||"")+'"></div>';
   };
 
+  /* Mi perfil es una ficha más: los mismos grupos que usas con los demás,
+     pero escritos en primera persona. Si a ellos les preguntas qué persiguen,
+     lo justo es que tú te lo respondas con la misma vara. */
+  var grupo=function(color,tit,cuerpo){
+    return '<fieldset style="border-color:'+color+'"><legend style="color:'+color+'">'+tit+'</legend>'+cuerpo+'</fieldset>';
+  };
+  var dos=function(a,b){ return '<div class="cols">'+a+b+'</div>'; };
+
   var h='<h2 style="margin:0 0 4px;font-size:22px">Mi perfil</h2>'
-   +'<p style="color:var(--muted);font-size:13px;margin:0 0 16px">Quién eres y qué persigues. No es relleno: de aquí salen tus discursos, '
-   +'y sobre todo de aquí nace la <b>afinidad por objetivos</b> — a quién de tu red conviene acudir para conseguir lo que buscas. '
+   +'<p style="color:var(--muted);font-size:13px;margin:0 0 16px">Tu ficha, con los mismos grupos que las de los demás y escrita en primera persona. '
+   +'De aquí salen tus discursos y la <b>afinidad por objetivos</b>: a quién de tu red conviene acudir para conseguir lo que buscas. '
    +'Se guarda solo, en tu dispositivo.</p>';
 
-  /* --- objetivo, lo primero --- */
-  h+='<div style="background:#eefaf7;border:1px solid #bfe6dd;border-left:4px solid #20b6a6;border-radius:12px;padding:12px 12px;margin-bottom:16px">'
-   +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.09em;color:#12857a;margin-bottom:6px">TU OBJETIVO AHORA MISMO</div>'
-   +campo("¿Qué buscas? Cuanto más concreto, mejores sugerencias","pido",
-          "Ej.: un puesto de dirección de proyectos en movilidad eléctrica, en Barcelona, con decisión en España",72)
-   +linea("Sectores o mercados donde te mueves","sectores","material eléctrico, movilidad eléctrica, renovables")
+  /* ---------- 1. OBJETIVOS, antes que nada ---------- */
+  h+='<div style="background:#eefaf7;border:1px solid #bfe6dd;border-left:4px solid #20b6a6;border-radius:12px;padding:12px;margin-bottom:16px">'
+   +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.09em;color:#12857a;margin-bottom:6px">MIS OBJETIVOS</div>'
+   +campo("Qué persigo ahora mismo · cuanto más concreto, mejores sugerencias","pido",
+          "Encontrar trabajo con un sueldo de 100.000 €. Hacer un círculo de amigos que me anime a hacer cosas atrevidas y divertidas, sin perder el mundo de la familia.",88)
+   + dos(
+       linea("Para cuándo","objPlazo","Antes de que acabe 2027"),
+       linea("Sectores o mercados donde me muevo","sectores","material eléctrico, movilidad eléctrica, renovables"))
+   +campo("Qué me está frenando, dicho sin adornos","objFreno","El inglés hablado y la puesta en escena.",64)
+   +campo("El siguiente paso, el de esta semana","objPaso","",64)
    +'<div style="margin-top:10px;padding-top:10px;border-top:1px solid #bfe6dd">'
-   +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.09em;color:#12857a;margin-bottom:6px">QUIÉN DE TU RED TE ACERCA A ESO</div>'
+   +'<div style="font-size:10.5px;font-weight:700;letter-spacing:.09em;color:#12857a;margin-bottom:6px">QUIÉN DE MI RED ME ACERCA A ESO</div>'
    +'<div data-afin>'+afinidadResumenHTML(m)+'</div>'
-   +'<p style="font-size:11px;color:var(--muted);margin:8px 0 0">Se recalcula al escribir. El mapa completo está en <b>Mapa → Afinidad por objetivos</b>.</p>'
+   +'<p style="font-size:11px;color:var(--muted);margin:8px 0 0">Se recalcula al escribir. El mapa completo está en <b>Affinity</b>.</p>'
    +'</div></div>';
 
-  /* --- quién eres --- */
-  h+='<fieldset style="border-color:#4a6fa5"><legend style="color:#4a6fa5">Quién eres</legend>'
-   +linea("Nombre","nombre","")
-   +linea("En una frase: qué haces","titular","")
-   +campo("Qué problema resuelves (en sus términos, no en los tuyos)","resuelvo","")
-   +campo("Logros medibles: cifra, plazo, cliente","logros","")
-   +campo("Experiencia relevante","experiencia","")
-   +'</fieldset>';
+  /* ---------- 2. Quién eres ---------- */
+  h+=grupo("#4a6fa5","Quién eres",
+      '<div id="fotoCajaMe" style="margin-bottom:12px">'+fotoMeCajaHTML()+'</div>'
+    + dos(linea("Nombre","nombre",""), linea("Cómo me llaman","apodo",""))
+    + linea("En una frase: qué hago","titular","")
+    + campo("Qué problema resuelvo (en sus términos, no en los míos)","resuelvo","")
+    + campo("Mis logros medibles: cifra, plazo, cliente","logros","")
+    + campo("Mi experiencia relevante","experiencia","")
+    + dos(linea("Cumpleaños","cumple",""), linea("Trato · cómo me dirijo al mundo","trato","")));
 
-  /* --- tu patrón --- */
-  h+='<fieldset style="border-color:#6a4c93"><legend style="color:#6a4c93">Tu patrón</legend>'
-   +'<p style="color:var(--muted);font-size:12px;margin:0 0 8px">Cómo decides y qué te frena. Aparece plegado en el briefing de cada mañana.</p>'
-   +campo("Cómo piensas y cómo decides","patron","",80)
-   +campo("Lo que te dices cada mañana","mantra","",80)
-   +campo("Tus frases para el briefing · una por línea","frases","",80)
+  /* ---------- 3. Gustos e intereses ---------- */
+  h+=grupo("#7a5ea8","Mis gustos e intereses",
+      campo("Mis aficiones (separadas por comas)","aficiones","")
+    + dos(linea("Música","musica",""), linea("Deporte","deportes",""))
+    + campo("Temas que me encienden","temas","")
+    + campo("Temas que evito","evitar","")
+    + campo("Qué me hace gracia · con qué disfruto riendo","humor","")
+    + campo("Cómo visto · qué cuido y qué descuido","vestir","")
+    + campo("Política y temas sensibles · dónde me sitúo y qué no quiero discutir","politica",""));
+
+  /* ---------- 4. Dónde vivo y a qué me dedico ---------- */
+  h+=grupo("#4a7f3a","Dónde vivo y a qué me dedico",
+      dos(linea("Ciudad","ciudad",""), linea("Puesto","empleo",""))
+    + dos(linea("Empresa","empresa",""), linea("Sector / ámbito","sector","")));
+
+  /* ---------- 5. Mi gente ---------- */
+  h+=grupo("#b06a3b","Mi gente",
+      campo("Mis hijas · nombres y edades","hijos","")
+    + campo("Mi familia · padres, hermanos…","familia","")
+    + campo("A quién quiero más, y qué son míos","quienesImportan","")
+    + campo("Qué quieren ellos · lo que persiguen los míos","queQuierenLosSuyos",
+            "Ponerme en su lugar: ver a mis hijas no como hijas, sino entender qué quieren transmitirme y qué sienten.",72)
+    + campo("Aficiones y gustos de los míos","gustosDeLosSuyos","")
+    + campo("Un gesto que puedo hacerles y me cuesta tiempo","gesto",""));
+
+  /* ---------- 6. Qué persigo ---------- */
+  h+=grupo("#c06a4a","Qué persigo",
+      campo("Qué me fascina","fascina","")
+    + campo("De qué presumo","presume","")
+    + campo("Qué me preocupa","preocupa","")
+    + campo("Qué decisión me está costando tomar","decisionCuesta","")
+    + campo("En qué me pueden ayudar","ayuda","")
+    + campo("En qué quiero tener éxito","exito","")
+    + campo("Por qué me gustaría sentirme admirado, y por quién","admirado","")
+    + campo("Qué me hace sentir importante","importante",""));
+
+  /* ---------- 7. Mi patrón, dentro de Mi perfil y al final ---------- */
+  var hayPat=["patron","mantra","frases"].some(function(k){ return String(m[k]||"").trim(); });
+  h+='<details'+(hayPat?"":" open")+' style="margin-bottom:16px">'
+   +'<summary style="cursor:pointer;font-size:13px;font-weight:650;color:#6a4c93;padding:6px 0">Mi patrón'
+   +' <span style="font-weight:400;color:var(--muted);font-size:12px">— cómo decido y qué me frena</span></summary>'
+   +'<div style="padding-top:6px">'
+   +'<p style="color:var(--muted);font-size:12px;margin:0 0 8px">Esto solo es tuyo. Aparece plegado en el briefing de cada mañana y no lo ve nadie más.</p>'
+   +campo("Cómo pienso y cómo decido","patron","",80)
+   +campo("Lo que me digo cada mañana","mantra","",80)
+   +campo("Mis frases para el briefing · una por línea","frases","",80)
    +'<p style="color:var(--muted);font-size:11.5px;margin:-4px 0 2px">Rotan cada día junto a las generales. Son tuyas y viven en tus datos, no en la app.</p>'
-   +'</fieldset>';
+   +'</div></details>';
 
-  /* --- lo de Negocio, plegado: no se pierde nada de lo que ya escribiste --- */
+  /* ---------- 8. lo viejo de Negocio, plegado: no se pierde nada ---------- */
   var negK=["negPrueba","negProvNuevos","negMisProv","negCompetencia"];
   var hayNeg=negK.some(function(k){ return String(m[k]||"").trim(); });
   h+='<details'+(hayNeg?" open":"")+' style="margin-bottom:16px">'
    +'<summary style="cursor:pointer;font-size:13px;font-weight:650;color:#4a6fa5;padding:6px 0">Método comercial · notas antiguas'
    +(hayNeg?' <span style="font-weight:400;color:var(--muted);font-size:12px">(tienes cosas escritas aquí)</span>':'')+'</summary>'
-   +'<p style="color:var(--muted);font-size:12px;margin:6px 0 10px">Esto era la pestaña Negocio. Se queda aquí plegado para no perder lo que escribiste.</p>'
    +campo("La cuota de prueba: con quién puedo usarla ya","negPrueba","")
    +campo("Proveedores nuevos: sus clientes parecidos a los míos","negProvNuevos","")
    +campo("Mis proveedores: a quién más suministran y cuál es mi ventaja","negMisProv","")
