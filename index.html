@@ -374,7 +374,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.09.30-80 · depurada";
+var VERSION="2026.10.01-81 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -2333,6 +2333,16 @@ function npCampo(id,campo,v){
 }
 /* Se guardan solas al escribir, pero sin un botón y sin una señal no había
    forma de saberlo. Esto no cambia cuándo se guarda: lo hace visible. */
+/* Guardar una nota concreta, desde su propio botón. */
+function npGuardarUna(id){
+  var n=notasPers().filter(function(x){ return x.id===id; })[0]; if(!n) return;
+  var e=document.getElementById("np_"+id);
+  if(e) n.t=e.value;
+  save(); npSenal("Guardado ✓");
+  toast(n.t.trim()? "Nota guardada" : "Nota vacía guardada");
+}
+window.npGuardarUna=npGuardarUna;
+
 function npGuardar(){
   notasPers().forEach(function(n){
     var e=document.getElementById("np_"+n.id);
@@ -2369,6 +2379,7 @@ function renderNotasPers(){
      +'border-left:3px solid '+(n.hecha?"#b9c2cc":(venc?"#b3455b":(hoyEs?"#0f8a8a":"#d9a441")))+';'
      +'border-radius:10px;padding:10px 12px;margin-bottom:9px">'
      +'<textarea id="np_'+n.id+'" oninput="npCampo(\''+n.id+'\',\'t\',this.value)" '
+     +'onchange="npCampo(\''+n.id+'\',\'t\',this.value)" onblur="npCampo(\''+n.id+'\',\'t\',this.value)" '
      +'placeholder="Ej.: cuando Javi Pintor y Carolina se lleven las cosas del garaje, será el momento de poner más placas en el tejado" '
      +'style="width:100%;min-height:62px;border:0;padding:0;background:transparent;resize:vertical;'
      +(n.hecha?"color:#8d97a6;text-decoration:line-through":"color:#1e2a3a")+'">'+esc(n.t||"")+'</textarea>'
@@ -2379,6 +2390,7 @@ function renderNotasPers(){
      +(venc?'<span style="font-size:11px;font-weight:700;color:#b3455b">vencida</span>':'')
      +(hoyEs?'<span style="font-size:11px;font-weight:700;color:#0f8a8a">es hoy</span>':'')
      +'<span style="flex:1"></span>'
+     +'<button class="btn sm primary" onclick="npGuardarUna(\''+n.id+'\')">Guardar</button>'
      +'<button class="btn sm" onclick="npHecha(\''+n.id+'\')">'+(n.hecha?"Reabrir":"✓ Hecha")+'</button>'
      +'<button class="btn sm" onclick="npBorrar(\''+n.id+'\')" title="Borrar">✕</button>'
      +'</div></div>';
@@ -2481,7 +2493,8 @@ function arbolReorganizar(){
   var antes=arbolLayout();
   if(!antes){ toast("Todavía no hay árbol que reorganizar"); return; }
   var base=antes.coste, mejorS=arbolSemilla(), mejorC=base;
-  for(var s=1; s<=40; s++){
+  var intentos=(antes.n>45)?14:40;     /* con mucha gente, menos pruebas: ya afina el refinado */
+  for(var s=1; s<=intentos; s++){
     state.arbolSeed=s;
     var L=arbolLayout();
     if(L && L.coste<mejorC-0.0001){ mejorC=L.coste; mejorS=s; }
@@ -2639,8 +2652,34 @@ function arbolLayout(){
     });
     return t;
   };
+  /* Lo que de verdad ensucia el dibujo son los hombros largos: la línea horizontal
+     que va de unos padres a sus hijos. Si los hermanos están desperdigados por la
+     fila, ese hombro cruza medio árbol y se solapa con los demás. Así que medimos
+     exactamente eso: cuánto suman de ancho todos los hombros. */
+  var anchoHombros=function(){
+    /* Los hermanos están todos en la misma fila, así que sus posiciones SÍ se
+       pueden comparar entre sí (las de filas distintas no: cada fila tiene su
+       propio recuento). Medimos cuánto se pasa de largo el hombro: n hermanos
+       ocupan como poco n-1; todo lo que sobre es gente de otra familia metida
+       en medio, y es justo lo que hace que las líneas se crucen. */
+    var t=0, gr={};
+    ids.forEach(function(i){
+      var pd=padresDe(i); if(!pd.length) return;
+      var k=pd.slice().sort().join("|");
+      (gr[k]=gr[k]||[]).push(i);
+    });
+    Object.keys(gr).forEach(function(k){
+      var us={}; gr[k].forEach(function(i){ us[uOf[i]]=1; });
+      var kk=Object.keys(us);
+      if(kk.length<2) return;
+      var os=kk.map(function(x){ return U[x].ord; });
+      t+=(Math.max.apply(null,os)-Math.min.apply(null,os))-(kk.length-1);
+    });
+    return t;
+  };
+
   var mejor=null, guarda=function(){
-    var c=cruces()*1000+largo();
+    var c=cruces()*600+anchoHombros()*2000+largo();
     if(mejor===null || c<mejor.c){ mejor={c:c,o:U.map(function(u){ return u.ord; })}; }
   };
   guarda();
@@ -2654,6 +2693,9 @@ function arbolLayout(){
       filas[g].sort(function(a,b){
         if(a.comp!==b.comp) return a.comp-b.comp;      /* cada familia, junta */
         if(a.bar!==b.bar) return a.bar-b.bar;
+        /* a igualdad, los que cuelgan de los mismos padres, seguidos */
+        var pa=(a.arriba[0]===undefined?-1:a.arriba[0]), pb=(b.arriba[0]===undefined?-1:b.arriba[0]);
+        if(pa!==pb) return pa-pb;
         return a.ord-b.ord;
       });
       filas[g].forEach(function(u,i){ u.ord=i; });
@@ -2662,6 +2704,38 @@ function arbolLayout(){
   }
   U.forEach(function(u,i){ u.ord=mejor.o[i]; });
   gens.forEach(function(g){ filas[g].sort(function(a,b){ return a.ord-b.ord; }); });
+
+  /* Últimos retoques: probar a intercambiar vecinos de dos en dos y quedarse con
+     el cambio solo si el dibujo mejora. El baricentro llega cerca pero no ve
+     colocaciones como «los hermanos de ella a un lado, los de él al otro», que
+     es justo lo que hace falta cuando un matrimonio une dos familias. */
+  var coste=function(){ return cruces()*600+anchoHombros()*2000+largo(); };
+  var aplica=function(f){ f.forEach(function(u,i){ u.ord=i; }); };
+  var mover=function(f,de,a){ var p=f[de]; f.splice(de,1); f.splice(a,0,p); aplica(f); };
+  if(U.length<=80){
+    for(var rr=0; rr<8; rr++){
+      var mejoro=false;
+      for(var gi=0; gi<gens.length; gi++){
+        var f=filas[gens[gi]];
+        /* Mover cada pieza a cualquier otro sitio de su fila, no solo al de al
+           lado: para juntar a alguien con sus hermanos hay que moverlo tres o
+           cuatro puestos de una vez, y los pasos intermedios son peores. */
+        for(var i2=0; i2<f.length; i2++){
+          var c0=coste(), mejorPos=-1, fam=f[i2].comp;   /* ojo: no llamarla «comp»:
+             en JS var es de función y pisaba el contador de familias de arriba */
+          for(var j2=0; j2<f.length; j2++){
+            if(j2===i2 || f[j2].comp!==fam) continue;
+            mover(f,i2,j2);
+            var c1=coste();
+            mover(f,j2,i2);                 /* deshacer, sobre el MISMO array */
+            if(c1<c0-1e-9){ c0=c1; mejorPos=j2; }
+          }
+          if(mejorPos>=0){ mover(f,i2,mejorPos); mejoro=true; }
+        }
+      }
+      if(!mejoro) break;
+    }
+  }
 
   /* --- posición: hueco entre familias, y luego se centran padres e hijos --- */
   var GAP=0.55, FAM=1.4;
@@ -2695,10 +2769,46 @@ function arbolLayout(){
           bucle:bucle, coste:(mejor?mejor.c:0)};
 }
 
+/* Cuántos carriles de hombro hará falta como mucho. Se calcula igual que al
+   dibujar: grupos que no se solapan comparten carril. */
+function carrilesMax(L){
+  var U=L.U, gr={};
+  L.enlaces.forEach(function(e){
+    var k=e.padres.slice().sort().join("|");
+    (gr[k]=gr[k]||{padres:e.padres,hijos:[],gen:U[L.uOf[e.hijo]].gen}).hijos.push(e.hijo);
+  });
+  var ls=Object.keys(gr).map(function(k){ return gr[k]; });
+  ls.forEach(function(G){
+    var xs=G.hijos.map(function(i){ var u=U[L.uOf[i]]; return u.x+u.m.indexOf(i); });
+    var xp=0; G.padres.forEach(function(i){ var u=U[L.uOf[i]]; xp+=u.x+u.m.indexOf(i); });
+    xp/=G.padres.length; xs.push(xp);
+    G.x0=Math.min.apply(null,xs); G.x1=Math.max.apply(null,xs);
+    G.ancho=G.x1-G.x0;
+  });
+  var filas={}, max=1;
+  ls.sort(function(a,b){ return a.gen-b.gen || a.ancho-b.ancho || a.x0-b.x0; })
+    .forEach(function(G){
+      if(G.hijos.length===1 && G.ancho<0.06) return;
+      var f=(filas[G.gen]=filas[G.gen]||[]), k=0;
+      for(; k<f.length; k++){
+        var choca=f[k].some(function(H){ return !(G.x1<H.x0-0.14 || G.x0>H.x1+0.14); });
+        if(!choca) break;
+      }
+      if(!f[k]) f[k]=[];
+      f[k].push(G);
+      if(f.length>max) max=f.length;
+    });
+  return max;
+}
+window.carrilesMax=carrilesMax;
+
 function arbolSVG(){
   var L=arbolLayout();
   if(!L) return "";
   var COL=104, ROW=142, M=28, R=25, PIE=34;
+  /* Si en alguna generación hacen falta varios carriles de hombro, se da aire
+     de más para que las líneas no toquen los nombres. */
+  ROW += Math.max(0, (carrilesMax(L)-1)) * 15;
   var W=Math.max(320, M*2+L.maxX*COL), H=M*2+(L.maxG+1)*ROW+PIE;
   var U=L.U;
   var px=function(u,j){ return M+(u.x+j)*COL+COL/2; };
@@ -2723,9 +2833,14 @@ function arbolSVG(){
     s.push('<ellipse cx="'+cx.toFixed(1)+'" cy="'+(cy+28).toFixed(1)+'" rx="15" ry="4" fill="#8a6a46" opacity=".22"/>');
   });
 
-  /* Las ramas: de cada pareja de padres sale un tronco corto, se abre en un hombro
-     horizontal y de ahí sube una ramita a cada hijo. Con curvas sueltas, cuando
-     alguien tenía tres hijos separados, no había quien siguiera la línea. */
+  /* Las ramas: de cada pareja sale un tronco corto, se abre en un hombro y de ahí
+     sube una ramita a cada hijo.
+
+     Antes cada grupo se ponía en su propia altura por orden de aparición, así que
+     con cinco grupos había cinco líneas horizontales apiladas aunque estuvieran en
+     extremos opuestos del dibujo. Ahora los grupos comparten altura siempre que sus
+     tramos no se solapen —como aparcar en la misma fila si no te pisas—, y los más
+     anchos se ponen abajo, para que las ramitas verticales crucen lo mínimo. */
   var grupos={};
   L.enlaces.forEach(function(e){
     var k=e.padres.slice().sort().join("|");
@@ -2736,23 +2851,45 @@ function arbolSVG(){
     G.xp=0; G.padres.forEach(function(id){ G.xp+=pxDe(id); }); G.xp/=G.padres.length;
     G.yp=pyDe(G.padres[0])-R-16;
     G.gh=U[L.uOf[G.hijos[0]]].gen;
+    var xs=G.hijos.map(pxDe).concat([G.xp]);
+    G.x0=Math.min.apply(null,xs); G.x1=Math.max.apply(null,xs);
+    G.ancho=G.x1-G.x0;
+    /* un hijo único justo encima de sus padres no necesita hombro: es una recta */
+    G.recto=(G.hijos.length===1 && G.ancho<6);
   });
-  gl.sort(function(a,b){ return a.gh-b.gh || a.xp-b.xp; });
-  var nivel={};
+
+  /* Carriles por generación: el primero libre donde no se solape con otro. */
+  var carriles={};
+  gl.slice().sort(function(a,b){ return a.gh-b.gh || a.ancho-b.ancho || a.x0-b.x0; })
+    .forEach(function(G){
+      if(G.recto){ G.carril=0; return; }
+      var filas=(carriles[G.gh]=carriles[G.gh]||[]);
+      var k=0;
+      for(; k<filas.length; k++){
+        var choca=filas[k].some(function(H){ return !(G.x1<H.x0-14 || G.x0>H.x1+14); });
+        if(!choca) break;
+      }
+      if(!filas[k]) filas[k]=[];
+      filas[k].push(G); G.carril=k;
+    });
+  var maxCarril={};
+  Object.keys(carriles).forEach(function(g){ maxCarril[g]=carriles[g].length; });
+
   gl.forEach(function(G){
     var yBase=py(U[L.uOf[G.hijos[0]]])+R+24;
-    nivel[G.gh]=(nivel[G.gh]||0);
-    var yH=yBase+14+nivel[G.gh]*13;         /* cada grupo, su propio hombro */
-    nivel[G.gh]++;
-    if(yH>G.yp-10) yH=Math.max(G.yp-10,yBase+6);
-    var xs=G.hijos.map(pxDe).concat([G.xp]);
-    var x0=Math.min.apply(null,xs), x1=Math.max.apply(null,xs);
-    var gr=Math.max(3,9-G.gh*1.4).toFixed(1), rad=9;
+    var yH=yBase+13+(G.carril||0)*15;
+    if(yH>G.yp-12) yH=Math.max(G.yp-12,yBase+8);
+    var gr=Math.max(3,9-G.gh*1.4).toFixed(1);
+    if(G.recto){
+      /* recta limpia de los padres al hijo */
+      s.push('<path d="M'+G.xp.toFixed(1)+','+G.yp.toFixed(1)
+           +' L'+G.xp.toFixed(1)+','+(pyDe(G.hijos[0])+R+24).toFixed(1)+'" '
+           +'stroke="#8a6a46" stroke-width="'+gr+'" stroke-linecap="round" fill="none" opacity=".45"/>');
+      return;
+    }
     var d=[];
-    /* del centro de los padres hasta el hombro */
-    d.push('M'+G.xp.toFixed(1)+','+G.yp.toFixed(1)+' L'+G.xp.toFixed(1)+','+(yH+rad).toFixed(1));
-    /* el hombro */
-    if(x1-x0>1) d.push('M'+x0.toFixed(1)+','+yH.toFixed(1)+' L'+x1.toFixed(1)+','+yH.toFixed(1));
+    d.push('M'+G.xp.toFixed(1)+','+G.yp.toFixed(1)+' L'+G.xp.toFixed(1)+','+yH.toFixed(1));
+    if(G.ancho>1) d.push('M'+G.x0.toFixed(1)+','+yH.toFixed(1)+' L'+G.x1.toFixed(1)+','+yH.toFixed(1));
     s.push('<path d="'+d.join(' ')+'" stroke="#8a6a46" stroke-width="'+gr+'" stroke-linecap="round" '
          +'stroke-linejoin="round" fill="none" opacity=".45"/>');
     G.hijos.forEach(function(id){
