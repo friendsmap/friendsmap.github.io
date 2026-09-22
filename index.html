@@ -49,7 +49,17 @@ header.top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-conte
 .tabs button{border:0;background:transparent;padding:6px 11px;border-radius:8px;color:var(--muted);font-weight:550}
 .tabs .tico{font-size:12px;opacity:.55;margin-left:1px;font-style:normal}
 .tabs button.on .tico{opacity:1}
-@media(max-width:420px){ .tabs button{padding:6px 9px} .tabs .tico{font-size:11px} }
+.tabs .tnom{display:inline}
+/* En pantalla estrecha caben las nueve solo si las que no usas se quedan con su
+   icono. La activa mantiene su nombre, así siempre sabes dónde estás. */
+@media(max-width:560px){
+  .tabs{gap:2px;padding:3px 2px}
+  .tabs button{padding:7px 8px}
+  .tabs button:not(.on) .tnom{display:none}
+  .tabs .tico{font-size:15px;opacity:.75;margin:0}
+  .tabs button.on{padding:7px 11px}
+  .tabs button.on .tico{font-size:13px;margin-left:3px}
+}
 .tabs button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .seg{display:block;margin-bottom:12px}
 .ambitos{display:flex;gap:10px;flex-wrap:wrap}
@@ -302,15 +312,15 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
     <div class="titlewrap"><div class="title"><h1>Friends Map</h1><small id="count"></small></div>
       <p class="lema"><span class="ver" id="verEt" title="Versión de la app">—</span> Todo el mundo quiere percibir que es <b>importante</b>, que <b>tiene éxito</b> y que recuerdan <b>su nombre</b>.</p></div>
     <div class="tabs">
-      <button data-tab="mapa" class="on">Map <span class="tico">🗺</span></button>
-      <button data-tab="agenda">Agenda <span class="tico">🗓</span></button>
-      <button data-tab="fichas">People <span class="tico">👥</span></button>
-      <button data-tab="notas">Notes <span class="tico">📝</span></button>
-      <button data-tab="afinidad">Affinity <span class="tico">🎯</span></button>
-      <button data-tab="sinergias">Synergies <span class="tico">🔗</span></button>
-      <button data-tab="informe">Report <span class="tico">📊</span></button>
-      <button data-tab="negocio">My profile <span class="tico">🙋</span></button>
-      <button data-tab="tree">Tree <span class="tico">🌳</span></button>
+      <button data-tab="mapa" class="on"><span class="tnom">Map</span> <span class="tico">🗺</span></button>
+      <button data-tab="agenda"><span class="tnom">Agenda</span> <span class="tico">🗓</span></button>
+      <button data-tab="fichas"><span class="tnom">People</span> <span class="tico">👥</span></button>
+      <button data-tab="notas"><span class="tnom">Notes</span> <span class="tico">📝</span></button>
+      <button data-tab="afinidad"><span class="tnom">Affinity</span> <span class="tico">🎯</span></button>
+      <button data-tab="sinergias"><span class="tnom">Synergies</span> <span class="tico">🔗</span></button>
+      <button data-tab="informe"><span class="tnom">Report</span> <span class="tico">📊</span></button>
+      <button data-tab="negocio"><span class="tnom">My profile</span> <span class="tico">🙋</span></button>
+      <button data-tab="tree"><span class="tnom">Tree</span> <span class="tico">🌳</span></button>
     </div>
   </header>
 
@@ -374,7 +384,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.10.01-81 · depurada";
+var VERSION="2026.10.02-82 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -2769,46 +2779,119 @@ function arbolLayout(){
           bucle:bucle, coste:(mejor?mejor.c:0)};
 }
 
-/* Cuántos carriles de hombro hará falta como mucho. Se calcula igual que al
-   dibujar: grupos que no se solapan comparten carril. */
-function carrilesMax(L){
+/* ---------- REPARTO DE CARRILES ----------
+   Se usa dos veces con la MISMA lógica: una para saber cuánto alto hace falta,
+   y otra para dibujar. Si se usaran métodos distintos, el alto se quedaría corto
+   y los hombros acabarían pisándose, que es lo que pasaba. */
+function planCarriles(L,pos,margen){
   var U=L.U, gr={};
   L.enlaces.forEach(function(e){
     var k=e.padres.slice().sort().join("|");
-    (gr[k]=gr[k]||{padres:e.padres,hijos:[],gen:U[L.uOf[e.hijo]].gen}).hijos.push(e.hijo);
+    (gr[k]=gr[k]||{padres:e.padres,hijos:[],clave:k}).hijos.push(e.hijo);
   });
-  var ls=Object.keys(gr).map(function(k){ return gr[k]; });
-  ls.forEach(function(G){
-    var xs=G.hijos.map(function(i){ var u=U[L.uOf[i]]; return u.x+u.m.indexOf(i); });
-    var xp=0; G.padres.forEach(function(i){ var u=U[L.uOf[i]]; xp+=u.x+u.m.indexOf(i); });
-    xp/=G.padres.length; xs.push(xp);
-    G.x0=Math.min.apply(null,xs); G.x1=Math.max.apply(null,xs);
-    G.ancho=G.x1-G.x0;
+  var gl=Object.keys(gr).map(function(k){ return gr[k]; });
+  gl.forEach(function(G){
+    G.gen=U[L.uOf[G.hijos[0]]].gen;
+    G.xh=G.hijos.map(pos);
+    var xp=0; G.padres.forEach(function(i){ xp+=pos(i); }); G.xp=xp/G.padres.length;
+    G.x0=Math.min.apply(null,G.xh.concat([G.xp]));
+    G.x1=Math.max.apply(null,G.xh.concat([G.xp]));
+    G.recto=(G.hijos.length===1 && Math.abs(G.xh[0]-G.xp)<margen*0.4);
+    G.carril=0;
   });
-  var filas={}, max=1;
-  ls.sort(function(a,b){ return a.gen-b.gen || a.ancho-b.ancho || a.x0-b.x0; })
-    .forEach(function(G){
-      if(G.hijos.length===1 && G.ancho<0.06) return;
-      var f=(filas[G.gen]=filas[G.gen]||[]), k=0;
-      for(; k<f.length; k++){
-        var choca=f[k].some(function(H){ return !(G.x1<H.x0-0.14 || G.x0>H.x1+0.14); });
-        if(!choca) break;
-      }
-      if(!f[k]) f[k]=[];
-      f[k].push(G);
-      if(f.length>max) max=f.length;
+  var porGen={}, maxC=1;
+  gl.forEach(function(G){ if(!G.recto) (porGen[G.gen]=porGen[G.gen]||[]).push(G); });
+  Object.keys(porGen).forEach(function(g){
+    var lista=porGen[g], antes={}, grado={};
+    lista.forEach(function(G,i){ G._i=i; antes[i]=[]; grado[i]=0; });
+    lista.forEach(function(G){
+      lista.forEach(function(H){
+        if(G===H) return;
+        if(G.xh.some(function(x){ return x>H.x0+margen*0.06 && x<H.x1-margen*0.06; })){
+          antes[H._i].push(G._i); grado[G._i]++;
+        }
+      });
     });
-  return max;
+    var nivel={}, pend=lista.map(function(G){ return G._i; }), guardia=0;
+    lista.forEach(function(G){ nivel[G._i]=0; });
+    while(pend.length && guardia++<600){
+      var libres=pend.filter(function(i){ return grado[i]===0; });
+      if(!libres.length){
+        var peor=pend.slice().sort(function(a,b){ return grado[a]-grado[b]; })[0];
+        libres=[peor]; grado[peor]=0;
+      }
+      libres.forEach(function(i){
+        pend.splice(pend.indexOf(i),1);
+        lista.forEach(function(H){
+          if(antes[H._i].indexOf(i)>=0){
+            grado[H._i]=Math.max(0,grado[H._i]-1);
+            nivel[H._i]=Math.max(nivel[H._i],nivel[i]+1);
+          }
+        });
+      });
+    }
+    var carril=0, porNivel={};
+    lista.forEach(function(G){ (porNivel[nivel[G._i]]=porNivel[nivel[G._i]]||[]).push(G); });
+    Object.keys(porNivel).map(Number).sort(function(a,b){ return a-b; }).forEach(function(nv){
+      var filas=[];
+      porNivel[nv].slice().sort(function(a,b){ return a.x0-b.x0; }).forEach(function(G){
+        var k=0;
+        for(; k<filas.length; k++){
+          var choca=filas[k].some(function(H){ return !(G.x1<H.x0-margen || G.x0>H.x1+margen); });
+          if(!choca) break;
+        }
+        if(!filas[k]) filas[k]=[];
+        filas[k].push(G); G.carril=carril+k;
+      });
+      carril+=Math.max(1,filas.length);
+    });
+    if(carril>maxC) maxC=carril;
+  });
+  return {gl:gl, maxCarril:maxC};
 }
-window.carrilesMax=carrilesMax;
+function carrilesMax(L){ return planCarriles(L,function(i){ var u=L.U[L.uOf[i]]; return u.x+u.m.indexOf(i); },0.16).maxCarril; }
+window.carrilesMax=carrilesMax; window.planCarriles=planCarriles;
+
+/* ---------- UN COLOR POR FAMILIA ----------
+   Cada persona sin padres en el árbol abre una familia. Su descendencia hereda
+   el color, así se puede seguir una rama con la vista aunque el árbol sea grande. */
+var PALETA_FAM=["#6a4c93","#1f7a6c","#b5476b","#2d6ca8","#b06a3b","#4a7f3a","#8a5ba8","#c0873b"];
+var _famCache=null;
+function familiasCalc(){
+  var raiz={}, col={}, n=0;
+  var subir=function(id,prof){
+    if(raiz[id]!==undefined) return raiz[id];
+    var p=byId(id);
+    var pd=(p&&p.padres||[]).filter(function(x){ return byId(x); });
+    var r;
+    if(!pd.length || prof>40) r=id;                 /* es raíz: abre familia */
+    else r=subir(pd[0],prof+1);                      /* hereda la del primero */
+    raiz[id]=r;
+    return r;
+  };
+  (state.people||[]).forEach(function(p){ subir(p.id,0); });
+  Object.keys(raiz).forEach(function(id){
+    var r=raiz[id];
+    if(col[r]===undefined){ col[r]=PALETA_FAM[n%PALETA_FAM.length]; n++; }
+  });
+  return {raiz:raiz, col:col, n:n};
+}
+function familiasRefresca(){ _famCache=null; }
+function familias(){ if(!_famCache) _famCache=familiasCalc(); return _famCache; }
+function colorFamilia(id){
+  var f=familias();
+  return f.col[f.raiz[id]] || "#8a6a46";
+}
+window.colorFamilia=colorFamilia; window.familias=familias; window.familiasRefresca=familiasRefresca;
 
 function arbolSVG(){
+  familiasRefresca();
   var L=arbolLayout();
   if(!L) return "";
   var COL=104, ROW=142, M=28, R=25, PIE=34;
   /* Si en alguna generación hacen falta varios carriles de hombro, se da aire
      de más para que las líneas no toquen los nombres. */
-  ROW += Math.max(0, (carrilesMax(L)-1)) * 15;
+  ROW += Math.max(0, (carrilesMax(L)-1)) * 17 + 14;
   var W=Math.max(320, M*2+L.maxX*COL), H=M*2+(L.maxG+1)*ROW+PIE;
   var U=L.U;
   var px=function(u,j){ return M+(u.x+j)*COL+COL/2; };
@@ -2828,74 +2911,145 @@ function arbolSVG(){
      que se confundían con parentescos que no existían. */
   U.filter(function(u){ return !u.arriba.length; }).forEach(function(u){
     var cx=px(u,(u.m.length-1)/2), cy=py(u)+R+24;
+    var cf=colorFamilia(u.m[0]);
     s.push('<path d="M'+cx.toFixed(1)+','+cy.toFixed(1)+' L'+cx.toFixed(1)+','+(cy+26).toFixed(1)+'" '
-         +'stroke="#8a6a46" stroke-width="12" stroke-linecap="round" fill="none" opacity=".4"/>');
-    s.push('<ellipse cx="'+cx.toFixed(1)+'" cy="'+(cy+28).toFixed(1)+'" rx="15" ry="4" fill="#8a6a46" opacity=".22"/>');
+         +'stroke="'+cf+'" stroke-width="12" stroke-linecap="round" fill="none" opacity=".35"/>');
+    s.push('<ellipse cx="'+cx.toFixed(1)+'" cy="'+(cy+28).toFixed(1)+'" rx="15" ry="4" fill="'+cf+'" opacity=".2"/>');
   });
 
-  /* Las ramas: de cada pareja sale un tronco corto, se abre en un hombro y de ahí
-     sube una ramita a cada hijo.
+  /* ===================== EL TRAZADO DE LAS RAMAS =====================
+     Hasta ahora esto iba a base de ajustar parámetros y cruzar los dedos. Ahora
+     se construye para que NO pueda solaparse, y después se comprueba:
 
-     Antes cada grupo se ponía en su propia altura por orden de aparición, así que
-     con cinco grupos había cinco líneas horizontales apiladas aunque estuvieran en
-     extremos opuestos del dibujo. Ahora los grupos comparten altura siempre que sus
-     tramos no se solapen —como aparcar en la misma fila si no te pisas—, y los más
-     anchos se ponen abajo, para que las ramitas verticales crucen lo mínimo. */
-  var grupos={};
-  L.enlaces.forEach(function(e){
-    var k=e.padres.slice().sort().join("|");
-    (grupos[k]=grupos[k]||{padres:e.padres,hijos:[]}).hijos.push(e.hijo);
-  });
-  var gl=Object.keys(grupos).map(function(k){ return grupos[k]; });
+     1. Cada pareja de padres tiene su hombro: una línea horizontal de la que
+        cuelgan sus hijos.
+     2. Los hombros van en carriles. Dos hombros comparten carril solo si sus
+        tramos no se tocan.
+     3. El orden de los carriles no es al azar: si la ramita de un hijo tuviera
+        que atravesar el hombro de otra familia, ese hombro se pone por encima.
+        Se resuelve como un orden de precedencias, así que los cruces que se
+        pueden evitar, se evitan todos.
+     4. Los que aun así queden (cuando hay un bucle de precedencias y es
+        imposible) se dibujan con un puente, como en un esquema eléctrico: la
+        línea salta por encima y se ve perfectamente cuál es cuál.
+     5. Cada familia tiene su color, para poder seguir la rama con la vista. */
+
+  var PLAN=planCarriles(L,pxDe,16);
+  var gl=PLAN.gl;
   gl.forEach(function(G){
-    G.xp=0; G.padres.forEach(function(id){ G.xp+=pxDe(id); }); G.xp/=G.padres.length;
     G.yp=pyDe(G.padres[0])-R-16;
-    G.gh=U[L.uOf[G.hijos[0]]].gen;
-    var xs=G.hijos.map(pxDe).concat([G.xp]);
-    G.x0=Math.min.apply(null,xs); G.x1=Math.max.apply(null,xs);
-    G.ancho=G.x1-G.x0;
-    /* un hijo único justo encima de sus padres no necesita hombro: es una recta */
-    G.recto=(G.hijos.length===1 && G.ancho<6);
+    G.col=colorFamilia(G.padres[0]);
   });
 
-  /* Carriles por generación: el primero libre donde no se solape con otro. */
-  var carriles={};
-  gl.slice().sort(function(a,b){ return a.gh-b.gh || a.ancho-b.ancho || a.x0-b.x0; })
-    .forEach(function(G){
-      if(G.recto){ G.carril=0; return; }
-      var filas=(carriles[G.gh]=carriles[G.gh]||[]);
-      var k=0;
-      for(; k<filas.length; k++){
-        var choca=filas[k].some(function(H){ return !(G.x1<H.x0-14 || G.x0>H.x1+14); });
-        if(!choca) break;
-      }
-      if(!filas[k]) filas[k]=[];
-      filas[k].push(G); G.carril=k;
-    });
-  var maxCarril={};
-  Object.keys(carriles).forEach(function(g){ maxCarril[g]=carriles[g].length; });
-
+  /* --- alturas --- */
+  var SEP=17;
   gl.forEach(function(G){
     var yBase=py(U[L.uOf[G.hijos[0]]])+R+24;
-    var yH=yBase+13+(G.carril||0)*15;
-    if(yH>G.yp-12) yH=Math.max(G.yp-12,yBase+8);
-    var gr=Math.max(3,9-G.gh*1.4).toFixed(1);
+    G.yH=yBase+13+(G.carril||0)*SEP;
+    /* nada de recortar: el hueco entre generaciones ya se ha hecho tan alto
+       como haga falta, así que cada carril tiene su sitio */
+  });
+
+  /* --- que dos verticales no compartan columna ---
+     El tronco de una pareja baja por el punto medio de los dos, y eso puede caer
+     justo en la columna por la que sube la ramita de otra persona: se montaban
+     una encima de otra y parecían una sola línea. Aquí se separan. */
+  var verticales=[];
+  gl.forEach(function(G){
     if(G.recto){
-      /* recta limpia de los padres al hijo */
-      s.push('<path d="M'+G.xp.toFixed(1)+','+G.yp.toFixed(1)
-           +' L'+G.xp.toFixed(1)+','+(pyDe(G.hijos[0])+R+24).toFixed(1)+'" '
-           +'stroke="#8a6a46" stroke-width="'+gr+'" stroke-linecap="round" fill="none" opacity=".45"/>');
+      verticales.push({g:G,tipo:"recto",x:G.xp,y0:Math.min(G.yp,pyDe(G.hijos[0])+R+24),
+                       y1:Math.max(G.yp,pyDe(G.hijos[0])+R+24)});
       return;
     }
-    var d=[];
-    d.push('M'+G.xp.toFixed(1)+','+G.yp.toFixed(1)+' L'+G.xp.toFixed(1)+','+yH.toFixed(1));
-    if(G.ancho>1) d.push('M'+G.x0.toFixed(1)+','+yH.toFixed(1)+' L'+G.x1.toFixed(1)+','+yH.toFixed(1));
-    s.push('<path d="'+d.join(' ')+'" stroke="#8a6a46" stroke-width="'+gr+'" stroke-linecap="round" '
-         +'stroke-linejoin="round" fill="none" opacity=".45"/>');
+    verticales.push({g:G,tipo:"tronco",x:G.xp,y0:Math.min(G.yp,G.yH),y1:Math.max(G.yp,G.yH)});
     G.hijos.forEach(function(id){
-      var xh=pxDe(id), yh=pyDe(id)+R+24;
-      s.push('<path d="M'+xh.toFixed(1)+','+yh.toFixed(1)+' L'+xh.toFixed(1)+','+yH.toFixed(1)+'" '
-           +'stroke="#8a6a46" stroke-width="'+gr+'" stroke-linecap="round" fill="none" opacity=".45"/>');
+      verticales.push({g:G,tipo:"rama",id:id,x:pxDe(id),
+                       y0:Math.min(pyDe(id)+R+24,G.yH),y1:Math.max(pyDe(id)+R+24,G.yH)});
+    });
+  });
+  var choca=function(a,b){
+    return Math.abs(a.x-b.x)<6 && (Math.min(a.y1,b.y1)-Math.max(a.y0,b.y0))>1.5;
+  };
+  for(var pasadaV=0; pasadaV<6; pasadaV++){
+    var movio=false;
+    for(var vi=0; vi<verticales.length; vi++){
+      for(var vj=vi+1; vj<verticales.length; vj++){
+        var A=verticales[vi], B=verticales[vj];
+        if(!choca(A,B)) continue;
+        /* se aparta el tronco, que no tiene que acabar en un punto concreto;
+           si los dos son troncos, el de la derecha se va a la derecha */
+        var mover = (A.tipo!=="rama") ? A : ((B.tipo!=="rama") ? B : null);
+        if(!mover) mover = (A.x<=B.x) ? A : B;
+        var otro = (mover===A)?B:A;
+        mover.dx = (mover.dx||0) + ((mover.x<=otro.x)? -7 : 7);
+        mover.x += (mover.x<=otro.x)? -7 : 7;
+        movio=true;
+      }
+    }
+    if(!movio) break;
+  }
+  var vertDe=function(G,tipo,id){
+    for(var i=0;i<verticales.length;i++){
+      var v=verticales[i];
+      if(v.g===G && v.tipo===tipo && (tipo!=="rama" || v.id===id)) return v;
+    }
+    return null;
+  };
+
+  /* --- los puentes, ya con las posiciones definitivas ---
+     Cada vez que una vertical tenga que atravesar un hombro, el hombro salta por
+     encima, como en un esquema eléctrico. Se calcula al final, con las columnas
+     ya separadas: si se hiciera antes, algún cruce se quedaría sin su puente. */
+  gl.forEach(function(G){ G.cortes=[]; });
+  verticales.forEach(function(v){
+    gl.forEach(function(H){
+      if(H===v.g || H.recto) return;
+      if(H.yH>v.y0+2 && H.yH<v.y1-2){
+        var hx0=Math.min.apply(null,H.hijos.map(function(id){ var q=vertDe(H,"rama",id); return q?q.x:pxDe(id); })
+                    .concat([(vertDe(H,"tronco")||{x:H.xp}).x]));
+        var hx1=Math.max.apply(null,H.hijos.map(function(id){ var q=vertDe(H,"rama",id); return q?q.x:pxDe(id); })
+                    .concat([(vertDe(H,"tronco")||{x:H.xp}).x]));
+        if(v.x>hx0+4 && v.x<hx1-4) H.cortes.push(v.x);
+      }
+    });
+  });
+
+  /* --- a pintar --- */
+  var hombro=function(x0,x1,y,cortes){
+    var r=5, d="M"+x0.toFixed(1)+","+y.toFixed(1);
+    cortes.slice().sort(function(a,b){ return a-b; })
+      .filter(function(x,i,a){ return x>x0+r+1 && x<x1-r-1 && (i===0||Math.abs(x-a[i-1])>2*r); })
+      .forEach(function(x){
+        d+=" L"+(x-r).toFixed(1)+","+y.toFixed(1)
+          +" A"+r+","+r+" 0 0 1 "+(x+r).toFixed(1)+","+y.toFixed(1);
+      });
+    return d+" L"+x1.toFixed(1)+","+y.toFixed(1);
+  };
+  gl.forEach(function(G){
+    var gr=Math.max(3.2,8.5-G.gen*1.3).toFixed(1);
+    if(G.recto){
+      var vr=vertDe(G,"recto")||{x:G.xp};
+      s.push('<path d="M'+vr.x.toFixed(1)+','+G.yp.toFixed(1)
+           +' L'+vr.x.toFixed(1)+','+(pyDe(G.hijos[0])+R+24).toFixed(1)+'" stroke="'+G.col
+           +'" stroke-width="'+gr+'" stroke-linecap="round" fill="none" opacity=".75"/>');
+      return;
+    }
+    /* el tronco de los padres hasta su hombro */
+    var vt=vertDe(G,"tronco")||{x:G.xp};
+    s.push('<path d="M'+vt.x.toFixed(1)+','+G.yp.toFixed(1)+' L'+vt.x.toFixed(1)+','+G.yH.toFixed(1)+'" '
+         +'stroke="'+G.col+'" stroke-width="'+gr+'" stroke-linecap="round" fill="none" opacity=".75"/>');
+    /* el hombro, saltando por encima de lo que se cruce */
+    var xsR=G.hijos.map(function(id){ var v=vertDe(G,"rama",id); return v?v.x:pxDe(id); }).concat([vt.x]);
+    G.x0=Math.min.apply(null,xsR); G.x1=Math.max.apply(null,xsR);
+    if(G.x1-G.x0>1)
+      s.push('<path d="'+hombro(G.x0,G.x1,G.yH,G.cortes)+'" stroke="'+G.col+'" stroke-width="'+gr
+           +'" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity=".75"/>');
+    /* y una ramita a cada hijo */
+    G.hijos.forEach(function(id){
+      var vh=vertDe(G,"rama",id)||{x:pxDe(id)};
+      s.push('<path d="M'+vh.x.toFixed(1)+','+(pyDe(id)+R+24).toFixed(1)
+           +' L'+vh.x.toFixed(1)+','+G.yH.toFixed(1)+'" stroke="'+G.col
+           +'" stroke-width="'+gr+'" stroke-linecap="round" fill="none" opacity=".75"/>');
     });
   });
 
@@ -2924,8 +3078,9 @@ function arbolSVG(){
         s.push('<text x="'+cx.toFixed(1)+'" y="'+(cy+5)+'" text-anchor="middle" fill="#fff" font-size="15" font-weight="700" '
              +'font-family="system-ui,sans-serif">'+esc(initials(p.nombre))+'</text>');
       }
-      s.push('<circle cx="'+cx.toFixed(1)+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="'
-           +(esSoloArbol(p)?"#4a7f3a":"#fff")+'" stroke-width="3"/>');
+      s.push('<circle cx="'+cx.toFixed(1)+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="#fff" stroke-width="3"/>');
+      s.push('<circle cx="'+cx.toFixed(1)+'" cy="'+cy+'" r="'+(R+2.5)+'" fill="none" stroke="'
+           +colorFamilia(id)+'" stroke-width="2.5" opacity=".85"/>');
       var nom=String(p.nombre||"").split(" ").slice(0,2).join(" ");
       if(nom.length>16) nom=nom.slice(0,15)+"…";
       var anc=Math.max(38, nom.length*6.6);
@@ -3108,6 +3263,29 @@ function arbolExportar(tipo){
 }
 window.arbolExportar=arbolExportar; window.entregar=entregar;
 
+/* Quién es cada color. */
+function leyendaFamilias(){
+  familiasRefresca();
+  var L=arbolLayout(); if(!L) return "";
+  var f=familias(), vistos={}, out=[];
+  L.U.forEach(function(u){
+    u.m.forEach(function(id){
+      var r=f.raiz[id]; if(vistos[r]) return; vistos[r]=1;
+      var p=byId(r); if(!p) return;
+      out.push({c:f.col[r], n:p.nombre||"(sin nombre)"});
+    });
+  });
+  if(out.length<2) return "";
+  return '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:0 0 8px;font-size:11.5px">'
+   + out.slice(0,8).map(function(x){
+       return '<span style="display:inline-flex;align-items:center;gap:5px">'
+        +'<span style="width:11px;height:11px;border-radius:3px;background:'+x.c+';display:inline-block"></span>'
+        +esc(x.n)+'</span>';
+     }).join("")
+   +'</div>';
+}
+window.leyendaFamilias=leyendaFamilias;
+
 function arbolHTML(){
   var L=arbolLayout();
   if(!L) return '<div class="empty">Todavía no hay a quién dibujar.<br>'
@@ -3127,6 +3305,7 @@ function arbolHTML(){
     +'<button class="btn sm" onclick="arbolExportar(\'pdf\')" title="Un PDF de una página con el árbol">⬇ PDF</button>'
     +'<button class="btn sm" onclick="arbolExportar(\'png\')" title="Una imagen para pegar o enviar">⬇ PNG</button>'
     +'</div>'
+    + leyendaFamilias()
     +'<div style="font-size:11.5px;color:var(--muted);margin:0 0 8px">Pellizca con dos dedos para acercar o alejar. '
     +'Con «PDF» o «PNG» se abre el menú de compartir del móvil: WhatsApp, correo, o guardarlo.</div>'
     +(L.bucle?'<div class="empty" style="margin:0 0 8px;color:var(--accent)">Hay un parentesco imposible: '
