@@ -385,7 +385,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.10.08-89 · depurada";
+var VERSION="2026.10.09-90 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -3199,6 +3199,43 @@ function arbolLayout(){
     }
   }
 
+  /* ---------- DE QUÉ LADO VA CADA CÓNYUGE ----------
+     El orden de la fila ya está decidido. Queda un grado de libertad que hasta
+     ahora nadie usaba: dentro de un matrimonio, quién va a la izquierda y
+     quién a la derecha. Da igual para el parentesco, pero cambia MUCHO el
+     dibujo: si el que desciende de una familia está en el lado contrario al de
+     sus padres, su línea cruza por encima de su cónyuge y de todo lo que haya
+     en medio.
+     Aquí se mide en posiciones reales (no en el orden de la fila, que no
+     distingue los dos lados de una pareja) cuánto suman de largo las líneas.
+     Se prueba a voltear cada pareja y se queda la vuelta solo si acorta. */
+  var pxPers=function(i){ var u=U[uOf[i]]; return u.x+u.m.indexOf(i); };
+  var largoReal=function(){
+    var t=0;
+    hombrosCalc().forEach(function(G){
+      var xs=G.h.map(pxPers), xp=0;
+      G.p.forEach(function(i){ xp+=pxPers(i); }); xp/=G.p.length;
+      xs.push(xp);
+      t+=Math.max.apply(null,xs)-Math.min.apply(null,xs);
+    });
+    return t;
+  };
+  var conPareja=U.filter(function(u){ return u.m.length>1; });
+  if(conPareja.length && U.length<=140){
+    colocaX(30);
+    for(var vv=0; vv<4; vv++){
+      var volteo=false;
+      for(var ci=0; ci<conPareja.length; ci++){
+        var u2=conPareja[ci];
+        var c0=largoReal();
+        u2.m.reverse(); colocaX(14);
+        if(largoReal()<c0-1e-9){ volteo=true; }
+        else { u2.m.reverse(); colocaX(14); }
+      }
+      if(!volteo) break;
+    }
+  }
+
   colocaX(60);                 /* la definitiva, con todas las rondas */
   var minX=1e9, maxX=0, maxG=0;
   U.forEach(function(u){ if(u.x<minX) minX=u.x; if(u.x+u.m.length>maxX) maxX=u.x+u.m.length; if(u.gen>maxG) maxG=u.gen; });
@@ -3316,10 +3353,12 @@ function arbolSVG(){
   familiasRefresca();
   var L=arbolLayout();
   if(!L) return "";
-  var COL=104, ROW=142, M=28, R=25, PIE=34;
+  /* La columna es más ancha que antes porque ahora cabe el apellido, y el pie
+     más alto porque el último nivel lleva dos líneas de texto. */
+  var COL=118, ROW=142, M=28, R=25, PIE=48;
   /* Si en alguna generación hacen falta varios carriles de hombro, se da aire
      de más para que las líneas no toquen los nombres. */
-  ROW += Math.max(0, (carrilesMax(L)-1)) * 17 + 14;
+  ROW += Math.max(0, (carrilesMax(L)-1)) * 17 + 26;
   var W=Math.max(320, M*2+L.maxX*COL), H=M*2+(L.maxG+1)*ROW+PIE;
   var U=L.U;
   var px=function(u,j){ return M+(u.x+j)*COL+COL/2; };
@@ -3509,12 +3548,21 @@ function arbolSVG(){
       s.push('<circle cx="'+cx.toFixed(1)+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="#fff" stroke-width="3"/>');
       s.push('<circle cx="'+cx.toFixed(1)+'" cy="'+cy+'" r="'+(R+2.5)+'" fill="none" stroke="'
            +colorFamilia(id)+'" stroke-width="2.5" opacity=".85"/>');
-      var nom=String(p.nombre||"").split(" ").slice(0,2).join(" ");
-      if(nom.length>16) nom=nom.slice(0,15)+"…";
-      var anc=Math.max(38, nom.length*6.6);
-      s.push('<rect x="'+(cx-anc/2).toFixed(1)+'" y="'+(cy+R+4)+'" width="'+anc.toFixed(1)+'" height="17" rx="8" fill="#ffffff" opacity=".92"/>');
-      s.push('<text x="'+cx.toFixed(1)+'" y="'+(cy+R+16)+'" text-anchor="middle" font-size="11.5" font-weight="600" '
-           +'font-family="system-ui,-apple-system,sans-serif" fill="#2c3327">'+esc(nom)+'</text>');
+      /* Nombre arriba, apellidos debajo. Antes se cortaba a dos palabras y a
+         16 letras, y salía «Bernardino Donc…», que no dice quién es. */
+      var _pa=String(p.nombre||"").trim().split(/\s+/).filter(Boolean);
+      var l1=_pa.shift()||"";
+      if(_pa.length>1 && l1.length<=3) l1+=" "+_pa.shift();      /* Mª José, Juan… */
+      var l2=_pa.join(" ");
+      var _rec=function(t){ t=String(t||""); return t.length>17? t.slice(0,16)+"…" : t; };
+      l1=_rec(l1); l2=_rec(l2);
+      var anc=Math.max(40, Math.max(l1.length,l2.length)*6.2+8);
+      var altC=l2?30:17;
+      s.push('<rect x="'+(cx-anc/2).toFixed(1)+'" y="'+(cy+R+4)+'" width="'+anc.toFixed(1)+'" height="'+altC+'" rx="8" fill="#ffffff" opacity=".92"/>');
+      s.push('<text x="'+cx.toFixed(1)+'" y="'+(cy+R+16)+'" text-anchor="middle" font-size="11.5" font-weight="700" '
+           +'font-family="system-ui,-apple-system,sans-serif" fill="#2c3327">'+esc(l1)+'</text>');
+      if(l2) s.push('<text x="'+cx.toFixed(1)+'" y="'+(cy+R+27)+'" text-anchor="middle" font-size="10.5" font-weight="500" '
+           +'font-family="system-ui,-apple-system,sans-serif" fill="#5a6156">'+esc(l2)+'</text>');
       s.push('</g>');
     });
   });
