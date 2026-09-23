@@ -348,6 +348,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
         <option value="circulos">Mapa por círculos</option>
         <option value="industrias">Mapa por profesión</option>
       </select>
+      <select id="agrupaCirc" style="width:auto;padding:6px 10px;font-size:13px;display:none" title="Cómo se agrupan los círculos"></select>
     </div>
     <div id="graphBox">
       <svg id="graph"></svg>
@@ -384,7 +385,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.10.06-87 · depurada";
+var VERSION="2026.10.07-88 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -1482,6 +1483,8 @@ function mapaRender(){
       cb=document.getElementById("circulosBox"), sb=document.getElementById("sinergiasBox"),
       hint=document.getElementById("mapaHint");
   var esCir=(state.modoMapa==="circulos");
+  var selAgr=document.getElementById("agrupaCirc");
+  if(selAgr){ selAgr.style.display=esCir?"":"none"; selAgr.value=agrupaModo(); }
   if(gb) gb.style.display=esCir?"none":"";
   if(hint) hint.style.display=esCir?"none":"";
   if(cb) cb.style.display=esCir?"":"none";
@@ -1546,7 +1549,40 @@ var CIRC={x:0,y:0,k:1,orden:null};
 /* El círculo ya no es un campo aparte: es la categoría de la persona.
    Lo que hubiera escrito antes en «grupo» se conserva en los datos y el
    buscador lo sigue encontrando, pero ya no agrupa. */
-function circGrupo(p){ return tipoLabel(p.tipo||"amigo"); }
+/* ---------- CÓMO SE AGRUPA EL MAPA POR CÍRCULOS ----------
+   La categoría dice QUÉ es alguien (amigo, profesional). La subcategoría dice
+   DE DÓNDE (ABB, el barrio, el pádel). Y el sector, A QUÉ SE DEDICA. Se pueden
+   cruzar: «Profesional · Energía» o «ABB · Movilidad eléctrica». */
+var AGRUPA=[
+  ["tipo",        "Categoría"],
+  ["grupo",       "Subcategoría o círculo"],
+  ["tipo-sector", "Categoría › sector"],
+  ["grupo-sector","Subcategoría › sector"]
+];
+function agrupaModo(){
+  if(!state.agrupaCirc){
+    var v=lsGet("agrupaCirc");
+    state.agrupaCirc=(v && AGRUPA.some(function(a){ return a[0]===v; })) ? v : "tipo";
+  }
+  return state.agrupaCirc;
+}
+function agrupaSet(v){
+  state.agrupaCirc=v;
+  try{ lsSet("agrupaCirc",v); }catch(e){}
+  state.circOff=[];                 /* los círculos ocultos eran de la otra agrupación */
+  G.nodes=[]; renderSeg(); renderAll();
+  if(state.tab==="mapa") mapaRender();
+}
+function circGrupo(p){
+  var m=agrupaModo();
+  var cat=tipoLabel(p.tipo||"amigo");
+  var sub=(p.grupo||"").trim();
+  if(m==="grupo")        return sub || "Sin círculo";
+  if(m==="tipo-sector")  return cat+" · "+sectorDe(p);
+  if(m==="grupo-sector") return (sub||"Sin círculo")+" · "+sectorDe(p);
+  return cat;
+}
+window.agrupaSet=agrupaSet; window.agrupaModo=agrupaModo;
 function circColor(nombre,i){
   var pal=["#8c5aa8","#2f9d78","#4a6fa5","#ff6b5e","#d99b2b","#20b6a6","#c0468a","#5a8f3a","#9c6b3f","#3f7d9c","#6a4c93","#e2543f"];
   var h=0; for(var j=0;j<nombre.length;j++) h=(h*31+nombre.charCodeAt(j))>>>0;
@@ -1582,8 +1618,10 @@ function renderCirculos(){
   /* círculos creados a mano que todavía no tienen a nadie */
   circExtras().forEach(function(x){ if(!todosG[x.n]) todosG[x.n]=[]; ambTodos[x.n]=x.amb; });
   // chips para elegir qué círculos se ven
+  var etq=(AGRUPA.filter(function(a){ return a[0]===agrupaModo(); })[0]||AGRUPA[0])[1];
   var chips='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:9px">'
-   +'<span style="font-size:11.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Círculos en el mapa</span>';
+   +'<span style="font-size:11.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">'
+   +esc(etq)+'</span>';
   Object.keys(todosG).sort(function(a,b){ return todosG[b].length-todosG[a].length; }).forEach(function(k){
     var on=off.indexOf(k)<0, pro=ambTodos[k]==="profesional";
     chips+='<button class="cchip'+(on?" on":"")+(pro?" pro":"")+'" onclick="toggleCirculo('+JSON.stringify(k).replace(/"/g,"&quot;")+')">'
@@ -7834,6 +7872,13 @@ document.getElementById("reflow").onclick=function(){ G.tx=0;G.ty=0;G.s=1;G.node
 document.getElementById("byGroup").onchange=buildGraph;
 (function(){ var mm=document.getElementById("modoMapa"); if(mm) mm.value=state.modoMapa; })();
 document.getElementById("modoMapa").onchange=function(e){ state.modoMapa=e.target.value; G.nodes=[]; G.tx=0; G.ty=0; G.s=1; mapaRender(); };
+(function(){
+  var s=document.getElementById("agrupaCirc"); if(!s) return;
+  s.innerHTML=AGRUPA.map(function(a){
+    return '<option value="'+a[0]+'"'+(agrupaModo()===a[0]?" selected":"")+'>Agrupar por: '+a[1]+'</option>';
+  }).join("");
+  s.onchange=function(e){ agrupaSet(e.target.value); };
+})();
 /* pinchar fuera ya NO cierra: se cierra con el aspa, con Cerrar o con Escape */
 document.getElementById("overlay").onclick=function(e){ /* intencionadamente vacío */ };
 document.addEventListener("keydown",function(e){ if(e.key==="Escape") closeModal(); });
