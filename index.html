@@ -384,7 +384,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.10.02-82 · depurada";
+var VERSION="2026.10.03-83 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -3123,9 +3123,19 @@ function arbolAjustar(){
   var c=document.getElementById("arbolScroll"), svg=document.getElementById("arbolSVG");
   if(!c||!svg) return;
   var w=parseFloat(svg.getAttribute("data-w"))||1;
-  var disp=(c.clientWidth||c.offsetWidth||360)-6;
-  arbolZAplica(Math.max(0.2,Math.min(1,disp/w)));
-  c.scrollLeft=0;
+  var hh=parseFloat(svg.getAttribute("data-h"))||1;
+  var dispW=(c.clientWidth||c.offsetWidth||360)-6;
+  /* Antes solo se miraba el ancho, y los primeros niveles —los mayores, que van
+     abajo— se quedaban fuera de la pantalla. Ahora tiene que caber entero. */
+  var dispH=(c.clientHeight||c.offsetHeight||0);
+  if(!dispH){
+    var vh=(window.innerHeight||700);
+    dispH=Math.max(260,Math.min(vh*0.68,620));
+  }
+  dispH-=6;
+  var z=Math.min(dispW/w, dispH/hh);
+  arbolZAplica(Math.max(0.2,Math.min(1,z)));
+  c.scrollLeft=0; c.scrollTop=0;
 }
 window.arbolZoom=arbolZoom; window.arbolAjustar=arbolAjustar; window.arbolZAplica=arbolZAplica;
 
@@ -3299,7 +3309,7 @@ function arbolHTML(){
     +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px">'
     +'<button class="btn sm" onclick="arbolReorganizar()" title="Prueba otras colocaciones y se queda con la que menos ramas cruza">↻ Reorganizar</button>'
     +'<button class="btn sm" onclick="arbolZoom(0.8)" title="Reducir">−</button>'
-    +'<button class="btn sm" onclick="arbolAjustar()" title="Que quepa entero de ancho">Ajustar</button>'
+    +'<button class="btn sm" onclick="arbolAjustar()" title="Que quepa entero: de ancho y de alto">Ver entero</button>'
     +'<button class="btn sm" onclick="arbolZoom(1.25)" title="Ampliar">+</button>'
     +'<span id="arbolPc" style="font-size:11.5px;color:var(--muted);min-width:38px">100%</span>'
     +'<button class="btn sm" onclick="arbolExportar(\'pdf\')" title="Un PDF de una página con el árbol">⬇ PDF</button>'
@@ -3311,7 +3321,7 @@ function arbolHTML(){
     +(L.bucle?'<div class="empty" style="margin:0 0 8px;color:var(--accent)">Hay un parentesco imposible: '
       +'alguien acaba siendo antepasado de sí mismo. Revisa los padres de las últimas personas que has tocado.</div>':'')
     +'<div id="arbolScroll" style="overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);'
-    +'border-radius:16px;background:#f4faf1">'+arbolSVG()+'</div>';
+    +'border-radius:16px;background:#f4faf1;max-height:min(72vh,640px)">'+arbolSVG()+'</div>';
 }
 window.arbolLayout=arbolLayout; window.arbolSVG=arbolSVG; window.arbolHTML=arbolHTML; window.arbolGente=arbolGente;
 
@@ -4711,6 +4721,15 @@ function fsFamilia(p){
    +'</fieldset>';
 }
 
+/* Los círculos que ya usas, para poder repetirlos sin escribirlos enteros. */
+function gruposSugeridos(){
+  var set={};
+  (state.people||[]).forEach(function(p){ var g=(p.grupo||"").trim(); if(g) set[g]=1; });
+  circExtras().forEach(function(x){ if(x&&x.n) set[x.n]=1; });
+  return Object.keys(set).sort(function(a,b){ return a.localeCompare(b); });
+}
+window.gruposSugeridos=gruposSugeridos;
+
 function openEdit(id){
   var p=id?ensure(byId(id)):newPerson(),isNew=!id;
   if(!p) return;
@@ -4736,7 +4755,14 @@ function openEdit(id){
     +'<div class="fld"><label>Categoría</label><select id="f_tipo" onchange="tipoSelChange(this)">'
     +TIPOS.map(function(t){return '<option value="'+t[0]+'"'+(p.tipo===t[0]?" selected":"")+'>'+t[1]+'</option>';}).join("")
     +'<option value="__nueva">+ Crear una categoría nueva…</option>'
-    +'</select></div>'
+    +'</select>'
+    /* La subcategoría: el viejo círculo. La categoría dice QUÉ es (amigo,
+       profesional…); esto dice DE DÓNDE: del barrio, de ABB, del pádel. */
+    +'<div style="margin-top:8px"><label style="font-size:11px">Subcategoría o círculo</label>'
+    +'<input id="f_grupo" type="text" list="lstGrupos" value="'+esc(p.grupo||"")+'" '
+    +'placeholder="Vecinos · ABB · Pádel · Colegio de las niñas">'
+    +'<datalist id="lstGrupos">'+gruposSugeridos().map(function(g){ return '<option value="'+esc(g)+'">'; }).join("")+'</datalist>'
+    +'</div></div>'
     +'<div class="fld"><label>Trato</label><select id="f_trato" onchange="tratoChange(this)">'
     + TRATOS.map(function(t){
         return '<option value="'+esc(t[0])+'"'+((tratoDe(p)===t[0])?" selected":"")+'>'+esc(t[1])+'</option>'; }).join("")
