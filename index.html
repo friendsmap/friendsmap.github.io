@@ -384,7 +384,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.10.03-83 · depurada";
+var VERSION="2026.10.06-87 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -411,7 +411,7 @@ var AMBITOS=[
 var TIPOS_BASE=[
   ["personal","Personal","#5aa8a0"],
   ["amigo","Amigo","#2f9d78"],
-  ["familiar","Familiar","#8c5aa8"],
+  ["familiar","Familia","#8c5aa8"],   /* el id sigue siendo "familiar": lo ven tus datos, no tú */
   ["conocido","Conocido","#6d7a8c"],
   ["profesional","Profesional","#4a6fa5"],
   ["fabricante","Fabricante","#d99b2b"],
@@ -422,6 +422,9 @@ var TIPOS=TIPOS_BASE.slice();
 /* Las categorías que crees tú se guardan aquí: {id, nombre, color, amb} */
 function tiposExtra(){ if(!Array.isArray(state.tipoExtra)) state.tipoExtra=[]; return state.tipoExtra; }
 function esTipoBase(id){ return TIPOS_BASE.some(function(t){ return t[0]===id; }); }
+/* Lo que TÚ le hayas puesto a una categoría manda sobre el nombre de fábrica.
+   Se guarda aparte, por id, para que renombrar no toque ninguna ficha. */
+function tipoMios(){ if(!state.tipoMio || typeof state.tipoMio!=="object") state.tipoMio={}; return state.tipoMio; }
 function reconstruyeTipos(){
   TIPOS=TIPOS_BASE.slice();
   AMBITOS[0].tipos=["personal","amigo","conocido","familiar"];
@@ -431,6 +434,11 @@ function reconstruyeTipos(){
     TIPOS.push([x.id,x.nombre,x.color]);
     var A=(x.amb==="profesional")?AMBITOS[1]:AMBITOS[0];
     if(A.tipos.indexOf(x.id)<0) A.tipos.push(x.id);
+  });
+  var mio=tipoMios();
+  TIPOS.forEach(function(t){
+    var c=mio[t[0]];
+    if(c){ if(c.nombre) t[1]=c.nombre; if(c.color) t[2]=c.color; }
   });
 }
 function tipoLabel(t){ for(var i=0;i<TIPOS.length;i++) if(TIPOS[i][0]===t) return TIPOS[i][1]; return "Amigo"; }
@@ -461,13 +469,14 @@ function load(){
     var raw=localStorage.getItem(KEY);
     if(!raw){ for(var vi=0;vi<KEY_VIEJAS.length&&!raw;vi++) raw=localStorage.getItem(KEY_VIEJAS[vi]); }
     if(raw) HABIA_DATOS=true;
-    if(raw){ var d=JSON.parse(raw); state.people=Array.isArray(d.people)?d.people:[]; state.me=d.me||null; state.circExtra=Array.isArray(d.circExtra)?d.circExtra:[]; state.tipoExtra=Array.isArray(d.tipoExtra)?d.tipoExtra:[]; state.agenda=Array.isArray(d.agenda)?d.agenda:[]; state.notasPers=Array.isArray(d.notasPers)?d.notasPers:[]; }
+    if(raw){ var d=JSON.parse(raw); state.people=Array.isArray(d.people)?d.people:[]; state.me=d.me||null; state.circExtra=Array.isArray(d.circExtra)?d.circExtra:[]; state.tipoExtra=Array.isArray(d.tipoExtra)?d.tipoExtra:[]; state.agenda=Array.isArray(d.agenda)?d.agenda:[]; state.notasPers=Array.isArray(d.notasPers)?d.notasPers:[];
+      state.tipoMio=(d.tipoMio&&typeof d.tipoMio==="object")?d.tipoMio:{}; }
   try{ reconstruyeTipos(); }catch(e){}
   }catch(e){ state.people=[]; }
   if(!state.me) state.me=newMe();
 }
 function save(){
-  try{ localStorage.setItem(KEY,JSON.stringify({people:state.people,me:state.me,circExtra:state.circExtra||[],tipoExtra:state.tipoExtra||[],agenda:state.agenda||[],notasPers:state.notasPers||[],v:3,saved:new Date().toISOString()})); }
+  try{ localStorage.setItem(KEY,JSON.stringify({people:state.people,me:state.me,circExtra:state.circExtra||[],tipoExtra:state.tipoExtra||[],agenda:state.agenda||[],notasPers:state.notasPers||[],tipoMio:state.tipoMio||{},v:3,saved:new Date().toISOString()})); }
   catch(e){ if(!save.warned){ save.warned=true;
     alert("Este navegador no permite guardar datos localmente. Usa Sincronizar para no perder lo que escribas."); } }
   try{ if(gdActivo()){ gdProgramar(); } else { programarSync(); } revisarAvisos(); }catch(e){}
@@ -932,6 +941,343 @@ function barraVolver(id,titulo,sub){
 }
 window.barraVolver=barraVolver;
 
+/* ---------- SUGERIR EN EL PLAN ----------
+   No inventa nada: cruza lo que ya has escrito en la ficha con lo que tienes en
+   Mi perfil. Lo que no sabe, lo deja marcado como [FALTA: …] para que se note
+   qué te queda por averiguar, igual que en el discurso. */
+function _pl(s){ return String(s||"").replace(/\s+/g," ").trim(); }
+function _plLista(s){
+  return _pl(s).split(/[,;·\n]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+}
+function _plComunes(a,b){
+  var A=_plLista(a).map(function(x){ return x.toLowerCase(); });
+  var out=[];
+  _plLista(b).forEach(function(x){
+    var l=x.toLowerCase();
+    if(A.some(function(y){ return y===l || (y.length>4&&l.indexOf(y)>=0) || (l.length>4&&y.indexOf(l)>=0); })) out.push(x);
+  });
+  return out;
+}
+function _plFalta(q){ return "[FALTA: "+q+"]"; }
+
+function sugerirPlan(p,campo){
+  var m=state.me||{}, yo=m.nombre||"yo";
+  var el=EL(p), su=SU(p);
+  var F=function(k){ return _pl(p[k]); };
+  var M=function(k){ return _pl(m[k]); };
+
+  if(campo==="nosUne"){
+    var u=[];
+    var af=_plComunes(M("aficiones")+", "+M("deportes")+", "+M("musica"),
+                      F("aficiones")+", "+F("deportes")+", "+F("musica"));
+    if(af.length) u.push("Os gustan las mismas cosas: "+af.slice(0,3).join(", "));
+    var tm=_plComunes(M("temas"), F("temas"));
+    if(tm.length) u.push("Os enciende lo mismo: "+tm.slice(0,2).join(", "));
+    if(F("sector") && M("sector") && F("sector").toLowerCase()===M("sector").toLowerCase())
+      u.push("Mismo sector: "+F("sector"));
+    if(F("ciudad") && M("ciudad") && F("ciudad").toLowerCase()===M("ciudad").toLowerCase())
+      u.push("Los dos en "+F("ciudad"));
+    if(p.grupo) u.push("Os conocéis de "+p.grupo);
+    if(F("comoConocimos")) u.push("De dónde venís: "+F("comoConocimos"));
+    if(F("hijos") && M("hijos")) u.push("Los dos con hijos: hablad de eso, une más que el trabajo");
+    if(!u.length) u.push(_plFalta("qué tenéis en común — mira sus aficiones y compáralas con las tuyas en Mi perfil"));
+    return u.join("\n· ").replace(/^/,"· ");
+  }
+
+  if(campo==="nosSepara"){
+    var s=[];
+    if(F("politica")) s.push("Terreno sensible: "+F("politica"));
+    if(F("evitar")) s.push("Temas que evita: "+F("evitar"));
+    if(F("sector") && M("sector") && F("sector").toLowerCase()!==M("sector").toLowerCase())
+      s.push("No compartís sector ("+F("sector")+" frente a "+M("sector")+"): tendrás que traducir");
+    if(F("ciudad") && M("ciudad") && F("ciudad").toLowerCase()!==M("ciudad").toLowerCase())
+      s.push("La distancia: "+F("ciudad")+" y "+M("ciudad"));
+    var uc=p.ultimoContacto?parseDate(p.ultimoContacto):null;
+    if(uc){
+      var dias=daysBetween(uc,today());
+      if(dias>120) s.push("Lleváis "+dias+" días sin hablar: hay que recuperar el hilo antes de pedir nada");
+    }
+    if(!s.length) s.push(_plFalta("qué puede separaros — temas a evitar, distancia, o simplemente el tiempo sin veros"));
+    return s.join("\n· ").replace(/^/,"· ");
+  }
+
+  if(campo==="meAporta"){
+    var a=[];
+    if(F("empleo")||F("empresa")) a.push("Su posición: "+[F("empleo"),F("empresa")].filter(Boolean).join(" en "));
+    if(F("sector")) a.push("Conoce "+F("sector")+" por dentro");
+    if((p.conexiones||[]).length) a.push("Te conecta con "+p.conexiones.length+" persona"+((p.conexiones||[]).length===1?"":"s")+" de tu red");
+    if(F("quienesImportan")) a.push("Su gente: "+F("quienesImportan"));
+    if(!a.length) a.push(_plFalta("qué te aporta — apunta su puesto, su empresa y a quién conoce"));
+    return a.join("\n· ").replace(/^/,"· ");
+  }
+
+  if(campo==="necesito"){
+    if(M("pido")) return "De mi objetivo («"+M("pido")+"»), lo concreto que le pediría a "+el+" es:\n"
+      +_plFalta("el sí concreto — una presentación, una opinión, una recomendación, una reunión");
+    return _plFalta("qué buscas — rellena «Qué persigo ahora mismo» en Mi perfil y esto se escribe solo");
+  }
+
+  if(campo==="buscaDeMi"){
+    var b=[];
+    if(F("exito")) b.push("Quiere tener éxito en: "+F("exito"));
+    if(F("ayuda")) b.push("Donde dijo que le vendría bien ayuda: "+F("ayuda"));
+    if(F("admirado")) b.push("Quiere que se le reconozca: "+F("admirado"));
+    if(!b.length) b.push(_plFalta("qué busca — pregúntaselo antes de proponer nada"));
+    return b.join("\n· ").replace(/^/,"· ");
+  }
+
+  if(campo==="problema"){
+    var pr=[];
+    if(F("preocupa")) pr.push(F("preocupa"));
+    if(F("decisionCuesta")) pr.push("La decisión que no termina de tomar: "+F("decisionCuesta"));
+    if(!pr.length) pr.push(_plFalta("qué le quita el sueño — es lo que de verdad abre una conversación"));
+    return pr.join("\n· ").replace(/^/,"· ");
+  }
+
+  if(campo==="presume"){
+    var q=[];
+    if(F("presume")) q.push("De lo que ya presume: "+F("presume"));
+    if(F("exito")) q.push("Podrá decir que consiguió "+F("exito"));
+    if(F("importante")) q.push("Le hace sentir importante: "+F("importante"));
+    if(!q.length) q.push(_plFalta("de qué podrá presumir si sale bien"));
+    return q.join("\n· ").replace(/^/,"· ");
+  }
+
+  if(campo==="gesto"){
+    var g=[];
+    if(F("aficiones")) g.push("Algo de lo suyo: "+_plLista(F("aficiones"))[0]);
+    if(F("hijos")) g.push("Un detalle con los suyos: "+F("hijos"));
+    if(F("gustosDeLosSuyos")) g.push("Les gusta: "+F("gustosDeLosSuyos"));
+    if(F("musica")) g.push("Música: "+F("musica"));
+    if(!g.length) g.push(_plFalta("un gesto que te cueste tiempo, no dinero"));
+    return g.join("\n· ").replace(/^/,"· ");
+  }
+
+  if(campo==="hitos"){
+    var hi=[];
+    if(F("logros")) hi.push(F("logros"));
+    if(F("empresa")) hi.push("Mira qué ha hecho "+F("empresa")+" este año y reconóceselo con un dato concreto");
+    if(!hi.length) hi.push(_plFalta("un hito suyo o de su empresa que puedas reconocer con un dato"));
+    return hi.join("\n· ").replace(/^/,"· ");
+  }
+
+  if(campo==="sies"){
+    var si=[];
+    if(F("temas")) si.push("¿Sigues metido en "+_plLista(F("temas"))[0]+"?");
+    if(F("empresa")) si.push("¿Seguís creciendo en "+F("empresa")+"?");
+    if(F("aficiones")) si.push("¿Has podido con "+_plLista(F("aficiones"))[0]+" últimamente?");
+    if(F("hijos")) si.push("¿Qué tal "+_plLista(F("hijos"))[0]+"?");
+    while(si.length<3) si.push(_plFalta("otra pregunta suya a la que dirá que sí"));
+    return si.slice(0,3).join("\n· ").replace(/^/,"· ");
+  }
+
+  if(campo==="cebo"){
+    var c=ceboDe(p);
+    return c || _plFalta("con qué le abres el apetito: algo tuyo que le sirva a "+el);
+  }
+  return "";
+}
+var CAMPOS_PLAN=["nosUne","nosSepara","meAporta","necesito","buscaDeMi","problema","presume","gesto","hitos","sies","cebo"];
+function sugerirPlanUno(id,campo){
+  var p=byId(id); if(!p) return;
+  var e=document.getElementById("pl_"+campo); if(!e) return;
+  if(e.value.trim() && !confirm("Ya hay algo escrito ahí. ¿Lo sustituyo por la propuesta?")) return;
+  e.value=sugerirPlan(p,campo);
+  e.dispatchEvent(new Event("input",{bubbles:true}));
+}
+function sugerirPlanTodo(id){
+  var p=byId(id); if(!p) return;
+  var lleno=CAMPOS_PLAN.some(function(c){ var e=document.getElementById("pl_"+c); return e&&e.value.trim(); });
+  if(lleno && !confirm("Voy a sustituir lo que haya escrito en todos los campos. ¿Sigo?")) return;
+  var n=0;
+  CAMPOS_PLAN.forEach(function(c){
+    var e=document.getElementById("pl_"+c); if(!e) return;
+    var v=sugerirPlan(p,c);
+    if(v){ e.value=v; e.dispatchEvent(new Event("input",{bubbles:true})); n++; }
+  });
+  toast(n+" campos propuestos · revísalos, son un punto de partida");
+}
+window.sugerirPlan=sugerirPlan; window.sugerirPlanUno=sugerirPlanUno; window.sugerirPlanTodo=sugerirPlanTodo;
+
+/* un textarea del Plan, con su botón de sugerir al lado de la etiqueta */
+function taSug(label,campo,val,pid){
+  return '<div class="fld lecfld"><label>'+label
+    +' <button type="button" class="sugbtn" onclick="sugerirPlanUno(\''+pid+'\',\''+campo+'\')">Sugerir</button></label>'
+    +'<textarea id="pl_'+campo+'">'+esc(val||"")+'</textarea></div>';
+}
+window.taSug=taSug;
+
+/* ================= INICIADOR DE CONVERSACIÓN =================
+   Al estilo de Carnegie: hablar de lo que le interesa a él, hacerle sentir
+   importante con sinceridad, y encadenar preguntas a las que solo puede decir
+   que sí, para que la conversación empiece de acuerdo y no en discusión.
+
+   Dos avisos honestos sobre cómo funciona:
+   · La app no sabe qué ha pasado hoy en el mundo: vive en tu móvil y funciona
+     sin internet. Lo que hace es dejarte la búsqueda preparada por TEMA.
+   · Las búsquedas van por tema, sector o empresa. Nunca por el nombre de la
+     persona: rastrear a alguien por ahí no es preparar una conversación. */
+
+function _icL(s){
+  return String(s||"").split(/[,;·\n]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+}
+function _icUno(s){ var a=_icL(s); return a.length?a[0]:""; }
+/* Baja solo la primera letra. Si se pasa todo a minúsculas, «Levante» acaba
+   siendo «levante» y canta que lo ha escrito una máquina. */
+function _icMin(s){
+  s=String(s||"").trim().replace(/\.$/,"");
+  return s ? s.charAt(0).toLowerCase()+s.slice(1) : "";
+}
+
+/* Las preguntas de «sí»: hechos suyos que ya conoces, así que la respuesta solo
+   puede ser afirmativa. No son trampas: son terreno común. */
+function iniSies(p){
+  var s=[], el=EL(p);
+  var t=_icUno(p.temas), a=_icUno(p.aficiones), d=_icUno(p.deportes), h=_icUno(p.hijos);
+  if(p.empresa) s.push("Seguís con todo en marcha en "+_icUno(p.empresa)+", ¿no?");
+  if(t)         s.push("Tú sigues metido de lleno en "+t+", ¿verdad?");
+  if(a)         s.push("Y lo de "+a+" no lo has dejado, ¿a que no?");
+  if(d)         s.push("¿Sigues con "+d+"?");
+  if(h)         s.push("Los tuyos bien, ¿no? "+h);
+  if(p.sector)  s.push("El "+p.sector+" no para, ¿eh?");
+  if(p.comoConocimos) s.push("Porque nosotros nos conocimos "+_icMin(_icUno(p.comoConocimos))+", ¿verdad?");
+  while(s.length<3) s.push("[FALTA: otra cosa suya que ya sepas y a la que vaya a decir que sí]");
+  return s.slice(0,3);
+}
+
+/* La apertura: amistosa, sobre lo suyo, sin pedir nada. */
+function iniApertura(p){
+  var t=_icUno(p.temas), a=_icUno(p.aficiones), el=EL(p);
+  if(t) return "Oye, que me acordé de ti el otro día con lo de "+t+". "
+    +"Quería preguntarte qué opinas, porque tú de esto sabes más que yo.";
+  if(a) return "Oye, que me acordé de ti con lo de "+a+". ¿Cómo lo llevas últimamente?";
+  if(p.empresa) return "Oye, ¿cómo va todo por "+p.empresa+"? Tenía ganas de saber de ti.";
+  return "[FALTA: por dónde abrir — apunta en su ficha qué temas le encienden]";
+}
+
+/* Las abiertas: para que hable él. La regla es sencilla: él tres cuartas partes
+   del tiempo, tú una. */
+function iniAbiertas(p){
+  var q=[], t=_icUno(p.temas);
+  if(t) q.push("¿Y tú cómo lo ves? ¿Por dónde crees que va a ir la cosa?");
+  if(p.exito) q.push("¿Qué te falta para "+_icMin(p.exito)+"?");
+  if(p.empresa) q.push("¿Y en "+p.empresa+", qué es lo que más os está costando ahora mismo?");
+  if(p.preocupa) q.push("¿Eso de "+_icMin(p.preocupa)+" se ha calmado o sigue igual?");
+  q.push("¿Cómo llegaste tú a meterte en esto?");
+  q.push("¿Y qué harías tú en mi lugar?");
+  return q.slice(0,4);
+}
+
+/* El reconocimiento: concreto y verdadero, o no se dice. */
+function iniReconoce(p){
+  if(p.logros)  return "«"+_icUno(p.logros)+"» — díselo con el dato delante, no en general.";
+  if(p.presume) return "Presume de "+_icMin(p.presume)+": reconócelo sin exagerar, con un ejemplo concreto.";
+  if(p.hitos)   return _icUno(p.hitos)+" — menciónalo como quien se ha fijado, no como quien adula.";
+  if(p.empresa) return "[FALTA: un logro concreto suyo o de "+p.empresa+". Mira las noticias de abajo y apunta uno]";
+  return "[FALTA: algo suyo que puedas reconocer de verdad. Sin dato concreto, mejor no decir nada: se nota]";
+}
+
+function iniEvitar(p){
+  var e=[];
+  if(p.evitar)   e.push("No saques: "+p.evitar);
+  if(p.politica) e.push("Terreno sensible: "+p.politica);
+  if(p.nosSepara) e.push("Lo que os separa: "+p.nosSepara);
+  e.push("No le lleves la contraria en la primera conversación, aunque tengas razón: discutir no se gana.");
+  e.push("No pidas nada hoy. Hoy solo escuchas.");
+  return e;
+}
+
+/* Qué buscar para llegar con algo de hoy. Por TEMA, nunca por su nombre. */
+function iniBusquedas(p){
+  var b=[];
+  _icL(p.temas).slice(0,3).forEach(function(t){ b.push({q:t, et:t}); });
+  if(p.sector) b.push({q:p.sector+" noticias", et:"El sector: "+p.sector});
+  if(p.empresa) b.push({q:'"'+p.empresa+'"', et:"Su empresa: "+p.empresa});
+  _icL(p.aficiones).slice(0,2).forEach(function(a){ b.push({q:a, et:a}); });
+  return b.slice(0,6);
+}
+
+function openIniciador(id){
+  var p=ensure(byId(id)); if(!p) return;
+  var el=EL(p);
+  var sies=iniSies(p), abiertas=iniAbiertas(p), evitar=iniEvitar(p), busq=iniBusquedas(p);
+  var h=barraVolver(p.id,'💬 Iniciador de conversación · '+esc(p.nombre),
+      'Cómo empezar para que la conversación arranque de acuerdo y hable '+el+', no tú.');
+
+  h+='<div class="infobox" style="margin-bottom:14px">La idea no es tener razón: es que '+el+' se vaya con ganas de repetir. '
+   +'Habla de lo suyo, reconoce algo de verdad, y encadena preguntas a las que solo puede decir que sí. '
+   +'<b>Hoy no pides nada.</b></div>';
+
+  h+='<fieldset><legend>1 · Cómo abrir</legend>'
+   +'<div class="speech" style="margin:0">'+esc(iniApertura(p))+'</div>'
+   +'<p style="font-size:11.5px;color:var(--muted);margin:8px 0 0">Amistoso y sin agenda. Si abres pidiendo, ya has perdido.</p>'
+   +'</fieldset>';
+
+  h+='<fieldset><legend>2 · Tres preguntas a las que dirá que sí</legend>'
+   +'<p style="font-size:12px;color:var(--muted);margin:0 0 8px">No son trampas: son cosas suyas que ya sabes. '
+   +'Sirven para que la conversación empiece asintiendo, no discrepando.</p>'
+   + sies.map(function(s,i){
+       return '<div class="sig yes" style="align-items:flex-start"><span class="mark">'+(i+1)+'</span>'+esc(s)+'</div>';
+     }).join("")
+   +'</fieldset>';
+
+  h+='<fieldset><legend>3 · Y ahora, que hable '+el+'</legend>'
+   + abiertas.map(function(q){ return '<div class="sig no"><span class="mark">?</span>'+esc(q)+'</div>'; }).join("")
+   +'<p style="font-size:11.5px;color:var(--muted);margin:8px 0 0">Tres cuartas partes '+el+', una tú. '
+   +'Cuando te entren ganas de contar lo tuyo, pregunta otra cosa.</p>'
+   +'</fieldset>';
+
+  h+='<fieldset><legend>4 · Reconócele algo, en serio</legend>'
+   +'<div style="font-size:13px;line-height:1.7">'+esc(iniReconoce(p))+'</div>'
+   +'<p style="font-size:11.5px;color:var(--muted);margin:8px 0 0">Con un dato concreto. La adulación genérica se huele.</p>'
+   +'</fieldset>';
+
+  h+='<fieldset style="border-color:#b3455b"><legend style="color:#b3455b">5 · Lo que NO</legend>'
+   + evitar.map(function(x){ return '<div class="sig no"><span class="mark">×</span>'+esc(x)+'</div>'; }).join("")
+   +'</fieldset>';
+
+  h+='<fieldset><legend>Llegar con algo de hoy</legend>'
+   +'<p style="font-size:12px;color:var(--muted);margin:0 0 8px">Esta app vive en tu móvil y no sabe qué ha pasado hoy. '
+   +'Lo que hace es dejarte la búsqueda preparada con <b>sus temas</b>. Ábrela, lee un titular y llegas con algo fresco. '
+   +'<br>Se busca por tema, sector o empresa — nunca por su nombre.</p>';
+  if(busq.length){
+    h+='<div style="display:flex;gap:6px;flex-wrap:wrap">'
+     + busq.map(function(b){
+         return '<button class="btn sm" type="button" onclick="iniBuscar(\''+esc(b.q).replace(/'/g,"\\'")+'\')">'
+           +'🔎 '+esc(b.et)+'</button>';
+       }).join("")
+     +'</div>';
+  }else{
+    h+='<div class="empty" style="margin:0">Todavía no sé qué temas le encienden. '
+      +'Apúntalos en su ficha, en <b>Gustos e intereses</b>, y aquí aparecerán las búsquedas.</div>';
+  }
+  h+='</fieldset>';
+
+  h+='<div class="modal-actions">'
+   +'<button class="btn" onclick="openEdit(\''+p.id+'\')">Volver a la ficha</button>'
+   +'<button class="btn" type="button" id="iniCopiar">Copiar</button>'
+   +'<button class="btn" onclick="openPlan(\''+p.id+'\')">Plan</button>'
+   +'<button class="btn primary" onclick="closeModal()">Cerrar</button></div>';
+  showModal(h);
+  var b=document.getElementById("iniCopiar");
+  if(b) b.onclick=function(){
+    var txt="INICIADOR — "+p.nombre+"\n\nABRIR ASÍ\n"+iniApertura(p)
+      +"\n\nTRES SÍES\n"+sies.map(function(s){ return "- "+s; }).join("\n")
+      +"\n\nQUE HABLE "+(esF(p)?"ELLA":"ÉL")+"\n"+abiertas.map(function(q){ return "- "+q; }).join("\n")
+      +"\n\nRECONOCER\n"+iniReconoce(p)
+      +"\n\nLO QUE NO\n"+evitar.map(function(x){ return "- "+x; }).join("\n");
+    try{ navigator.clipboard.writeText(txt); this.textContent="Copiado"; }
+    catch(e){ alert(txt); }
+  };
+}
+function iniBuscar(q){
+  var u="https://news.google.com/search?hl=es&q="+encodeURIComponent(q);
+  try{ window.open(u,"_blank","noopener"); }catch(e){ toast("Busca: "+q); }
+}
+window.openIniciador=openIniciador; window.iniBuscar=iniBuscar;
+window.iniSies=iniSies; window.iniApertura=iniApertura; window.iniAbiertas=iniAbiertas;
+window.iniReconoce=iniReconoce; window.iniEvitar=iniEvitar; window.iniBusquedas=iniBusquedas;
+
 function openPlan(id){
   var p=ensure(byId(id)); if(!p) return;
   var t=terreno(p), neg=esNegocio(p), c=ceboDe(p);
@@ -939,21 +1285,33 @@ function openPlan(id){
     +'<div class="infobox">El mismo menú para los dos. Él no quiere ayudarte: quiere resolver lo suyo y que se le note el acierto. '
     +'Tu trabajo es que conseguir lo suyo pase por ti. <b>Recuerda:</b> no critiques, habla de lo que le interesa a '+EL(p)+' y hazle sentir importante con sinceridad.</div>';
 
+  /* Botón para proponerlo todo de una vez, a partir de lo que ya sabes. */
+  h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 14px">'
+    +'<button class="btn primary" type="button" onclick="sugerirPlanTodo(\''+p.id+'\')">Sugerir todo el plan</button>'
+    +'<span style="font-size:11.5px;color:var(--muted)">Cruza esta ficha con tu perfil. '
+    +'Lo que no sepa lo deja marcado como <span class="gap">[FALTA: …]</span>.</span></div>';
+
+  /* Primero el vínculo, después el intercambio: si no hay vínculo, lo de abajo
+     no se sostiene. Antes estaba al revés y se leía como una transacción. */
+  h+='<fieldset><legend>Lo que nos une y lo que nos separa</legend>'
+    +'<div class="cols">'
+    +taSug("Lo que nos une","nosUne",p.nosUne,p.id)
+    +taSug("Lo que nos separa","nosSepara",p.nosSepara,p.id)+'</div>'
+    +vinculoHTML(p)
+    +taSug("Hitos de su empresa o de su trayectoria que puedo reconocer","hitos",p.hitos,p.id)
+    +taSug("Tres preguntas suyas a las que dirá que sí (antes de proponer nada)","sies",p.sies,p.id)
+    +taSug("Su cebo"+(c&&!p.cebo?" (sugerido: "+esc(c)+")":""),"cebo",p.cebo,p.id)
+    +'</fieldset>';
+
   h+='<fieldset><legend>El intercambio</legend>'
     +'<div class="cols">'
-    +ta("Qué me aporta "+EL(p),"pl_meAporta",p.meAporta)
-    +ta("Qué necesito de "+EL(p)+" (el sí que busco)","pl_necesito",p.necesito)
-    +ta("Qué busca "+EL(p)+" que yo le aporte","pl_buscaDeMi",p.buscaDeMi)
-    +ta("Qué problema suyo resuelvo","pl_problema",p.problema)
+    +taSug("Qué me aporta "+EL(p),"meAporta",p.meAporta,p.id)
+    +taSug("Qué necesito de "+EL(p)+" (el sí que busco)","necesito",p.necesito,p.id)
+    +taSug("Qué busca "+EL(p)+" que yo le aporte","buscaDeMi",p.buscaDeMi,p.id)
+    +taSug("Qué problema suyo resuelvo","problema",p.problema,p.id)
     +'</div>'
-    +ta("De qué podrá presumir "+EL(p)+" si sale bien","pl_presume",p.presume)
-    +ta("Un gesto que le pueda hacer y me cueste tiempo","pl_gesto",p.gesto)
-    +'</fieldset><fieldset><legend>Lo que nos une y lo que nos separa</legend>'
-    +'<div class="cols">'+ta("Lo que nos une","pl_nosUne",p.nosUne)+ta("Lo que nos separa","pl_nosSepara",p.nosSepara)+'</div>'
-    +vinculoHTML(p)
-    +ta("Hitos de su empresa o de su trayectoria que puedo reconocer","pl_hitos",p.hitos)
-    +ta("Tres preguntas suyas a las que dirá que sí (antes de proponer nada)","pl_sies",p.sies)
-    +ta("Su cebo"+(c&&!p.cebo?" (sugerido: "+esc(c)+")":""),"pl_cebo",p.cebo)
+    +taSug("De qué podrá presumir "+EL(p)+" si sale bien","presume",p.presume,p.id)
+    +taSug("Un gesto que le pueda hacer y me cueste tiempo","gesto",p.gesto,p.id)
     +'</fieldset>';
 
   h+='<fieldset><legend>Preparar el terreno</legend>'
@@ -975,6 +1333,7 @@ function openPlan(id){
 
   h+='<div class="modal-actions">'
     +'<button class="btn" id="pl_ficha">Volver a la ficha</button>'
+    +'<button class="btn" onclick="openIniciador(\''+p.id+'\')">💬 Iniciador</button>'
     +'<button class="btn" onclick="openGuion(\''+p.id+'\')">Ver guión</button>'
     +'<button class="btn" id="cancel">Cerrar</button><button class="btn primary" id="ok">Guardar</button></div>';
   showModal(h);
@@ -4102,6 +4461,7 @@ function openGuion(id){
     h+='<div class="g-block"><h4>Tu discurso</h4><div class="speech">'+esc(p.discurso)+'</div></div>';
   }
   h+='<div class="modal-actions"><button class="btn" id="copy">Copiar guión</button>'
+    +'<button class="btn" onclick="openIniciador(\''+p.id+'\')">💬 Iniciador</button>'
     +'<button class="btn" onclick="openPlan(\''+p.id+'\')">Plan</button>'
     +'<button class="btn" onclick="openEdit(\''+p.id+'\')">Volver a la ficha</button>'
     +'<button class="btn primary" onclick="openFeedback(\''+p.id+'\',null)">Ya nos vimos</button>'
@@ -4565,7 +4925,68 @@ function abrirProponer(){
 /* ---------- editor ---------- */
 /* Crear una categoría sin salir de la ficha. El valor especial __nueva
    abre el diálogo y, si se crea, se queda seleccionada. */
+/* ---------- CAMBIAR LAS CATEGORÍAS ----------
+   Renombrar, cambiar el color y borrar. Las de fábrica también se pueden
+   renombrar: el identificador interno no cambia, así que ninguna ficha se queda
+   sin categoría. Borrar solo se puede con las que tú has creado. */
+function openCategorias(){
+  reconstruyeTipos();
+  var cuenta={};
+  (state.people||[]).forEach(function(p){ var t=p.tipo||"amigo"; cuenta[t]=(cuenta[t]||0)+1; });
+  var h='<h2 style="margin:0 0 4px">Categorías</h2>'
+   +'<p style="color:var(--muted);font-size:12.5px;margin:2px 0 14px">Cámbiales el nombre o el color. '
+   +'Renombrar no toca ninguna ficha: las personas siguen en su categoría.</p>';
+  h+=TIPOS.map(function(t){
+    var n=cuenta[t[0]]||0, base=esTipoBase(t[0]);
+    return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:9px;flex-wrap:wrap">'
+     +'<input type="color" value="'+esc(t[2])+'" onchange="catColor(\''+t[0]+'\',this.value)" '
+     +'style="width:38px;height:34px;padding:2px;flex:none" title="Color">'
+     +'<input type="text" id="cat_'+t[0]+'" value="'+esc(t[1])+'" onchange="catNombre(\''+t[0]+'\',this.value)" '
+     +'style="flex:1;min-width:130px">'
+     +'<span style="font-size:11.5px;color:var(--muted);min-width:64px">'+n+' ficha'+(n===1?"":"s")+'</span>'
+     +(base
+        ? '<span style="font-size:11px;color:var(--muted)">de fábrica</span>'
+        : '<button class="btn sm danger" onclick="catBorrar(\''+t[0]+'\')">Borrar</button>')
+     +'</div>';
+  }).join("");
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">'
+   +'<button class="btn" onclick="nuevoTipo(\'personal\')">+ Categoría personal</button>'
+   +'<button class="btn" onclick="nuevoTipo(\'profesional\')">+ Categoría profesional</button></div>';
+  h+='<div class="modal-actions"><button class="btn primary" onclick="closeModal()">Hecho</button></div>';
+  showModal(h);
+}
+function catNombre(id,v){
+  v=String(v||"").trim().replace(/\s+/g," ");
+  if(!v){ toast("El nombre no puede quedar vacío"); openCategorias(); return; }
+  var choca=TIPOS.some(function(t){ return t[0]!==id && t[1].toLowerCase()===v.toLowerCase(); });
+  if(choca){ toast("Ya tienes otra categoría que se llama así"); openCategorias(); return; }
+  var x=tiposExtra().filter(function(t){ return t.id===id; })[0];
+  if(x) x.nombre=v;                          /* una tuya: se cambia donde vive */
+  else { tipoMios()[id]=tipoMios()[id]||{}; tipoMios()[id].nombre=v; }   /* de fábrica: override */
+  reconstruyeTipos(); save(); renderSeg(); renderAll();
+  if(state.tab==="mapa") try{ mapaRender(); }catch(e){}
+  toast("Ahora se llama «"+v+"»");
+}
+function catColor(id,v){
+  var x=tiposExtra().filter(function(t){ return t.id===id; })[0];
+  if(x) x.color=v;
+  else { tipoMios()[id]=tipoMios()[id]||{}; tipoMios()[id].color=v; }
+  reconstruyeTipos(); save(); renderSeg(); renderAll();
+  if(state.tab==="mapa") try{ mapaRender(); }catch(e){}
+}
+function catBorrar(id){
+  borrarTipo(id);
+  if(!TIPOS.some(function(t){ return t[0]===id; })) openCategorias();
+}
+window.openCategorias=openCategorias; window.catNombre=catNombre;
+window.catColor=catColor; window.catBorrar=catBorrar;
+
 function tipoSelChange(sel){
+  if(sel && sel.value==="__gestionar"){
+    sel.value = sel.getAttribute("data-prev") || "amigo";
+    openCategorias();
+    return;
+  }
   if(!sel || sel.value!=="__nueva") return;
   sel.value = sel.getAttribute("data-prev") || "amigo";
   var n=prompt("Nombre de la categoría nueva (ej.: Vecinos, Clientes, Padel):","");
@@ -4582,7 +5003,8 @@ function tipoSelChange(sel){
   reconstruyeTipos(); save(); renderSeg();
   /* repintamos el desplegable con la nueva ya elegida */
   var opts=TIPOS.map(function(t){ return '<option value="'+t[0]+'"'+(t[0]===id?" selected":"")+'>'+esc(t[1])+'</option>'; }).join("")
-    + '<option value="__nueva">+ Crear una categoría nueva…</option>';
+    + '<option value="__nueva">+ Crear una categoría nueva…</option>'
+    + '<option value="__gestionar">✏️ Cambiar nombres y colores…</option>';
   sel.innerHTML=opts; sel.value=id;
   sel.dispatchEvent(new Event("input",{bubbles:true}));
   toast("Categoría «"+n+"» creada");
@@ -4755,6 +5177,7 @@ function openEdit(id){
     +'<div class="fld"><label>Categoría</label><select id="f_tipo" onchange="tipoSelChange(this)">'
     +TIPOS.map(function(t){return '<option value="'+t[0]+'"'+(p.tipo===t[0]?" selected":"")+'>'+t[1]+'</option>';}).join("")
     +'<option value="__nueva">+ Crear una categoría nueva…</option>'
+    +'<option value="__gestionar">✏️ Cambiar nombres y colores…</option>'
     +'</select>'
     /* La subcategoría: el viejo círculo. La categoría dice QUÉ es (amigo,
        profesional…); esto dice DE DÓNDE: del barrio, de ABB, del pádel. */
@@ -4854,6 +5277,7 @@ function openEdit(id){
   h+='<div class="modal-actions barra">'
     +(isNew?"":'<button class="btn" onclick="openPerfil(\''+p.id+'\')">Perfil</button>')
     +(isNew?"":'<button class="btn" onclick="openFuturo(\''+p.id+'\')" title="Las once preguntas para adivinar por dónde va a tirar">🔮 Predice su futuro</button>')
+    +(isNew?"":'<button class="btn" onclick="openIniciador(\''+p.id+'\')" title="Cómo empezar la conversación para que arranque de acuerdo">💬 Iniciador</button>')
     +(isNew?"":'<button class="btn" onclick="openPlan(\''+p.id+'\')">Plan</button>')
     +(isNew?"":'<button class="btn" onclick="openGuion(\''+p.id+'\')">Guión</button>')
     +(isNew?"":'<button class="btn" onclick="openHistoria(\''+p.id+'\')">Historia</button>')
@@ -6143,6 +6567,7 @@ function payload(){ return JSON.stringify({
   people:state.people, me:state.me,
   circExtra:state.circExtra||[], tipoExtra:state.tipoExtra||[],
   agenda:state.agenda||[], notasPers:state.notasPers||[],
+  tipoMio:state.tipoMio||{},
   v:3, saved:new Date().toISOString()
 },null,2); }
 function setSync(t){ var e=document.getElementById("syncSt"); if(e) e.textContent=t||""; FS.msg=t||""; }
@@ -6451,6 +6876,9 @@ function elegirComo(d,origen){
       state.agenda   =unirLista(state.agenda,   d.agenda,   function(x){ return x.id||(x.titulo+x.fecha); });
       state.circExtra=unirLista(state.circExtra,d.circExtra,function(x){ return x.n||x; });
       state.tipoExtra=unirLista(state.tipoExtra,d.tipoExtra,function(x){ return x.id||x; });
+      if(d.tipoMio) Object.keys(d.tipoMio).forEach(function(k){
+        if(!tipoMios()[k]) tipoMios()[k]=d.tipoMio[k];      /* lo tuyo de aquí manda */
+      });
       reconstruyeTipos();
       save(); closeModal(); renderSeg(); renderAll();
       try{ renderNotasPers(); renderAgenda(); }catch(e){}
@@ -6475,6 +6903,7 @@ function aplicarDatos(d){
   if(Array.isArray(d.tipoExtra)) state.tipoExtra=d.tipoExtra;
   if(Array.isArray(d.agenda)) state.agenda=d.agenda;
   if(Array.isArray(d.notasPers)) state.notasPers=d.notasPers;
+  if(d.tipoMio && typeof d.tipoMio==="object") state.tipoMio=d.tipoMio;
   /* si el archivo es de una versión vieja y no las trae, no se borran las de aquí */
   reconstruyeTipos();
   save(); renderSeg(); renderAll();
@@ -6657,6 +7086,9 @@ function openSync(){
   h+='<div class="infobox" style="margin-bottom:12px"><b>En este aparato:</b> '+esc(resumenDatos())
    +'<br><span style="font-size:11.5px;color:var(--muted)">Compara este recuento con el del otro aparato después de sincronizar. '
    +'Si no coincide, es que falta traer datos, no que se hayan perdido.</span></div>'
+   +'<fieldset><legend>Categorías</legend>'
+   +'<p style="font-size:13px;margin:0 0 8px">Cámbiales el nombre o el color, o crea las tuyas.</p>'
+   +'<button class="btn" onclick="closeModal();openCategorias()">Cambiar categorías</button></fieldset>'
    +'<fieldset><legend>Móvil</legend>'
     +'<p style="font-size:13px;margin:0 0 8px">Manda el archivo con el menú de compartir de Android y guárdalo en <b>Drive → Claude → App Amigos</b>, sustituyendo el anterior.</p>'
     +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
