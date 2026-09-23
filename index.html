@@ -385,7 +385,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.10.07-88 · depurada";
+var VERSION="2026.10.08-89 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -3033,6 +3033,36 @@ function arbolLayout(){
   Object.keys(filas).forEach(function(g){ gens.push(parseInt(g,10)); });
   gens.sort(function(a,b){ return a-b; });
   gens.forEach(function(g){ filas[g].forEach(function(u,i){ u.ord=i; }); });
+
+  /* --- posición: hueco entre familias, y luego se centran padres e hijos ---
+     Es una función porque hay que poder ejecutarla al probar cada colocación:
+     el coste se mide sobre dónde acaban las líneas, no sobre el orden. */
+  var GAP=0.55, FAM=1.4;
+  var centro=function(u){ return u.x+(u.m.length-1)/2; };
+  var colocaX=function(rondas){
+    gens.forEach(function(g){
+      var x=0, cp=null;
+      filas[g].forEach(function(u){
+        if(cp!==null && u.comp!==cp) x+=FAM;
+        u.x=x; x+=u.m.length+GAP; cp=u.comp;
+      });
+    });
+    for(var r=0; r<(rondas||60); r++){
+      var orden2=(r%2)?gens:gens.slice().reverse();
+      orden2.forEach(function(g){
+        var f=filas[g];
+        f.forEach(function(u){
+          var v=(r%2?u.abajo:u.arriba).map(function(k){ return centro(U[k]); });
+          if(!v.length) return;
+          var quiere=media(v)-(u.m.length-1)/2;
+          var izq=f[u.ord-1], der=f[u.ord+1];
+          var min=izq?(izq.x+izq.m.length+(izq.comp!==u.comp?FAM:GAP)):-1e6;
+          var max=der?(der.x-u.m.length-(der.comp!==u.comp?FAM:GAP)):1e6;
+          u.x=Math.max(min,Math.min(max,u.x+(quiere-u.x)*0.5));
+        });
+      });
+    }
+  };
   var media=function(a){ var s=0; a.forEach(function(v){ s+=v; }); return a.length?s/a.length:0; };
   /* Cuántas ramas se cruzan con el orden actual. Probamos varias pasadas y nos
      quedamos con la mejor: si no, mandaba siempre la última y salían marañas. */
@@ -3063,20 +3093,29 @@ function arbolLayout(){
      que va de unos padres a sus hijos. Si los hermanos están desperdigados por la
      fila, ese hombro cruza medio árbol y se solapa con los demás. Así que medimos
      exactamente eso: cuánto suman de ancho todos los hombros. */
-  var anchoHombros=function(){
-    /* Los hermanos están todos en la misma fila, así que sus posiciones SÍ se
-       pueden comparar entre sí (las de filas distintas no: cada fila tiene su
-       propio recuento). Medimos cuánto se pasa de largo el hombro: n hermanos
-       ocupan como poco n-1; todo lo que sobre es gente de otra familia metida
-       en medio, y es justo lo que hace que las líneas se crucen. */
-    var t=0, gr={};
+  /* Lo que se ve mal en un árbol grande es la longitud de las líneas
+     horizontales: un hombro que cruza medio dibujo para llegar a un hijo que
+     está en la otra punta. Así que eso es exactamente lo que medimos, en
+     posiciones de columna, que es proporcional a los píxeles. */
+  var gruposH=null;
+  var hombrosCalc=function(){
+    if(gruposH) return gruposH;
+    var gr={};
     ids.forEach(function(i){
       var pd=padresDe(i); if(!pd.length) return;
       var k=pd.slice().sort().join("|");
-      (gr[k]=gr[k]||[]).push(i);
+      (gr[k]=gr[k]||{p:pd,h:[]}).h.push(i);
     });
-    Object.keys(gr).forEach(function(k){
-      var us={}; gr[k].forEach(function(i){ us[uOf[i]]=1; });
+    gruposH=Object.keys(gr).map(function(k){ return gr[k]; });
+    return gruposH;
+  };
+  /* La medida que funcionaba: cuánto se pasa de largo un hombro. n hermanos
+     ocupan como poco n-1; todo lo que sobre es gente de otra familia metida en
+     medio, que es lo que obliga a la línea a cruzar. */
+  var anchoHombros=function(){
+    var t=0;
+    hombrosCalc().forEach(function(G){
+      var us={}; G.h.forEach(function(i){ us[uOf[i]]=1; });
       var kk=Object.keys(us);
       if(kk.length<2) return;
       var os=kk.map(function(x){ return U[x].ord; });
@@ -3139,36 +3178,28 @@ function arbolLayout(){
           }
           if(mejorPos>=0){ mover(f,i2,mejorPos); mejoro=true; }
         }
+        /* Invertir un tramo entero: a veces una rama está bien ordenada pero
+           del revés, y moviendo de uno en uno no se llega nunca. */
+        for(var a2=0; a2+1<f.length; a2++){
+          for(var b2=a2+1; b2<Math.min(f.length,a2+7); b2++){
+            var c1=coste();
+            var tr=f.slice(a2,b2+1).reverse();
+            for(var q2=0;q2<tr.length;q2++) f[a2+q2]=tr[q2];
+            aplica(f);
+            if(coste()<c1-1e-9){ mejoro=true; }
+            else{
+              var tr2=f.slice(a2,b2+1).reverse();
+              for(var q3=0;q3<tr2.length;q3++) f[a2+q3]=tr2[q3];
+              aplica(f);
+            }
+          }
+        }
       }
       if(!mejoro) break;
     }
   }
 
-  /* --- posición: hueco entre familias, y luego se centran padres e hijos --- */
-  var GAP=0.55, FAM=1.4;
-  gens.forEach(function(g){
-    var x=0, cp=null;
-    filas[g].forEach(function(u){
-      if(cp!==null && u.comp!==cp) x+=FAM;
-      u.x=x; x+=u.m.length+GAP; cp=u.comp;
-    });
-  });
-  var centro=function(u){ return u.x+(u.m.length-1)/2; };
-  for(var r=0; r<60; r++){
-    var orden2=(r%2)?gens:gens.slice().reverse();
-    orden2.forEach(function(g){
-      var f=filas[g];
-      f.forEach(function(u){
-        var v=(r%2?u.abajo:u.arriba).map(function(k){ return centro(U[k]); });
-        if(!v.length) return;
-        var quiere=media(v)-(u.m.length-1)/2;
-        var izq=f[u.ord-1], der=f[u.ord+1];
-        var min=izq?(izq.x+izq.m.length+(izq.comp!==u.comp?FAM:GAP)):-1e6;
-        var max=der?(der.x-u.m.length-(der.comp!==u.comp?FAM:GAP)):1e6;
-        u.x=Math.max(min,Math.min(max,u.x+(quiere-u.x)*0.5));
-      });
-    });
-  }
+  colocaX(60);                 /* la definitiva, con todas las rondas */
   var minX=1e9, maxX=0, maxG=0;
   U.forEach(function(u){ if(u.x<minX) minX=u.x; if(u.x+u.m.length>maxX) maxX=u.x+u.m.length; if(u.gen>maxG) maxG=u.gen; });
   U.forEach(function(u){ u.x-=minX; });
@@ -3300,7 +3331,7 @@ function arbolSVG(){
        +'" data-w="'+Math.round(W)+'" data-h="'+Math.round(H)+'"'
        +' width="'+Math.round(W)+'" height="'+Math.round(H)+'" xmlns="http://www.w3.org/2000/svg" style="display:block">');
   s.push('<defs><linearGradient id="arGr" x1="0" y1="0" x2="0" y2="1">'
-       +'<stop offset="0" stop-color="#f4faf1"/><stop offset="1" stop-color="#eef3e6"/></linearGradient></defs>');
+       +'<stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f4f6f9"/></linearGradient></defs>');
   s.push('<rect x="0" y="0" width="'+Math.round(W)+'" height="'+Math.round(H)+'" rx="16" fill="url(#arGr)"/>');
 
   /* Un tocón corto bajo quien no tiene padres: marca dónde empieza la raíz.
@@ -3455,7 +3486,7 @@ function arbolSVG(){
     if(u.m.length<2) return;
     var mx=(px(u,0)+px(u,1))/2, my=py(u);
     s.push('<line x1="'+(px(u,0)+R).toFixed(1)+'" y1="'+my+'" x2="'+(px(u,1)-R).toFixed(1)+'" y2="'+my+'" stroke="#c58fb0" stroke-width="3"/>');
-    s.push('<circle cx="'+mx.toFixed(1)+'" cy="'+my+'" r="9" fill="#f4faf1"/>');
+    s.push('<circle cx="'+mx.toFixed(1)+'" cy="'+my+'" r="9" fill="#ffffff"/>');
     s.push('<text x="'+mx.toFixed(1)+'" y="'+(my+4)+'" text-anchor="middle" font-size="12" fill="#c0709a">♥</text>');
   });
 
@@ -3481,7 +3512,7 @@ function arbolSVG(){
       var nom=String(p.nombre||"").split(" ").slice(0,2).join(" ");
       if(nom.length>16) nom=nom.slice(0,15)+"…";
       var anc=Math.max(38, nom.length*6.6);
-      s.push('<rect x="'+(cx-anc/2).toFixed(1)+'" y="'+(cy+R+4)+'" width="'+anc.toFixed(1)+'" height="17" rx="8" fill="#f4faf1" opacity=".9"/>');
+      s.push('<rect x="'+(cx-anc/2).toFixed(1)+'" y="'+(cy+R+4)+'" width="'+anc.toFixed(1)+'" height="17" rx="8" fill="#ffffff" opacity=".92"/>');
       s.push('<text x="'+cx.toFixed(1)+'" y="'+(cy+R+16)+'" text-anchor="middle" font-size="11.5" font-weight="600" '
            +'font-family="system-ui,-apple-system,sans-serif" fill="#2c3327">'+esc(nom)+'</text>');
       s.push('</g>');
@@ -3718,7 +3749,7 @@ function arbolHTML(){
     +(L.bucle?'<div class="empty" style="margin:0 0 8px;color:var(--accent)">Hay un parentesco imposible: '
       +'alguien acaba siendo antepasado de sí mismo. Revisa los padres de las últimas personas que has tocado.</div>':'')
     +'<div id="arbolScroll" style="overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);'
-    +'border-radius:16px;background:#f4faf1;max-height:min(72vh,640px)">'+arbolSVG()+'</div>';
+    +'border-radius:16px;background:#fff;max-height:min(72vh,640px)">'+arbolSVG()+'</div>';
 }
 window.arbolLayout=arbolLayout; window.arbolSVG=arbolSVG; window.arbolHTML=arbolHTML; window.arbolGente=arbolGente;
 
