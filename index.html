@@ -385,7 +385,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.10.10-91 · depurada";
+var VERSION="2026.10.11-92 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -580,7 +580,7 @@ function nextAnniversary(s){
 function lower1(s){ s=String(s||"").trim(); return s?s.charAt(0).toLowerCase()+s.slice(1):""; }
 function newPerson(){
   var m={}; MOTS.forEach(function(x){ m[x[0]]={n:0,t:""}; });
-  return { id:uid(), tipo:"amigo", genero:"", nombre:"", apodo:"", ciudad:"", grupo:"", comoConocimos:"", politica:"", identidad:"", foto:"", semblanza:"", parejaDe:"", padres:[], soloArbol:false,
+  return { id:uid(), tipo:"amigo", genero:"", nombre:"", apodo:"", ciudad:"", grupo:"", comoConocimos:"", politica:"", identidad:"", foto:"", semblanza:"", parejaDe:"", parejasAnt:[], padres:[], soloArbol:false,
     pareja:"", hijos:"", familia:"", empleo:"", empresa:"", sector:"",
     aficiones:"", deportes:"", musica:"", comida:"", temas:"", evitar:"",
     exito:"", admirado:"", importante:"", preocupa:"", fascina:"", ayuda:"", logros:"", estilo:"",
@@ -603,7 +603,7 @@ function ensure(p){
   }
   ["politica","identidad","foto","semblanza","parejaDe","genero","exito","admirado","importante","preocupa","fascina","ayuda","logros","estilo","sector","meAporta","necesito","buscaDeMi","problema","presume","cebo","decisionCuesta","vestir","humor","discurso","nosUne","nosSepara","hitos","sies","quienesImportan","queQuierenLosSuyos","gustosDeLosSuyos","gesto"]
     .forEach(function(k){ if(p[k]==null) p[k]=""; });
-  ["conexiones","notas","encuentros","pasos","maslowSel","padres"].forEach(function(k){ if(!Array.isArray(p[k])) p[k]=[]; });
+  ["conexiones","notas","encuentros","pasos","maslowSel","padres","parejasAnt"].forEach(function(k){ if(!Array.isArray(p[k])) p[k]=[]; });
   p.soloArbol=!!p.soloArbol;                 /* que llegue como sí o no, no como «no sé» */
   return p;
 }
@@ -2913,6 +2913,7 @@ function arbolGente(){
     var pad=(p.padres||[]).filter(function(id){ return !!byId(id); });
     if(pad.length){ en[p.id]=1; pad.forEach(function(id){ en[id]=1; }); }
     if(p.parejaDe && byId(p.parejaDe)){ en[p.id]=1; en[p.parejaDe]=1; }
+    (p.parejasAnt||[]).forEach(function(x){ if(byId(x)){ en[p.id]=1; en[x]=1; } });
   });
   return Object.keys(en);
 }
@@ -2953,27 +2954,75 @@ function arbolLayout(){
     for(var q=ids.length-1;q>0;q--){ var t=Math.floor(rr()*(q+1)), tmp=ids[q]; ids[q]=ids[t]; ids[t]=tmp; } }
   var padresDe=function(id){ return (byId(id).padres||[]).filter(function(x){ return en[x] && x!==id; }); };
 
-  /* --- parejas --- */
-  var par={};
-  /* 1. lo que hayas marcado a mano manda */
+  /* --- parejas ---
+     Una persona puede haber tenido más de un matrimonio. Antes solo cabía uno
+     («parejaDe») y por eso una segunda boda no se podía dibujar. Ahora se
+     guardan todos los vínculos y luego se decide cómo se colocan. */
+  var socios={};
+  var junta=function(a,b){
+    if(!a||!b||a===b||!en[a]||!en[b]) return;
+    if(!socios[a]) socios[a]=[]; if(socios[a].indexOf(b)<0) socios[a].push(b);
+    if(!socios[b]) socios[b]=[]; if(socios[b].indexOf(a)<0) socios[b].push(a);
+  };
+  /* 1. lo que hayas marcado a mano: la pareja actual y las anteriores */
   ids.forEach(function(i){ var p=byId(i);
-    if(p.parejaDe && en[p.parejaDe] && p.parejaDe!==i && par[i]===undefined && par[p.parejaDe]===undefined){
-      par[i]=p.parejaDe; par[p.parejaDe]=i; } });
+    junta(i,p.parejaDe);
+    (p.parejasAnt||[]).forEach(function(x){ junta(i,x); });
+  });
   /* 2. y quien comparte hijos va junto aunque no lo hayas marcado.
         Si pones «padre y madre» de alguien, esos dos van juntos: es lo que
         espera cualquiera que mire un árbol. Antes salían separados, y si ella
         tenía hermanos se quedaba entre ellos, lejos de él. */
   ids.forEach(function(i){
     var pd=padresDe(i); if(pd.length<2) return;
-    var a=pd[0], b=pd[1];
-    if(a!==b && par[a]===undefined && par[b]===undefined){ par[a]=b; par[b]=a; }
+    junta(pd[0],pd[1]);
   });
+  var esAnterior=function(a,b){
+    return ((byId(a).parejasAnt||[]).indexOf(b)>=0) || ((byId(b).parejasAnt||[]).indexOf(a)>=0);
+  };
 
-  /* --- unidades: lo que va pegado en el dibujo (una persona, o un matrimonio) --- */
+  /* --- unidades: lo que va pegado en el dibujo ---
+     Una persona sola, un matrimonio, o —esto es lo nuevo— alguien que se casó
+     dos veces: va EN MEDIO, con la anterior a un lado y la actual al otro. Es
+     como se dibuja en genealogía, y así cada matrimonio conserva su propio
+     hombro y sus propios hijos, sin mezclar descendencias.
+     Y esto se encadena. Si la segunda mujer, a su vez, tuvo antes un hijo con
+     otra persona, la fila es: ese otro — ella — él — su primera mujer. Así que
+     una unidad no son dos ni tres: es toda la cadena de matrimonios enlazados,
+     puesta en fila. Cada uno queda pegado a todos aquellos con quienes tuvo
+     hijos, que es lo único que el dibujo necesita para no cruzar líneas. */
   var uOf={}, U=[];
-  ids.forEach(function(i){
-    if(uOf[i]!==undefined) return;
-    var m=[i]; if(par[i]!==undefined && uOf[par[i]]===undefined) m.push(par[i]);
+  var vecinos=function(x){ return socios[x]||[]; };
+  ids.forEach(function(raiz){
+    if(uOf[raiz]!==undefined) return;
+    /* 1. el grupo entero de personas enlazadas por matrimonio */
+    var grupo=[], cola=[raiz], dentro={};
+    dentro[raiz]=1;
+    while(cola.length){
+      var c=cola.shift(); grupo.push(c);
+      vecinos(c).forEach(function(v){ if(!dentro[v]){ dentro[v]=1; cola.push(v); } });
+    }
+    /* 2. puesto en fila. Se arranca por una punta —alguien con un solo
+          vínculo— y se va caminando. Se prefiere salir por los matrimonios
+          anteriores, para que los vigentes queden hacia dentro. */
+    var m;
+    if(grupo.length<=2) m=grupo.slice();
+    else{
+      var dentroG={}; grupo.forEach(function(x){ dentroG[x]=1; });
+      var gr=function(x){ return vecinos(x).filter(function(v){ return dentroG[v]; }); };
+      var puntas=grupo.filter(function(x){ return gr(x).length===1; });
+      var ini=puntas.length?puntas[0]:grupo[0];
+      m=[]; var usado={}, act=ini;
+      while(act!==undefined && !usado[act]){
+        usado[act]=1; m.push(act);
+        var sig=gr(act).filter(function(v){ return !usado[v]; });
+        sig.sort(function(a,b){       /* primero lo anterior, que va por fuera */
+          return (esAnterior(act,b)?1:0)-(esAnterior(act,a)?1:0);
+        });
+        act=sig[0];
+      }
+      grupo.forEach(function(x){ if(!usado[x]) m.push(x); });   /* ramificaciones raras */
+    }
     var k=U.length; m.forEach(function(x){ uOf[x]=k; });
     U.push({i:k,m:m,gen:0,ord:0,x:0,comp:0});
   });
@@ -3003,10 +3052,11 @@ function arbolLayout(){
       if(g!==gen[i]){ gen[i]=g; cambio=true; }
     });
     ids.forEach(function(i){                                   /* 2 */
-      var j=par[i]; if(j===undefined) return;
-      var mx=Math.max(gen[i],gen[j]);
+      var ss=socios[i]; if(!ss || !ss.length) return;
+      var mx=gen[i];
+      ss.forEach(function(j){ if(gen[j]>mx) mx=gen[j]; });
       if(gen[i]!==mx){ gen[i]=mx; cambio=true; }
-      if(gen[j]!==mx){ gen[j]=mx; cambio=true; }
+      ss.forEach(function(j){ if(gen[j]!==mx){ gen[j]=mx; cambio=true; } });
     });
     ids.forEach(function(i){                                   /* 3 */
       var hs=hermanosDe[i]; if(!hs || !hs.length) return;
@@ -3548,13 +3598,25 @@ function arbolSVG(){
     });
   });
 
-  /* las parejas, cogidas de la mano */
+  /* las parejas, cogidas de la mano · un vínculo por cada matrimonio.
+     El anterior va en gris y a trazos; el vigente, en rosa con su corazón. */
+  var esAnt=function(a,b){
+    var A=byId(a), B=byId(b); if(!A||!B) return false;
+    return ((A.parejasAnt||[]).indexOf(b)>=0) || ((B.parejasAnt||[]).indexOf(a)>=0);
+  };
   U.forEach(function(u){
     if(u.m.length<2) return;
-    var mx=(px(u,0)+px(u,1))/2, my=py(u);
-    s.push('<line x1="'+(px(u,0)+R).toFixed(1)+'" y1="'+my+'" x2="'+(px(u,1)-R).toFixed(1)+'" y2="'+my+'" stroke="#c58fb0" stroke-width="3"/>');
-    s.push('<circle cx="'+mx.toFixed(1)+'" cy="'+my+'" r="9" fill="#ffffff"/>');
-    s.push('<text x="'+mx.toFixed(1)+'" y="'+(my+4)+'" text-anchor="middle" font-size="12" fill="#c0709a">♥</text>');
+    for(var j=0;j+1<u.m.length;j++){
+      var ant=esAnt(u.m[j],u.m[j+1]);
+      var x1=px(u,j)+R, x2=px(u,j+1)-R, mx=(px(u,j)+px(u,j+1))/2, my=py(u);
+      s.push('<line x1="'+x1.toFixed(1)+'" y1="'+my+'" x2="'+x2.toFixed(1)+'" y2="'+my+'" stroke="'
+        +(ant?"#9aa6b6":"#c58fb0")+'" stroke-width="'+(ant?"2.4":"3")+'"'
+        +(ant?' stroke-dasharray="5 4"':'')+'/>');
+      s.push('<circle cx="'+mx.toFixed(1)+'" cy="'+my+'" r="9" fill="#ffffff"/>');
+      s.push('<text x="'+mx.toFixed(1)+'" y="'+(my+4)+'" text-anchor="middle" font-size="'
+        +(ant?"10":"12")+'" fill="'+(ant?"#8b97a8":"#c0709a")+'">'+(ant?"◦":"♥")+'</text>');
+      if(ant) s.push('<title>Matrimonio anterior</title>');
+    }
   });
 
   /* y las personas, como hojas */
@@ -3975,6 +4037,23 @@ function renderTree(){
    +'</div>'
    +'<div class="fld" style="max-width:340px"><label>Pareja de</label><select id="tr_parejaDe">'
    + opcionesPersonas(sel.parejaDe||"",sel.id)+'</select></div>'
+   +(function(){
+      /* Segundas nupcias: viudedad o separación. Van aparte de la pareja
+         actual para que el dibujo sepa cuál es cuál. */
+      var ant=(sel.parejasAnt||[]).map(byId).filter(Boolean);
+      var c='<div class="fld" style="max-width:340px"><label>Parejas anteriores '
+       +'<span style="font-weight:400;color:var(--muted)">· viudedad o separación</span></label>';
+      if(ant.length) c+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'
+        +ant.map(function(x){
+          return '<span class="pill" style="background:#eef1f6;color:#5a6b80;padding:4px 9px">'
+            +esc(x.nombre||"(sin nombre)")
+            +'<button class="btnx" style="margin-left:6px" title="Quitar" onclick="treeQuitarAnt(\''+x.id+'\')">✕</button></span>';
+        }).join("")+'</div>';
+      c+='<select id="tr_addAnt" onchange="treeAnadirAnt(this.value)">'
+        +opcionesPersonas("",sel.id).replace("<option value=\"\">","<option value=\"\">+ Añadir pareja anterior…")
+        +'</select></div>';
+      return c;
+    })()
    +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 2px">'
    +'<button class="btn sm" onclick="treeCrear(\'padre\',\''+sel.id+'\')">+ Padre o madre</button>'
    +'<button class="btn sm" onclick="treeCrear(\'pareja\',\''+sel.id+'\')">+ Pareja</button>'
@@ -4033,6 +4112,28 @@ function renderTree(){
     e.addEventListener("change",function(){ clearTimeout(deb); deb=setTimeout(auto,300); });
   });
 }
+/* Segundas nupcias: añadir y quitar una pareja anterior. */
+function treeAnadirAnt(id){
+  var p=byId(treeSel); if(!p||!id) return;
+  if(id===p.id){ toast("No puede ser pareja de sí mismo"); renderTree(); return; }
+  if(id===p.parejaDe){ toast("Esa ya es la pareja actual"); renderTree(); return; }
+  if(!Array.isArray(p.parejasAnt)) p.parejasAnt=[];
+  if(p.parejasAnt.indexOf(id)<0) p.parejasAnt.push(id);
+  var q=byId(id);
+  if(q){ if(!Array.isArray(q.parejasAnt)) q.parejasAnt=[];
+    if(q.parejasAnt.indexOf(p.id)<0 && q.parejaDe!==p.id) q.parejasAnt.push(p.id); }
+  save(); renderTree();
+  toast("Añadida como pareja anterior");
+}
+function treeQuitarAnt(id){
+  var p=byId(treeSel); if(!p) return;
+  p.parejasAnt=(p.parejasAnt||[]).filter(function(x){ return x!==id; });
+  var q=byId(id);
+  if(q) q.parejasAnt=(q.parejasAnt||[]).filter(function(x){ return x!==p.id; });
+  save(); renderTree();
+}
+window.treeAnadirAnt=treeAnadirAnt; window.treeQuitarAnt=treeQuitarAnt;
+
 function treeGuardar(silencioso){
   var p=byId(treeSel); if(!p) return;
   var v=function(id){ var e=document.getElementById(id); return e?e.value:""; };
@@ -4048,6 +4149,14 @@ function treeGuardar(silencioso){
   /* la pareja, en los dos sentidos: si no, el dibujo los separa */
   state.people.forEach(function(x){ if(x.id!==p.id && x.parejaDe===p.id && p.parejaDe!==x.id) x.parejaDe=""; });
   if(p.parejaDe){ var pj=byId(p.parejaDe); if(pj) pj.parejaDe=p.id; }
+  /* nadie puede ser a la vez la pareja actual y una anterior */
+  p.parejasAnt=(p.parejasAnt||[]).filter(function(x){ return x && x!==p.id && x!==p.parejaDe && byId(x); });
+  p.parejasAnt.forEach(function(x){                       /* el vínculo, en los dos sentidos */
+    var q=byId(x); if(!q) return;
+    if(!Array.isArray(q.parejasAnt)) q.parejasAnt=[];
+    if(q.parejaDe===p.id) return;
+    if(q.parejasAnt.indexOf(p.id)<0) q.parejasAnt.push(p.id);
+  });
   save();
   var g=document.getElementById("trGuardado"); if(g) g.textContent="Guardado ✓";
   if(!silencioso) toast("Guardado · "+p.nombre);
@@ -6501,8 +6610,8 @@ function loQueFalta(d){
     var m=mios[q.id]||porNom[String(q.nombre||"").trim().toLowerCase()];
     if(!m){ r.fichas.push(q.nombre||"(sin nombre)"); return; }
     /* la misma ficha, pero allí tiene parentesco y aquí no */
-    var alla=((q.padres||[]).length?1:0)+(q.parejaDe?1:0)+(q.semblanza?1:0);
-    var aqui=((m.padres||[]).length?1:0)+(m.parejaDe?1:0)+(m.semblanza?1:0);
+    var alla=((q.padres||[]).length?1:0)+(q.parejaDe?1:0)+((q.parejasAnt||[]).length?1:0)+(q.semblanza?1:0);
+    var aqui=((m.padres||[]).length?1:0)+(m.parejaDe?1:0)+((m.parejasAnt||[]).length?1:0)+(m.semblanza?1:0);
     if(alla>aqui) r.arbol.push(q.nombre||"(sin nombre)");
   });
   var mn={}; (state.notasPers||[]).forEach(function(n){ mn[n.id]=1; });
@@ -6975,6 +7084,10 @@ function fusionarPersona(a,b){
         var key=(typeof x==="string")?x:(x.id||JSON.stringify([x.d,x.t,x.fecha,x.motivo]));
         if(seen[key]) return; seen[key]=1; arr.push(x);
       });
+      if(k==="parejasAnt"){            /* como los padres: se elige, no se suma */
+        r[k] = ((r[k]||[]).length ? r[k] : (vb||[]));
+        return;
+      }
       if(k==="padres"){
         /* AQUÍ ESTABA EL FALLO. Uniendo las dos listas y recortando a dos salía
            un padre de un aparato y una madre del otro: un parentesco que no
@@ -7019,7 +7132,9 @@ function fusionar(actuales,entrantes){
    copia está sellada, gana la que tenga más parentesco, que es lo más probable. */
 function relCuenta(gente){
   var n=0;
-  (gente||[]).forEach(function(p){ n+=(p.padres||[]).length+(p.parejaDe?1:0); });
+  (gente||[]).forEach(function(p){
+    n+=(p.padres||[]).length+(p.parejaDe?1:0)+((p.parejasAnt||[]).length);
+  });
   return n;
 }
 function arbolSello(){ return (state.arbolSello&&state.arbolSello.ts)?state.arbolSello:null; }
@@ -7044,7 +7159,7 @@ function arbolTraerDe(otras){
     if(m) mapa[q.id]=m.id;
   });
   var tr=function(id){ if(!id) return ""; return mapa[id]||(byId[id]?id:""); };
-  state.people.forEach(function(p){ p.padres=[]; p.parejaDe=""; });
+  state.people.forEach(function(p){ p.padres=[]; p.parejaDe=""; p.parejasAnt=[]; });
   var n=0;
   (otras||[]).forEach(function(q){
     var mid=mapa[q.id]; if(!mid) return;
@@ -7052,7 +7167,8 @@ function arbolTraerDe(otras){
     m.padres=(q.padres||[]).map(tr).filter(function(x){ return x && x!==mid; }).slice(0,2);
     m.parejaDe=tr(q.parejaDe||"");
     if(m.parejaDe===mid) m.parejaDe="";
-    n+=m.padres.length+(m.parejaDe?1:0);
+    m.parejasAnt=(q.parejasAnt||[]).map(tr).filter(function(x){ return x && x!==mid && x!==m.parejaDe; });
+    n+=m.padres.length+(m.parejaDe?1:0)+m.parejasAnt.length;
   });
   return n;
 }
