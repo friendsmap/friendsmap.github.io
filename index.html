@@ -385,7 +385,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.10.09-90 · depurada";
+var VERSION="2026.10.10-91 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -417,7 +417,8 @@ var TIPOS_BASE=[
   ["profesional","Profesional","#4a6fa5"],
   ["fabricante","Fabricante","#d99b2b"],
   ["proveedor","Proveedor","#20b6a6"],
-  ["cliente","Cliente","#e2543f"]
+  ["cliente","Cliente","#e2543f"],
+  ["empleador","Posible empleador","#b0563f"]
 ];
 var TIPOS=TIPOS_BASE.slice();
 /* Las categorías que crees tú se guardan aquí: {id, nombre, color, amb} */
@@ -429,7 +430,7 @@ function tipoMios(){ if(!state.tipoMio || typeof state.tipoMio!=="object") state
 function reconstruyeTipos(){
   TIPOS=TIPOS_BASE.slice();
   AMBITOS[0].tipos=["personal","amigo","conocido","familiar"];
-  AMBITOS[1].tipos=["profesional","fabricante","proveedor","cliente"];
+  AMBITOS[1].tipos=["profesional","fabricante","proveedor","cliente","empleador"];
   tiposExtra().forEach(function(x){
     if(esTipoBase(x.id)) return;
     TIPOS.push([x.id,x.nombre,x.color]);
@@ -471,13 +472,14 @@ function load(){
     if(!raw){ for(var vi=0;vi<KEY_VIEJAS.length&&!raw;vi++) raw=localStorage.getItem(KEY_VIEJAS[vi]); }
     if(raw) HABIA_DATOS=true;
     if(raw){ var d=JSON.parse(raw); state.people=Array.isArray(d.people)?d.people:[]; state.me=d.me||null; state.circExtra=Array.isArray(d.circExtra)?d.circExtra:[]; state.tipoExtra=Array.isArray(d.tipoExtra)?d.tipoExtra:[]; state.agenda=Array.isArray(d.agenda)?d.agenda:[]; state.notasPers=Array.isArray(d.notasPers)?d.notasPers:[];
-      state.tipoMio=(d.tipoMio&&typeof d.tipoMio==="object")?d.tipoMio:{}; }
+      state.tipoMio=(d.tipoMio&&typeof d.tipoMio==="object")?d.tipoMio:{};
+      state.arbolSello=(d.arbolSello&&d.arbolSello.ts)?d.arbolSello:null; }
   try{ reconstruyeTipos(); }catch(e){}
   }catch(e){ state.people=[]; }
   if(!state.me) state.me=newMe();
 }
 function save(){
-  try{ localStorage.setItem(KEY,JSON.stringify({people:state.people,me:state.me,circExtra:state.circExtra||[],tipoExtra:state.tipoExtra||[],agenda:state.agenda||[],notasPers:state.notasPers||[],tipoMio:state.tipoMio||{},v:3,saved:new Date().toISOString()})); }
+  try{ localStorage.setItem(KEY,JSON.stringify({people:state.people,me:state.me,circExtra:state.circExtra||[],tipoExtra:state.tipoExtra||[],agenda:state.agenda||[],notasPers:state.notasPers||[],tipoMio:state.tipoMio||{},arbolSello:state.arbolSello||null,v:3,saved:new Date().toISOString()})); }
   catch(e){ if(!save.warned){ save.warned=true;
     alert("Este navegador no permite guardar datos localmente. Usa Sincronizar para no perder lo que escribas."); } }
   try{ if(gdActivo()){ gdProgramar(); } else { programarSync(); } revisarAvisos(); }catch(e){}
@@ -512,6 +514,32 @@ function sembrarMisTextos(){
     save();
   }catch(e){}
 }
+
+
+/* TSK y TSG entran como posibles empleadores. Se añaden una sola vez y solo si
+   esta instalación ya tenía datos: una instalación nueva no hereda nada.
+   Si ya tienes una ficha con ese nombre, no se toca. */
+function sembrarEmpleadores(){
+  try{
+    if(!state.me) state.me=newMe();
+    if(state.me.emp1) return;
+    state.me.emp1=1;
+    if(HABIA_DATOS && state.people.length){
+      ["TSK","TSG"].forEach(function(n){
+        var ya=state.people.some(function(p){
+          return String(p.nombre||"").trim().toLowerCase()===n.toLowerCase(); });
+        if(ya) return;
+        var p=newPerson();
+        p.nombre=n; p.tipo="empleador"; p.empresa=n;
+        p.sector="Ingeniería y construcción · energía";
+        p.semblanza="Posible empleador. Apunta aquí qué buscan, a quién conoces dentro y por dónde entrar.";
+        state.people.push(p);
+      });
+    }
+    save();
+  }catch(e){}
+}
+window.sembrarEmpleadores=sembrarEmpleadores;
 
 function applySeed(){
   if(!SEED) return;
@@ -3784,8 +3812,12 @@ function arbolHTML(){
     +' · toca a alguien para abrir su sitio</div>'
     +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px">'
     +'<button class="btn sm" onclick="arbolReorganizar()" title="Prueba otras colocaciones y se queda con la que menos ramas cruza">↻ Reorganizar</button>'
+    +(function(){ var s=arbolSello(); return s
+        ? '<span style="font-size:11px;color:#2e7d52;align-self:center">✓ marcado como bueno · '
+          +s.n+' relaciones</span>' : ''; })()
     +'<button class="btn sm" onclick="arbolZoom(0.8)" title="Reducir">−</button>'
     +'<button class="btn sm" onclick="arbolAjustar()" title="Que quepa entero: de ancho y de alto">Ver entero</button>'
+    +'<button class="btn sm" onclick="arbolMarcarBueno()" title="Dice que el árbol de este aparato es el correcto. Al combinar, sustituye al del otro.">✓ Éste es el bueno</button>'
     +'<button class="btn sm" onclick="arbolZoom(1.25)" title="Ampliar">+</button>'
     +'<span id="arbolPc" style="font-size:11.5px;color:var(--muted);min-width:38px">100%</span>'
     +'<button class="btn sm" onclick="arbolExportar(\'pdf\')" title="Un PDF de una página con el árbol">⬇ PDF</button>'
@@ -6456,9 +6488,17 @@ function gdSubir(tok){
 function loQueFalta(d){
   var r={fichas:[],notas:0,citas:0,arbol:[],hay:false};
   if(!d || !Array.isArray(d.people)) return r;
-  var mios={}; (state.people||[]).forEach(function(p){ mios[p.id]=p; });
+  var mios={}, porNom={};
+  (state.people||[]).forEach(function(p){
+    mios[p.id]=p;
+    var n=String(p.nombre||"").trim().toLowerCase();
+    if(n && !porNom[n]) porNom[n]=p;
+  });
   d.people.forEach(function(q){
-    var m=mios[q.id];
+    /* Por id Y por nombre, igual que al combinar. Si solo se mirara el id, una
+       misma persona creada por separado en cada aparato figuraría como «falta
+       aquí» para siempre, y el guardián no dejaría subir nunca. */
+    var m=mios[q.id]||porNom[String(q.nombre||"").trim().toLowerCase()];
     if(!m){ r.fichas.push(q.nombre||"(sin nombre)"); return; }
     /* la misma ficha, pero allí tiene parentesco y aquí no */
     var alla=((q.padres||[]).length?1:0)+(q.parejaDe?1:0)+(q.semblanza?1:0);
@@ -6685,6 +6725,7 @@ function payload(){ return JSON.stringify({
   circExtra:state.circExtra||[], tipoExtra:state.tipoExtra||[],
   agenda:state.agenda||[], notasPers:state.notasPers||[],
   tipoMio:state.tipoMio||{},
+  arbolSello:state.arbolSello||null,
   v:3, saved:new Date().toISOString()
 },null,2); }
 function setSync(t){ var e=document.getElementById("syncSt"); if(e) e.textContent=t||""; FS.msg=t||""; }
@@ -6934,7 +6975,15 @@ function fusionarPersona(a,b){
         var key=(typeof x==="string")?x:(x.id||JSON.stringify([x.d,x.t,x.fecha,x.motivo]));
         if(seen[key]) return; seen[key]=1; arr.push(x);
       });
-      if(k==="padres") arr=arr.slice(0,2);     /* nadie tiene tres padres */
+      if(k==="padres"){
+        /* AQUÍ ESTABA EL FALLO. Uniendo las dos listas y recortando a dos salía
+           un padre de un aparato y una madre del otro: un parentesco que no
+           existe en ninguna de las dos copias. El parentesco no se suma.
+           Si aquí ya hay padres, mandan los de aquí; si no hay, se traen enteros.
+           Cuál de los dos árboles manda se decide arriba, a la vista, no aquí. */
+        r[k] = ((r[k]||[]).length ? r[k] : (vb||[])).slice(0,2);
+        return;
+      }
       r[k]=arr; return;
     }
     /* Un id de pareja o una foto no son prosa: pegarlos uno detrás de otro
@@ -6963,6 +7012,70 @@ function fusionar(actuales,entrantes){
   });
   return orden.map(function(k){ return byId[k]; });
 }
+/* ---------- ¿QUÉ ÁRBOL ES EL BUENO? ----------
+   Dos aparatos, dos árboles distintos. No hay forma automática de saber cuál
+   es el correcto: lo sabes tú. Así que lo dices tú, con un botón, y queda
+   sellado con la fecha. Al combinar, gana el sello más reciente. Si ninguna
+   copia está sellada, gana la que tenga más parentesco, que es lo más probable. */
+function relCuenta(gente){
+  var n=0;
+  (gente||[]).forEach(function(p){ n+=(p.padres||[]).length+(p.parejaDe?1:0); });
+  return n;
+}
+function arbolSello(){ return (state.arbolSello&&state.arbolSello.ts)?state.arbolSello:null; }
+function arbolQuienGana(d){
+  var mio=(arbolSello()||{}).ts||0, suyo=((d&&d.arbolSello)||{}).ts||0;
+  if(mio||suyo) return suyo>mio?"otro":"mio";
+  return relCuenta(d&&d.people)>relCuenta(state.people)?"otro":"mio";
+}
+/* Sustituye el árbol de aquí por el de esa copia, entero. Las fichas no se
+   tocan: solo el parentesco y las parejas. Los identificadores se traducen,
+   porque la misma persona puede tener id distinto en cada aparato. */
+function arbolTraerDe(otras){
+  var byId={}, porNom={};
+  state.people.forEach(function(p){
+    byId[p.id]=p;
+    var n=String(p.nombre||"").trim().toLowerCase();
+    if(n && !porNom[n]) porNom[n]=p;
+  });
+  var mapa={};
+  (otras||[]).forEach(function(q){
+    var m=byId[q.id]||porNom[String(q.nombre||"").trim().toLowerCase()];
+    if(m) mapa[q.id]=m.id;
+  });
+  var tr=function(id){ if(!id) return ""; return mapa[id]||(byId[id]?id:""); };
+  state.people.forEach(function(p){ p.padres=[]; p.parejaDe=""; });
+  var n=0;
+  (otras||[]).forEach(function(q){
+    var mid=mapa[q.id]; if(!mid) return;
+    var m=byId[mid];
+    m.padres=(q.padres||[]).map(tr).filter(function(x){ return x && x!==mid; }).slice(0,2);
+    m.parejaDe=tr(q.parejaDe||"");
+    if(m.parejaDe===mid) m.parejaDe="";
+    n+=m.padres.length+(m.parejaDe?1:0);
+  });
+  return n;
+}
+/* El botón: «el árbol de este aparato es el bueno». */
+function arbolMarcarBueno(){
+  var n=relCuenta(state.people);
+  if(!n){ alert("Este aparato no tiene ningún parentesco guardado. Márcalo en el aparato donde el árbol esté bien."); return; }
+  if(!confirm("Vas a marcar el árbol de ESTE aparato como el bueno.\n\n"
+    +n+" relaciones de parentesco y pareja.\n\n"
+    +"Cuando el otro aparato combine, su árbol se sustituirá por éste. "
+    +"Las fichas NO se pierden en ninguno de los dos: solo cambia el parentesco.\n\n¿Sigo?")) return;
+  state.arbolSello={ts:Date.now(), n:n};
+  save();
+  alert("Marcado.\n\nAhora, en ESTE aparato:\n"
+   +"⋯ → Sincronizar → Traer fichas de Drive → Combinar.\n\n"
+   +"Tu árbol se mantiene, porque es el que acabas de marcar, y se suma cualquier ficha que te falte. "
+   +"Después ya sube solo, y en el otro aparato basta con Traer de Drive → Combinar.");
+  renderTree();
+}
+window.relCuenta=relCuenta; window.arbolSello=arbolSello;
+window.arbolQuienGana=arbolQuienGana; window.arbolTraerDe=arbolTraerDe;
+window.arbolMarcarBueno=arbolMarcarBueno;
+
 function elegirComo(d,origen){
   var n=(d.people||[]).length;
   var mios=state.people.length;
@@ -6981,7 +7094,11 @@ function elegirComo(d,origen){
   document.getElementById("fu_combinar").onclick=function(){
     try{
       var antes=state.people.length, nAntes=(state.notasPers||[]).length;
+      var gana=arbolQuienGana(d);                 /* decidido ANTES de fusionar */
       state.people=fusionar(state.people,d.people||[]);
+      /* El árbol no se suma: viene entero de la copia que manda. */
+      var relOk=(gana==="otro") ? arbolTraerDe(d.people||[]) : relCuenta(state.people);
+      if(gana==="otro" && d.arbolSello) state.arbolSello=d.arbolSello;
       state.me=state.me||newMe();
       if(d.me) Object.keys(d.me).forEach(function(k){
         if(typeof d.me[k]==="number"){ if(!state.me[k]) state.me[k]=d.me[k]; return; }
@@ -6998,6 +7115,9 @@ function elegirComo(d,origen){
       });
       reconstruyeTipos();
       save(); closeModal(); renderSeg(); renderAll();
+      toast(gana==="otro"
+        ? "Árbol: se ha quedado el de la otra copia ("+relOk+" relaciones)"
+        : "Árbol: se ha quedado el de este aparato ("+relOk+" relaciones)");
       try{ renderNotasPers(); renderAgenda(); }catch(e){}
       var nn=(state.notasPers||[]).length;
       toast("Combinado: "+state.people.length+" fichas"
@@ -7021,6 +7141,7 @@ function aplicarDatos(d){
   if(Array.isArray(d.agenda)) state.agenda=d.agenda;
   if(Array.isArray(d.notasPers)) state.notasPers=d.notasPers;
   if(d.tipoMio && typeof d.tipoMio==="object") state.tipoMio=d.tipoMio;
+  if(d.arbolSello && d.arbolSello.ts) state.arbolSello=d.arbolSello;
   /* si el archivo es de una versión vieja y no las trae, no se borran las de aquí */
   reconstruyeTipos();
   save(); renderSeg(); renderAll();
@@ -7967,6 +8088,7 @@ initGraphEvents();
 try{ reconstruyeTipos(); renderSeg(); }catch(e){}
 try{ ajustaModosMapa(); }catch(e){}
 try{ sembrarMisTextos(); }catch(e){}
+try{ sembrarEmpleadores(); }catch(e){}
 try{ limpiarBusqueda(false); }catch(e){}
 renderAll();
 /* La etiqueta de versión se pinta desde VERSION, nunca a mano. */
