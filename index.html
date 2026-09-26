@@ -385,7 +385,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.10.11-92 · depurada";
+var VERSION="2026.10.12-93 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -6595,8 +6595,17 @@ function gdSubir(tok){
    el último pisaba al otro, y por eso el escritorio se quedaba con menos fichas,
    sin árbol y sin notas. */
 function loQueFalta(d){
-  var r={fichas:[],notas:0,citas:0,arbol:[],hay:false};
+  var r={fichas:[],notas:0,citas:0,arbol:[],hay:false,
+         selloNuevo:false, relAlla:0, relAqui:0, arbolMejor:false};
   if(!d || !Array.isArray(d.people)) return r;
+  /* El árbol, mirado como un todo y no ficha a ficha. Subir a Drive REEMPLAZA
+     el archivo: si arriba hay un árbol mejor o marcado como bueno, pisarlo lo
+     destruye para siempre. */
+  r.relAlla=relCuenta(d.people);
+  r.relAqui=relCuenta(state.people);
+  var selloAlla=((d.arbolSello||{}).ts)||0, selloAqui=((state.arbolSello||{}).ts)||0;
+  r.selloNuevo = selloAlla>selloAqui;
+  r.arbolMejor = !selloAlla && !selloAqui && r.relAlla > r.relAqui+2;
   var mios={}, porNom={};
   (state.people||[]).forEach(function(p){
     mios[p.id]=p;
@@ -6618,7 +6627,7 @@ function loQueFalta(d){
   r.notas=(d.notasPers||[]).filter(function(n){ return !mn[n.id]; }).length;
   var ma={}; (state.agenda||[]).forEach(function(a){ ma[a.id]=1; });
   r.citas=(d.agenda||[]).filter(function(a){ return !ma[a.id]; }).length;
-  r.hay=!!(r.fichas.length||r.notas||r.citas||r.arbol.length);
+  r.hay=!!(r.fichas.length||r.notas||r.citas||r.arbol.length||r.arbolMejor);
   return r;
 }
 function textoFalta(f){
@@ -6626,6 +6635,7 @@ function textoFalta(f){
   if(f.fichas.length) t.push(f.fichas.length+" ficha"+(f.fichas.length===1?"":"s")+" que aquí no tienes ("
     +f.fichas.slice(0,4).join(", ")+(f.fichas.length>4?"…":"")+")");
   if(f.arbol.length)  t.push(f.arbol.length+" persona"+(f.arbol.length===1?"":"s")+" con datos de árbol más completos");
+  if(f.arbolMejor)    t.push("un árbol más completo ("+f.relAlla+" relaciones de parentesco frente a "+f.relAqui+" de aquí)");
   if(f.notas)         t.push(f.notas+" nota"+(f.notas===1?"":"s")+" personal"+(f.notas===1?"":"es"));
   if(f.citas)         t.push(f.citas+" cita"+(f.citas===1?"":"s")+" en la agenda");
   return t.join("\n· ");
@@ -6639,7 +6649,9 @@ function avisoDrivePisar(f){
   alert("No he subido a Drive para no borrarte nada.\n\n"
     +"En Drive hay cosas que en este aparato no están:\n· "+textoFalta(f)
     +"\n\nAbre ⋯ → Sincronizar y pulsa «Traer fichas de Drive» → Combinar. "
-    +"Después ya se guardará solo con normalidad.");
+    +"Después ya se guardará solo con normalidad."
+    +(f.arbolMejor?"\n\nSi el árbol bueno es el de ESTE aparato, ve a Tree y pulsa "
+      +"«Éste es el bueno» antes de combinar.":""));
 }
 window.avisoDrivePisar=avisoDrivePisar;
 
@@ -6654,6 +6666,22 @@ function gdSyncSubir(){
       })
       .then(function(remoto){
         var f=loQueFalta(remoto);
+        /* Si arriba hay un árbol marcado como bueno más reciente, este aparato
+           lo adopta ANTES de subir. Es lo que hace que el árbol del escritorio
+           llegue al móvil solo, sin combinar a mano. Las fichas no se tocan:
+           solo el parentesco. */
+        if(f.selloNuevo && !GD.adoptando && remoto && remoto.people){
+          GD.adoptando=true;
+          try{
+            var n=arbolTraerDe(remoto.people);
+            state.arbolSello=remoto.arbolSello;
+            save();
+            try{ if(state.tab==="tree") renderTree(); }catch(e2){}
+            toast("Árbol actualizado desde el otro aparato ("+n+" relaciones)");
+          }catch(e1){}
+          GD.adoptando=false;
+          f=loQueFalta(remoto);
+        }
         if(f.hay){
           GD.pendiente=f;
           setSync("Drive tiene datos sin traer · no he subido");
@@ -7435,7 +7463,9 @@ function openSync(){
      +'<b style="color:#b3455b">Drive tiene datos que aquí no están</b><br>'
      +'<span style="font-size:12.5px">· '+esc(textoFalta(GD.pendiente)).replace(/\n/g,"<br>· ")+'</span>'
      +'<br><span style="font-size:11.5px;color:var(--muted)">No he subido nada para no borrártelos. '
-     +'Pulsa <b>Traer fichas de Drive</b> y luego <b>Combinar</b>.</span></div>';
+     +'Pulsa <b>Traer fichas de Drive</b> y luego <b>Combinar</b>.'
+     +(GD.pendiente.arbolMejor?' Y si el árbol correcto es el de este aparato, márcalo antes en '
+       +'<b>Tree → Éste es el bueno</b>.':'')+'</span></div>';
   }
   h+='<div class="infobox" style="margin-bottom:12px"><b>En este aparato:</b> '+esc(resumenDatos())
    +'<br><span style="font-size:11.5px;color:var(--muted)">Compara este recuento con el del otro aparato después de sincronizar. '
