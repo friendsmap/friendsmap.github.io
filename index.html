@@ -385,7 +385,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.10.12-93 · depurada";
+var VERSION="2026.10.13-94 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -6682,6 +6682,27 @@ function gdSyncSubir(){
           GD.adoptando=false;
           f=loQueFalta(remoto);
         }
+        if(f.hay && !GD.uniendo && remoto && remoto.people){
+          /* AQUÍ ESTABA EL ATASCO. El guardián se negaba a subir para no
+             borrar lo de arriba, pero nada bajaba: el aparato que iba corto se
+             quedaba corto para siempre. Como combinar ya no puede destruir
+             nada, se hace solo y después se sube. */
+          GD.uniendo=true;
+          try{
+            var r=combinarDatos(remoto);
+            try{ renderSeg(); renderAll(); renderNotasPers(); renderAgenda(); }catch(e3){}
+            try{ if(state.tab==="tree") renderTree(); }catch(e4){}
+            toast("Puesto al día desde el otro aparato: "+textoCombinado(r));
+            f=loQueFalta(remoto);
+          }catch(e2){
+            GD.uniendo=false;
+            GD.pendiente=f;
+            setSync("No he podido combinar · no he subido");
+            avisoDrivePisar(f);
+            throw {noPisar:true};
+          }
+          GD.uniendo=false;
+        }
         if(f.hay){
           GD.pendiente=f;
           setSync("Drive tiene datos sin traer · no he subido");
@@ -7220,6 +7241,44 @@ window.relCuenta=relCuenta; window.arbolSello=arbolSello;
 window.arbolQuienGana=arbolQuienGana; window.arbolTraerDe=arbolTraerDe;
 window.arbolMarcarBueno=arbolMarcarBueno;
 
+/* ---------- COMBINAR, EN UN SOLO SITIO ----------
+   Lo usaba únicamente el botón del diálogo. Ahora también la sincronización
+   automática, así que vive aquí y no dentro de un onclick.
+   Combinar NUNCA borra: suma fichas, notas, citas y categorías. Lo único que
+   se elige en vez de sumarse es el árbol, que es una estructura. */
+function combinarDatos(d){
+  var antes=state.people.length, nAntes=(state.notasPers||[]).length;
+  var gana=arbolQuienGana(d);                 /* decidido ANTES de fusionar */
+  state.people=fusionar(state.people,d.people||[]);
+  var relOk=(gana==="otro") ? arbolTraerDe(d.people||[]) : relCuenta(state.people);
+  if(gana==="otro" && d.arbolSello) state.arbolSello=d.arbolSello;
+  state.me=state.me||newMe();
+  if(d.me) Object.keys(d.me).forEach(function(k){
+    if(typeof d.me[k]==="number"){ if(!state.me[k]) state.me[k]=d.me[k]; return; }
+    state.me[k]=unirTexto(state.me[k],d.me[k]);
+  });
+  state.notasPers=unirLista(state.notasPers,d.notasPers,function(x){ return x.id||x.t; });
+  state.agenda   =unirLista(state.agenda,   d.agenda,   function(x){ return x.id||(x.titulo+x.fecha); });
+  state.circExtra=unirLista(state.circExtra,d.circExtra,function(x){ return x.n||x; });
+  state.tipoExtra=unirLista(state.tipoExtra,d.tipoExtra,function(x){ return x.id||x; });
+  if(d.tipoMio) Object.keys(d.tipoMio).forEach(function(k){
+    if(!tipoMios()[k]) tipoMios()[k]=d.tipoMio[k];
+  });
+  reconstruyeTipos();
+  save();
+  return {fichas:state.people.length-antes, total:state.people.length,
+          notas:(state.notasPers||[]).length-nAntes,
+          arbol:gana, rel:relOk};
+}
+function textoCombinado(r){
+  var t=[];
+  if(r.fichas>0) t.push(r.fichas+" ficha"+(r.fichas===1?"":"s")+" nueva"+(r.fichas===1?"":"s"));
+  if(r.notas>0)  t.push(r.notas+" nota"+(r.notas===1?"":"s"));
+  t.push("árbol "+(r.arbol==="otro"?"del otro aparato":"de aquí")+" ("+r.rel+" relaciones)");
+  return t.join(" · ");
+}
+window.combinarDatos=combinarDatos; window.textoCombinado=textoCombinado;
+
 function elegirComo(d,origen){
   var n=(d.people||[]).length;
   var mios=state.people.length;
@@ -7237,35 +7296,10 @@ function elegirComo(d,origen){
   document.getElementById("cancel").onclick=closeModal;
   document.getElementById("fu_combinar").onclick=function(){
     try{
-      var antes=state.people.length, nAntes=(state.notasPers||[]).length;
-      var gana=arbolQuienGana(d);                 /* decidido ANTES de fusionar */
-      state.people=fusionar(state.people,d.people||[]);
-      /* El árbol no se suma: viene entero de la copia que manda. */
-      var relOk=(gana==="otro") ? arbolTraerDe(d.people||[]) : relCuenta(state.people);
-      if(gana==="otro" && d.arbolSello) state.arbolSello=d.arbolSello;
-      state.me=state.me||newMe();
-      if(d.me) Object.keys(d.me).forEach(function(k){
-        if(typeof d.me[k]==="number"){ if(!state.me[k]) state.me[k]=d.me[k]; return; }
-        state.me[k]=unirTexto(state.me[k],d.me[k]);
-      });
-      /* Esto faltaba: combinar solo traía las fichas. Las notas, la agenda y
-         las categorías propias se quedaban en el otro aparato. */
-      state.notasPers=unirLista(state.notasPers,d.notasPers,function(x){ return x.id||x.t; });
-      state.agenda   =unirLista(state.agenda,   d.agenda,   function(x){ return x.id||(x.titulo+x.fecha); });
-      state.circExtra=unirLista(state.circExtra,d.circExtra,function(x){ return x.n||x; });
-      state.tipoExtra=unirLista(state.tipoExtra,d.tipoExtra,function(x){ return x.id||x; });
-      if(d.tipoMio) Object.keys(d.tipoMio).forEach(function(k){
-        if(!tipoMios()[k]) tipoMios()[k]=d.tipoMio[k];      /* lo tuyo de aquí manda */
-      });
-      reconstruyeTipos();
-      save(); closeModal(); renderSeg(); renderAll();
-      toast(gana==="otro"
-        ? "Árbol: se ha quedado el de la otra copia ("+relOk+" relaciones)"
-        : "Árbol: se ha quedado el de este aparato ("+relOk+" relaciones)");
+      var r=combinarDatos(d);
+      closeModal(); renderSeg(); renderAll();
       try{ renderNotasPers(); renderAgenda(); }catch(e){}
-      var nn=(state.notasPers||[]).length;
-      toast("Combinado: "+state.people.length+" fichas"
-        +(nn>nAntes?" · "+(nn-nAntes)+" nota"+((nn-nAntes)===1?"":"s")+" nueva"+((nn-nAntes)===1?"":"s"):""));
+      toast("Combinado: "+r.total+" fichas · "+textoCombinado(r));
     }catch(err){
       /* Antes esto moría en silencio: el diálogo se quedaba abierto y no se
          guardaba nada, así que parecía que la sincronización no servía. */
@@ -7447,6 +7481,7 @@ function openSync(){
     +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
     +'<button class="btn primary" id="gd_conectar">'+(gdon?"Reconectar":"Conectar Google Drive")+'</button>'
     +'<button class="btn" id="gd_traer">Traer fichas de Drive</button>'
+    +(gdon?'<button class="btn primary" id="gd_poner">Poner al día ahora</button>':'')
     +(gdon?'<button class="btn" id="gd_ahora">Guardar ahora</button><button class="btn danger" id="gd_desconectar">Desconectar</button>':'')
     +'</div><div id="gd_diag" style="margin-top:8px;font-size:12px;color:var(--muted)"></div></fieldset>';
   if(puede && !gdActivo()){
@@ -7534,6 +7569,28 @@ function openSync(){
   };
   if((b=document.getElementById("gd_conectar"))) b.onclick=gdConectar;
   if((b=document.getElementById("gd_desconectar"))) b.onclick=function(){ gdSet(false); gdSetHint(""); GD.token=null; GD.fileId=null; toast("Drive desconectado en este dispositivo"); openSync(); };
+  if((b=document.getElementById("gd_poner"))) b.onclick=function(){
+    var dg=document.getElementById("gd_diag"); if(dg) dg.textContent="Poniendo al día…";
+    /* Baja lo que haya, lo combina y vuelve a subir. Es lo mismo que hace sola
+       la sincronización, pero cuando tú quieras y sin esperar. */
+    gdToken("").then(function(tok){
+      return (GD.fileId?Promise.resolve():gdBuscar(tok)).then(function(){
+        if(!GD.fileId){ throw new Error("Todavía no hay archivo en tu Drive. Pulsa «Guardar ahora» en el aparato que tenga los datos."); }
+        return gdDescargar(tok);
+      });
+    }).then(function(remoto){
+      if(!remoto || !Array.isArray(remoto.people)) throw new Error("El archivo de Drive no tiene fichas.");
+      var r=combinarDatos(remoto);
+      renderSeg(); renderAll();
+      try{ renderNotasPers(); renderAgenda(); if(state.tab==="tree") renderTree(); }catch(e){}
+      if(dg) dg.textContent="Al día: "+r.total+" fichas · "+textoCombinado(r);
+      toast("Al día: "+textoCombinado(r));
+      return gdSyncSubir();
+    }).catch(function(e){
+      if(dg) dg.textContent="";
+      alert("No he podido poner al día.\n\n"+(e&&e.message||e));
+    });
+  };
   if((b=document.getElementById("gd_ahora"))) b.onclick=function(){ gdSyncSubir().then(function(ok){ if(ok){ closeModal(); toast("Guardado en Drive"); } }); };
   if((b=document.getElementById("gd_traer"))) b.onclick=function(){
     var dg=document.getElementById("gd_diag"); if(dg) dg.textContent="Mirando en tu Drive…";
