@@ -385,7 +385,7 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px}
 
 <script>
 "use strict";
-var VERSION="2026.10.13-94 · depurada";
+var VERSION="2026.10.14-95 · depurada";
 var KEY="friendsMap.v1";
 var KEY_VIEJAS=["mapaAmigos.v3","mapaAmigos.v2","mapaAmigos.v1"]; // se leen si aún no hay datos con el nombre nuevo
 var MOTS=[
@@ -473,13 +473,14 @@ function load(){
     if(raw) HABIA_DATOS=true;
     if(raw){ var d=JSON.parse(raw); state.people=Array.isArray(d.people)?d.people:[]; state.me=d.me||null; state.circExtra=Array.isArray(d.circExtra)?d.circExtra:[]; state.tipoExtra=Array.isArray(d.tipoExtra)?d.tipoExtra:[]; state.agenda=Array.isArray(d.agenda)?d.agenda:[]; state.notasPers=Array.isArray(d.notasPers)?d.notasPers:[];
       state.tipoMio=(d.tipoMio&&typeof d.tipoMio==="object")?d.tipoMio:{};
-      state.arbolSello=(d.arbolSello&&d.arbolSello.ts)?d.arbolSello:null; }
+      state.arbolSello=(d.arbolSello&&d.arbolSello.ts)?d.arbolSello:null;
+      state.borrados=Array.isArray(d.borrados)?d.borrados:[]; }
   try{ reconstruyeTipos(); }catch(e){}
   }catch(e){ state.people=[]; }
   if(!state.me) state.me=newMe();
 }
 function save(){
-  try{ localStorage.setItem(KEY,JSON.stringify({people:state.people,me:state.me,circExtra:state.circExtra||[],tipoExtra:state.tipoExtra||[],agenda:state.agenda||[],notasPers:state.notasPers||[],tipoMio:state.tipoMio||{},arbolSello:state.arbolSello||null,v:3,saved:new Date().toISOString()})); }
+  try{ localStorage.setItem(KEY,JSON.stringify({people:state.people,me:state.me,circExtra:state.circExtra||[],tipoExtra:state.tipoExtra||[],agenda:state.agenda||[],notasPers:state.notasPers||[],tipoMio:state.tipoMio||{},arbolSello:state.arbolSello||null,borrados:state.borrados||[],v:3,saved:new Date().toISOString()})); }
   catch(e){ if(!save.warned){ save.warned=true;
     alert("Este navegador no permite guardar datos localmente. Usa Sincronizar para no perder lo que escribas."); } }
   try{ if(gdActivo()){ gdProgramar(); } else { programarSync(); } revisarAvisos(); }catch(e){}
@@ -580,7 +581,7 @@ function nextAnniversary(s){
 function lower1(s){ s=String(s||"").trim(); return s?s.charAt(0).toLowerCase()+s.slice(1):""; }
 function newPerson(){
   var m={}; MOTS.forEach(function(x){ m[x[0]]={n:0,t:""}; });
-  return { id:uid(), tipo:"amigo", genero:"", nombre:"", apodo:"", ciudad:"", grupo:"", comoConocimos:"", politica:"", identidad:"", foto:"", semblanza:"", parejaDe:"", parejasAnt:[], padres:[], soloArbol:false,
+  return { id:uid(), tipo:"amigo", genero:"", nombre:"", apodo:"", ciudad:"", grupo:"", comoConocimos:"", politica:"", identidad:"", foto:"", semblanza:"", parejaDe:"", parejasAnt:[], padres:[], soloArbol:false, creada:Date.now(),
     pareja:"", hijos:"", familia:"", empleo:"", empresa:"", sector:"",
     aficiones:"", deportes:"", musica:"", comida:"", temas:"", evitar:"",
     exito:"", admirado:"", importante:"", preocupa:"", fascina:"", ayuda:"", logros:"", estilo:"",
@@ -713,6 +714,7 @@ function borrarPersona(id,ev){
   if((p.encuentros||[]).length) extras.push((p.encuentros.length)+" encuentro"+(p.encuentros.length>1?"s":""));
   if(p.discurso) extras.push("su discurso");
   if(!confirm("\u00bfEliminar a "+n+"?"+(extras.length?"\n\nSe borra tambi\u00e9n "+extras.join(", ")+".":"")+"\n\nQuedar\u00e1 una copia en friends-map-anterior.json la pr\u00f3xima vez que sincronices.")) return;
+  anotaBorrado(p);                            /* que el borrado viaje al otro aparato */
   state.people=state.people.filter(function(x){ return x.id!==id; });
   state.people.forEach(function(x){ x.conexiones=(x.conexiones||[]).filter(function(c){ return c!==id; }); });
   try{ limpiaParentesco(id); }catch(e){}      /* y del árbol: padres y parejas */
@@ -3910,6 +3912,7 @@ function treeBorrar(id){
   if(esSoloArbol(p)){
     if(!confirm("Eliminar a «"+(p.nombre||"")+"». Solo existe en el árbol, así que desaparece del todo.\n\n"
       +"Quedará una copia en friends-map-anterior.json la próxima vez que sincronices.")) return;
+    anotaBorrado(p);
     state.people=state.people.filter(function(x){ return x.id!==id; });
     limpiaParentesco(id);
     save(); renderAll(); treeSel=""; renderTree();
@@ -5594,8 +5597,10 @@ function openEdit(id){
   var d=document.getElementById("del");
   if(d) d.onclick=function(){
     if(!confirm("¿Eliminar a "+(p.nombre||"esta persona")+"?")) return;
+    anotaBorrado(p);
     state.people=state.people.filter(function(x){return x.id!==p.id;});
     state.people.forEach(function(x){ x.conexiones=(x.conexiones||[]).filter(function(c){return c!==p.id;}); });
+    try{ limpiaParentesco(p.id); }catch(e){}
     save(); closeModal(); renderAll();
   };
 }
@@ -6616,6 +6621,7 @@ function loQueFalta(d){
     /* Por id Y por nombre, igual que al combinar. Si solo se mirara el id, una
        misma persona creada por separado en cada aparato figuraría como «falta
        aquí» para siempre, y el guardián no dejaría subir nunca. */
+    if(estaBorrado(q)) return;        /* no falta: la borraste tú */
     var m=mios[q.id]||porNom[String(q.nombre||"").trim().toLowerCase()];
     if(!m){ r.fichas.push(q.nombre||"(sin nombre)"); return; }
     /* la misma ficha, pero allí tiene parentesco y aquí no */
@@ -6884,6 +6890,7 @@ function payload(){ return JSON.stringify({
   agenda:state.agenda||[], notasPers:state.notasPers||[],
   tipoMio:state.tipoMio||{},
   arbolSello:state.arbolSello||null,
+  borrados:state.borrados||[],
   v:3, saved:new Date().toISOString()
 },null,2); }
 function setSync(t){ var e=document.getElementById("syncSt"); if(e) e.textContent=t||""; FS.msg=t||""; }
@@ -7159,10 +7166,61 @@ function fusionarPersona(a,b){
   });
   return r;
 }
+/* ---------- CONSTANCIA DE LO BORRADO ----------
+   Combinar solo suma. Sin esto, cada ficha que borrabas volvía en la siguiente
+   sincronización desde la copia del otro aparato. Se guarda el id y el nombre
+   —el nombre porque la misma persona puede tener id distinto en cada aparato,
+   igual que al combinar— y la fecha, para poder olvidarlo pasado un tiempo. */
+var BORRADO_DIAS=90;
+function borrados(){ if(!Array.isArray(state.borrados)) state.borrados=[]; return state.borrados; }
+function anotaBorrado(p){
+  if(!p) return;
+  var L=borrados(), id=p.id||"", n=String(p.nombre||"").trim().toLowerCase();
+  if(L.some(function(x){ return x.id===id; })) return;
+  L.push({id:id, n:n, ts:Date.now()});
+  podaBorrados();
+}
+function podaBorrados(){
+  var t=Date.now()-BORRADO_DIAS*86400000;
+  state.borrados=borrados().filter(function(x){ return (x.ts||0)>t; });
+}
+function estaBorrado(q){
+  if(!q) return false;
+  var n=String(q.nombre||"").trim().toLowerCase();
+  return borrados().some(function(x){
+    return (x.id && x.id===q.id) || (n && x.n===n);
+  });
+}
+/* Une las dos libretas y aplica aquí lo que se borró en el otro aparato. */
+function aplicaBorrados(d){
+  var fuera=[];
+  (d&&Array.isArray(d.borrados)?d.borrados:[]).forEach(function(x){
+    if(!x) return;
+    if(!borrados().some(function(y){ return y.id===x.id; })) borrados().push(x);
+  });
+  podaBorrados();
+  state.people=(state.people||[]).filter(function(p){
+    /* ojo: solo se va si el borrado es POSTERIOR a esta ficha, para no borrar
+       a alguien que has vuelto a crear a propósito después */
+    var b=borrados().filter(function(x){
+      return x.id===p.id || (x.n && x.n===String(p.nombre||"").trim().toLowerCase()); })[0];
+    if(!b) return true;
+    if(p.creada && b.ts && p.creada>b.ts) return true;
+    fuera.push(p.nombre||"(sin nombre)");
+    try{ limpiaParentesco(p.id); }catch(e){}
+    return false;
+  });
+  return fuera;
+}
+window.borrados=borrados; window.anotaBorrado=anotaBorrado;
+window.estaBorrado=estaBorrado; window.aplicaBorrados=aplicaBorrados;
+window.podaBorrados=podaBorrados;
+
 function fusionar(actuales,entrantes){
   var byId={}, orden=[];
   actuales.forEach(function(p){ var c=ensure(JSON.parse(JSON.stringify(p))); byId[c.id]=c; orden.push(c.id); });
   entrantes.forEach(function(q){
+    if(estaBorrado(q)) return;          /* lo borraste: no vuelve a entrar */
     q=ensure(JSON.parse(JSON.stringify(q)));
     var destino=byId[q.id];
     if(!destino){
@@ -7248,6 +7306,9 @@ window.arbolMarcarBueno=arbolMarcarBueno;
    se elige en vez de sumarse es el árbol, que es una estructura. */
 function combinarDatos(d){
   var antes=state.people.length, nAntes=(state.notasPers||[]).length;
+  /* Primero los borrados, en los dos sentidos, y luego ya se suma. Si no, lo
+     que borraste aquí volvería desde la otra copia. */
+  var fuera=aplicaBorrados(d);
   var gana=arbolQuienGana(d);                 /* decidido ANTES de fusionar */
   state.people=fusionar(state.people,d.people||[]);
   var relOk=(gana==="otro") ? arbolTraerDe(d.people||[]) : relCuenta(state.people);
@@ -7268,12 +7329,14 @@ function combinarDatos(d){
   save();
   return {fichas:state.people.length-antes, total:state.people.length,
           notas:(state.notasPers||[]).length-nAntes,
+          borradas:fuera.length, nombres:fuera,
           arbol:gana, rel:relOk};
 }
 function textoCombinado(r){
   var t=[];
   if(r.fichas>0) t.push(r.fichas+" ficha"+(r.fichas===1?"":"s")+" nueva"+(r.fichas===1?"":"s"));
   if(r.notas>0)  t.push(r.notas+" nota"+(r.notas===1?"":"s"));
+  if(r.borradas>0) t.push(r.borradas+" ficha"+(r.borradas===1?"":"s")+" que borraste en el otro aparato");
   t.push("árbol "+(r.arbol==="otro"?"del otro aparato":"de aquí")+" ("+r.rel+" relaciones)");
   return t.join(" · ");
 }
@@ -7320,6 +7383,7 @@ function aplicarDatos(d){
   if(Array.isArray(d.notasPers)) state.notasPers=d.notasPers;
   if(d.tipoMio && typeof d.tipoMio==="object") state.tipoMio=d.tipoMio;
   if(d.arbolSello && d.arbolSello.ts) state.arbolSello=d.arbolSello;
+  if(Array.isArray(d.borrados)) state.borrados=d.borrados;
   /* si el archivo es de una versión vieja y no las trae, no se borran las de aquí */
   reconstruyeTipos();
   save(); renderSeg(); renderAll();
